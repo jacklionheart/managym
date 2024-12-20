@@ -1,0 +1,31 @@
+{
+    "files.watcherExclude": {
+        "**/build/**": false
+    },
+    "editor.inlineSuggest.enabled": true,
+    "editor.tabCompletion": "on",
+    "editor.stickyTabStops": true,
+    "files.autoSave": "afterDelay",
+    "python.analysis.typeCheckingMode": "standard",
+    "explorer.excludeGitIgnore": true,
+    "makefile.configureOnOpen": true,
+    "makefile.configurations": [],
+    "json.schemas": [],
+    "files.associations": {
+        "*.h": "cpp",
+        "*.cpp": "cpp",
+        "chrono": "cpp"
+    },
+    "clangd.path": "clangd",
+    "clangd.arguments": [
+        "--background-index",
+        "--compile-commands-dir=${workspaceFolder}/build",
+        "--header-insertion=iwyu",
+        "--all-scopes-completion",
+        "--completion-style=detailed",
+        "--header-insertion=never",
+        "--pch-storage=memory",
+        "-j=4",
+        "--enable-config"
+    ]
+}
