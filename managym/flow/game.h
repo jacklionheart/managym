@@ -1,22 +1,19 @@
-// game.h
-#pragma once
+#include <spdlog/spdlog.h>
 
-#include <map>
-#include <memory>
 #include <vector>
 
-#include "graphics/game_display.h"
-#include "rules/mana.h"
-#include "rules/player.h"
-#include "rules/turns/turn.h"
-#include "rules/zones/battlefield.h"
-#include "rules/zones/stack.h"
-#include "rules/zones/zone.h"
-#include "state/card.h"
-
+#include "managym/action/action.h"
+#include "managym/flow/priority.h"
+#include "managym/flow/turn.h"
+#include "managym/render/game_display.h"
+#include "managym/state/battlefield.h"
+#include "managym/state/card.h"
+#include "managym/state/mana.h"
+#include "managym/state/player.h"
+#include "managym/state/zone.h"
 
 class Game {
-public:
+ public:
   std::vector<std::unique_ptr<Player>> players;
   std::map<Player *, Mana> mana_pools;
 
@@ -64,7 +61,7 @@ public:
 };
 
 class GameOverException : public std::exception {
-public:
+ public:
   std::string message;
   GameOverException(const std::string &msg) : message(msg) {}
   const char *what() const noexcept override { return message.c_str(); }

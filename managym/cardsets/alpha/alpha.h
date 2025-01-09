@@ -1,6 +1,6 @@
 #pragma once
 
-#include "state/card.h"
+#include "managym/state/card.h"
 
 // Alpha cards
 Card llanowarElves();

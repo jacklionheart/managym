@@ -1,14 +1,15 @@
 // basic_lands.cpp
 #include "basic_lands.h"
-#include "state/card_registry.h"
+
+#include "managym/state/card_registry.h"
 
 Card createBasicLandCard(const std::string &name, Color color) {
   return Card(name,
-              std::nullopt, // No mana cost for basic lands
+              std::nullopt,  // No mana cost for basic lands
               CardTypes({CardType::LAND}), {"basic"}, {name},
               {ManaAbility(Mana::single(color))},
               "{T}: Add {" + toString(color) + "}.",
-              std::nullopt, // No power
+              std::nullopt,  // No power
               std::nullopt);
 }
 Card basicPlains() { return createBasicLandCard("Plains", Color::WHITE); }

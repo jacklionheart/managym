@@ -13,7 +13,7 @@ Card greyOgre()
 {
   return Card("Grey Ogre", ManaCost::parse("2R"),
               CardTypes({CardType::CREATURE}), {}, {"Ogre"}, {}, "", 2, 2);
-}
+} 
 
 void registerAlpha()
 {

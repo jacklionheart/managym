@@ -1,7 +1,7 @@
 // card_registry.cpp
-#include "state/card_registry.h"
-#include "cardsets/alpha/alpha.h"
-#include "cardsets/basics/basic_lands.h"
+#include "card_registry.h"
+#include "managym/cardsets/alpha/alpha.h"
+#include "managym/cardsets/basics/basic_lands.h"
 #include <format>
 #include <stdexcept>
 
@@ -22,7 +22,7 @@ std::unique_ptr<Card> CardRegistry::instantiate(const std::string &name) {
   if (it != card_map.end()) {
     // Create a new Card instance based on the stored card
     return std::make_unique<Card>(*it->second);
-  } else { 
+  } else {
     throw std::runtime_error("Card not found in registry: " + name);
   }
 }

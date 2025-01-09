@@ -3,7 +3,7 @@
 
 #include <memory>
 
-#include "state/card.h"
+#include "managym/state/card.h"
 
 Card createBasicLandCard(const std::string &name, Color color);
 

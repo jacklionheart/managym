@@ -1,10 +1,12 @@
 #include "action.h"
-#include "rules/game.h"
-#include "rules/turns/combat.h"
-#include "rules/turns/turn.h"
+
+#include <spdlog/spdlog.h>
 
 #include <cassert>
-#include <spdlog/spdlog.h>
+
+#include "managym/rules/turns/combat.h"
+#include "managym/rules/turns/turn.h"
+#include "managym/state/battlefield.h"
 
 Action *Agent::selectAction(ActionSpace *action_space) {
   if (action_space->empty()) {

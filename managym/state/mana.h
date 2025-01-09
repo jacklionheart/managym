@@ -7,49 +7,47 @@
 enum struct Color { COLORLESS, WHITE, BLUE, BLACK, RED, GREEN };
 
 inline std::string toString(Color color) {
-    switch (color) {
+  switch (color) {
     case Color::WHITE:
-        return "W";
+      return "W";
     case Color::BLUE:
-        return "U";
+      return "U";
     case Color::BLACK:
-        return "B";
+      return "B";
     case Color::RED:
-        return "R";
+      return "R";
     case Color::GREEN:
-        return "G";
+      return "G";
     case Color::COLORLESS:
-        return "C";
+      return "C";
     default:
-        return "?";
-    }
+      return "?";
+  }
 }
 
 using Colors = std::set<Color>;
 
-class ManaCost {
-  public:
-    std::map<Color, int> cost;
-    int generic;
+struct ManaCost {
+  std::map<Color, int> cost;
+  int generic;
 
-    ManaCost();
-    [[nodiscard]] static ManaCost parse(const std::string& mana_cost_str);
-    [[nodiscard]] std::string toString() const;
-    [[nodiscard]] Colors colors() const;
-    [[nodiscard]] int manaValue() const;
+  ManaCost();
+  [[nodiscard]] static ManaCost parse(const std::string& mana_cost_str);
+  [[nodiscard]] std::string toString() const;
+  [[nodiscard]] Colors colors() const;
+  [[nodiscard]] int manaValue() const;
 };
 
-class Mana {
-  public:
-    std::map<Color, int> mana;
-    static Mana parse(const std::string& mana_cost_str);
-    static Mana single(Color color);
+struct Mana {
+  std::map<Color, int> mana;
+  static Mana parse(const std::string& mana_cost_str);
+  static Mana single(Color color);
 
-    Mana();
-    void add(const Mana& other);
-    [[nodiscard]] int total() const;
-    [[nodiscard]] bool canPay(const ManaCost& mana_cost) const;
-    void pay(const ManaCost& mana_cost);
-    void clear();
-    [[nodiscard]] std::string toString() const;
+  Mana();
+  void add(const Mana& other);
+  [[nodiscard]] int total() const;
+  [[nodiscard]] bool canPay(const ManaCost& mana_cost) const;
+  void pay(const ManaCost& mana_cost);
+  void clear();
+  [[nodiscard]] std::string toString() const;
 };
