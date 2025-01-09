@@ -10,12 +10,15 @@
 #include "managym/state/zones.h"
 
 CombatPhase::CombatPhase(Turn* parent_turn) : Phase(parent_turn) {
-  steps.emplace_back(new BeginningOfCombatStep(*this));
-  steps.emplace_back(new DeclareAttackersStep(*this));
-  steps.emplace_back(new DeclareBlockersStep(*this));
-  steps.emplace_back(new CombatDamageStep(*this));
-  steps.emplace_back(new EndOfCombatStep(*this));
+  steps.emplace_back(new BeginningOfCombatStep(this));
+  steps.emplace_back(new DeclareAttackersStep(this));
+  steps.emplace_back(new DeclareBlockersStep(this));
+  steps.emplace_back(new CombatDamageStep(this));
+  steps.emplace_back(new EndOfCombatStep(this));
 }
+
+CombatStep::CombatStep(CombatPhase* parent_combat_phase)
+    : Step(parent_combat_phase), combat_phase(parent_combat_phase) {}
 
 void DeclareAttackersStep::initialize() {
   Player* active_player = game()->activePlayer();
@@ -106,6 +109,7 @@ std::unique_ptr<ActionSpace> CombatDamageStep::performTurnBasedActions() {
                    attacker->card->power.value_or(0));
     }
   }
+  turn_based_actions_complete = true;
 
   return nullptr;
 };

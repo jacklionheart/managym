@@ -4,21 +4,23 @@
 
 #include <cassert>
 
-#include "managym/rules/turns/combat.h"
-#include "managym/rules/turns/turn.h"
+#include "managym/flow/combat.h"
+#include "managym/flow/game.h"
+#include "managym/flow/turn.h"
 #include "managym/state/battlefield.h"
+#include "managym/state/zones.h"
 
-Action *Agent::selectAction(ActionSpace *action_space) {
+void Agent::selectAction(ActionSpace *action_space) {
   if (action_space->empty()) {
     throw std::logic_error("No actions in action space");
   }
-  // For now, just select the first action
-  return action_space->actions[0].get();
+  action_space->selectAction(0);
 }
 
 bool ActionSpace::empty() { return actions.empty(); }
 
 void DeclareAttackerAction::execute() {
+  spdlog::info("Player {} Declaring attacker", player->id);
   if (attack) {
     if (!attacker->canAttack()) {
       throw std::logic_error("attacker cannot attack");
@@ -32,12 +34,16 @@ void DeclareAttackerAction::execute() {
 }
 
 void DeclareBlockerAction::execute() {
+  spdlog::info("Player {} Declaring blocker", player->id);
   step->combat_phase->attacker_to_blockers[attacker].push_back(blocker);
 }
 
+PlayLand::PlayLand(Card *card, Player *player, Game *game)
+    : Action(player), game(game), card(card) {}
+
 void PlayLand::execute() {
   spdlog::info("Player {} PlayLand: {}", player->id, card->toString());
-  game->playLand(player->id, card);
+  game->playLand(player, card);
 }
 
 CastSpell::CastSpell(Card *card, Player *player, Game *game)
@@ -49,12 +55,15 @@ CastSpell::CastSpell(Card *card, Player *player, Game *game)
 
 void CastSpell::execute() {
   spdlog::info("Player {} Casting spell: {}", player->id, card->toString());
-  game->zones->battlefield.produceMana(card->mana_cost.value(), player->id);
-  game->castSpell(player->id, card);
-  game->spendMana(player->id, card->mana_cost.value());
+  game->zones->battlefield->produceMana(card->mana_cost.value(), player);
+  game->castSpell(player, card);
+  game->spendMana(player, card->mana_cost.value());
 }
 
 PassPriority::PassPriority(Player *player, PrioritySystem *priority_system)
     : Action(player), priority_system(priority_system) {}
 
-void PassPriority::execute() { priority_system->passPriority(player); }
+void PassPriority::execute() {
+  spdlog::info("Player {} Passing priority", player->id);
+  priority_system->passPriority(player);
+}

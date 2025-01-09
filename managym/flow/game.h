@@ -11,6 +11,7 @@
 #include "managym/state/mana.h"
 #include "managym/state/player.h"
 #include "managym/state/zone.h"
+#include "managym/state/zones.h"
 
 class Game {
  public:

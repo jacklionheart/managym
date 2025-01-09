@@ -37,6 +37,8 @@ struct Turn {
   int current_phase_index = 0;
   int lands_played = 0;
 
+  Phase* currentPhase() { return phases[current_phase_index].get(); }
+
   Turn(Player* active_player, TurnSystem* turn_system);
   std::unique_ptr<ActionSpace> tick();
   bool isComplete() { return current_phase_index >= phases.size(); }
@@ -51,6 +53,7 @@ struct Phase {
   Phase(Turn* turn) : turn(turn) {}
 
   bool isComplete() { return current_step_index >= steps.size(); }
+  virtual bool canCastSorceries() { return true; }
 
   std::unique_ptr<ActionSpace> tick();
   virtual ~Phase() = default;
@@ -70,6 +73,7 @@ struct Step {
   virtual void initialize() {}
 
   virtual std::unique_ptr<ActionSpace> performTurnBasedActions() {
+    turn_based_actions_complete = true;
     return nullptr;
   };
 
@@ -117,10 +121,8 @@ struct DrawStep : public Step {
 // Main Step
 
 struct MainStep : public Step {
-  bool can_cast_sorceries = true;
   MainStep(Phase* parent_phase) : Step(parent_phase) {
     has_priority_window = true;
-    can_cast_sorceries = true;
   }
 };
 
@@ -150,12 +152,16 @@ struct BeginningPhase : public Phase {
 };
 
 struct PrecombatMainPhase : public Phase {
+  virtual bool canCastSorceries() override { return true; }
+
   PrecombatMainPhase(Turn* parent_turn) : Phase(parent_turn) {
     steps.emplace_back(new MainStep(this));
   }
 };
 
 struct PostcombatMainPhase : public Phase {
+  virtual bool canCastSorceries() override { return true; }
+
   PostcombatMainPhase(Turn* parent_turn) : Phase(parent_turn) {
     steps.emplace_back(new MainStep(this));
   }

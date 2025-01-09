@@ -18,18 +18,18 @@ struct CombatPhase : public Phase {
 
 struct CombatStep : public Step {
   CombatPhase* combat_phase;
-  CombatStep(CombatPhase& parent_combat_phase);
+  CombatStep(CombatPhase* parent_combat_phase);
 };
 
 struct BeginningOfCombatStep : public CombatStep {
-  BeginningOfCombatStep(CombatPhase& parent_combat_phase)
+  BeginningOfCombatStep(CombatPhase* parent_combat_phase)
       : CombatStep(parent_combat_phase) {}
 };
 
 struct DeclareAttackersStep : public CombatStep {
   std::vector<Permanent*> attackers_to_declare;
 
-  DeclareAttackersStep(CombatPhase& parent_combat_phase)
+  DeclareAttackersStep(CombatPhase* parent_combat_phase)
       : CombatStep(parent_combat_phase) {}
   virtual std::unique_ptr<ActionSpace> performTurnBasedActions() override;
   virtual void initialize() override;
@@ -39,7 +39,7 @@ struct DeclareAttackersStep : public CombatStep {
 struct DeclareBlockersStep : public CombatStep {
   std::vector<Permanent*> blockers_to_declare;
 
-  DeclareBlockersStep(CombatPhase& parent_combat_phase)
+  DeclareBlockersStep(CombatPhase* parent_combat_phase)
       : CombatStep(parent_combat_phase) {}
   virtual std::unique_ptr<ActionSpace> performTurnBasedActions() override;
   virtual void initialize() override;
@@ -47,12 +47,12 @@ struct DeclareBlockersStep : public CombatStep {
 };
 
 struct CombatDamageStep : public CombatStep {
-  CombatDamageStep(CombatPhase& parent_combat_phase)
+  CombatDamageStep(CombatPhase* parent_combat_phase)
       : CombatStep(parent_combat_phase) {}
   virtual std::unique_ptr<ActionSpace> performTurnBasedActions() override;
 };
 
 struct EndOfCombatStep : public CombatStep {
-  EndOfCombatStep(CombatPhase& parent_combat_phase)
+  EndOfCombatStep(CombatPhase* parent_combat_phase)
       : CombatStep(parent_combat_phase) {}
 };

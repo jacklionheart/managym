@@ -78,6 +78,22 @@ std::unique_ptr<ActionSpace> Turn::tick() {
   }
 }
 
+std::unique_ptr<ActionSpace> Phase::tick() {
+  spdlog::info("Ticking {}", std::string(typeid(*this).name()));
+
+  if (current_step_index >= steps.size()) {
+    return nullptr;
+  }
+
+  Step* current_step = steps[current_step_index].get();
+  if (current_step->isComplete()) {
+    current_step_index++;
+    return nullptr;
+  } else {
+    return current_step->tick();
+  }
+}
+
 bool Step::isComplete() {
   return turn_based_actions_complete &&
          (!has_priority_window || priority_system->isComplete()) &&
@@ -85,6 +101,8 @@ bool Step::isComplete() {
 }
 
 std::unique_ptr<ActionSpace> Step::tick() {
+    spdlog::info("Ticking {}", std::string(typeid(*this).name()));
+
   if (!initialized) {
     initialize();
     initialized = true;

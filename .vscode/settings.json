@@ -1,6 +1,6 @@
 {
     "files.watcherExclude": {
-        "**/build/**": false
+        "**/build/**": true,
     },
     "editor.inlineSuggest.enabled": true,
     "editor.tabCompletion": "on",
@@ -8,24 +8,31 @@
     "files.autoSave": "afterDelay",
     "python.analysis.typeCheckingMode": "standard",
     "explorer.excludeGitIgnore": true,
-    "makefile.configureOnOpen": true,
-    "makefile.configurations": [],
     "json.schemas": [],
     "files.associations": {
         "*.h": "cpp",
-        "*.cpp": "cpp",
-        "chrono": "cpp"
+        "*.cpp": "cpp"
     },
+    "cmake.configureOnOpen": true,
     "clangd.path": "clangd",
     "clangd.arguments": [
         "--background-index",
         "--compile-commands-dir=${workspaceFolder}/build",
-        "--header-insertion=iwyu",
-        "--all-scopes-completion",
-        "--completion-style=detailed",
         "--header-insertion=never",
         "--pch-storage=memory",
         "-j=4",
-        "--enable-config"
-    ]
+        "--clang-tidy",
+        "--background-index-priority=low",
+        "--offset-encoding=utf-16",
+        "--query-driver=/usr/bin/clang++",
+        "--cross-file-rename",
+        "--fallback-style=Google",
+        "--suggest-missing-includes"
+    ],
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+    "problems.defaultViewMode": "tree",
+    "problems.showCurrentInStatus": true,
+    "problems.decorations.enabled": true
 }

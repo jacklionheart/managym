@@ -15,6 +15,10 @@ Battlefield::Battlefield(Zones* zones, std::vector<Player*>& players)
   }
 }
 
+void Battlefield::enter(Card* card) {
+  add(card);
+}
+
 void Battlefield::add(Card* card) {
   Zone::add(card);
   if (!card->types.isPermanent()) {

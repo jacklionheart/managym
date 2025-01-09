@@ -6,34 +6,39 @@
 #include <utility>
 #include <vector>
 
+#include "managym/action/action.h"
 #include "managym/state/card.h"
 #include "managym/state/mana.h"
-struct PlayerConfig {
-    std::string name;
-    std::map<std::string, int> decklist;
 
-    PlayerConfig(std::string name, const std::map<std::string, int>& cardQuantities)
-        : name(std::move(name)), decklist(cardQuantities) {}
+struct PlayerConfig {
+  std::string name;
+  std::map<std::string, int> decklist;
+
+  PlayerConfig(std::string name,
+               const std::map<std::string, int>& cardQuantities)
+      : name(std::move(name)), decklist(cardQuantities) {}
 };
 
 class Player {
-  public:
-    static int next_id;
-    int id;
+ public:
+  static int next_id;
+  int id;
 
-    std::unique_ptr<Deck> deck;
+  std::unique_ptr<Deck> deck;
 
-    std::string name;
-    int life = 20;
-    bool alive = true;
-    Mana mana_pool;
+  std::unique_ptr<Agent> agent;
 
-    Player(const PlayerConfig& config);
+  std::string name;
+  int life = 20;
+  bool alive = true;
+  Mana mana_pool;
 
-    void takeDamage(int damage);
+  Player(const PlayerConfig& config);
 
-    [[nodiscard]] std::string toString() const;
+  void takeDamage(int damage);
 
-  private:
-    std::unique_ptr<Deck> instantiateDeck(const PlayerConfig& config);
+  [[nodiscard]] std::string toString() const;
+
+ private:
+  std::unique_ptr<Deck> instantiateDeck(const PlayerConfig& config);
 };

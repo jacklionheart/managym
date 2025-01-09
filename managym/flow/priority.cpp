@@ -47,7 +47,18 @@ Player* PrioritySystem::playerWithPriority() {
   throw std::runtime_error("No player has priority");
 }
 
+bool PrioritySystem::playersPassed() {
+  for (Player* player : game->priorityOrder()) {
+    if (!passed[player]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 std::unique_ptr<ActionSpace> PrioritySystem::tick() {
+  spdlog::info("Ticking {}", std::string(typeid(*this).name()));
+
   if (isComplete()) {
     throw std::runtime_error("Priority system is complete");
   }

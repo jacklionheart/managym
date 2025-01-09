@@ -28,10 +28,15 @@ struct ActionSpace {
   Player* player;
   ActionType action_type;
   Permanent* focus;
+  int chosen_index = -1;
   std::vector<std::unique_ptr<Action>> actions;
   ActionSpace(Player* player, ActionType action_type,
               std::vector<std::unique_ptr<Action>>&& actions)
       : player(player), action_type(action_type), actions(std::move(actions)) {}
+
+  void selectAction(int index) { chosen_index = index; }
+  bool actionSelected() { return chosen_index != -1; }
+
   virtual ~ActionSpace() = default;
   bool empty();
 };
@@ -87,4 +92,13 @@ struct PassPriority : public Action {
   PassPriority(Player* player, PrioritySystem* priority_system);
 
   void execute() override;
+};
+
+// Agents
+
+struct Agent {
+  Action* chosen_action;
+
+  void selectAction(ActionSpace* action_space);
+  Action* chosenAction() { return chosen_action; }
 };

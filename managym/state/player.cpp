@@ -5,7 +5,7 @@
 
 int Player::next_id = 0;
 Player::Player(const PlayerConfig &config)
-    : id(next_id++), name(config.name), deck(instantiateDeck(config)) {}
+    : id(next_id++), name(config.name), deck(instantiateDeck(config)), agent(std::make_unique<Agent>()) {}
 
 void Player::takeDamage(int damage) { life -= damage; }
 
