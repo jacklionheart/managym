@@ -8,19 +8,21 @@
 #include "managym/state/card.h"
 
 class CardRegistry {
-  public:
-    static CardRegistry& instance();
+ public:
+  static CardRegistry& instance();
 
-    void registerCard(const std::string& name, const Card& card);
-    std::unique_ptr<Card> instantiate(const std::string& name);
+  void registerCard(const std::string& name, const Card& card);
+  void clear();
+  std::unique_ptr<Card> instantiate(const std::string& name);
 
-    // Deleting copy constructor and assignment operator to enforce singleton
-    CardRegistry(const CardRegistry&) = delete;
-    CardRegistry& operator=(const CardRegistry&) = delete;
+  // Deleting copy constructor and assignment operator to enforce singleton
+  CardRegistry(const CardRegistry&) = delete;
+  CardRegistry& operator=(const CardRegistry&) = delete;
 
-  private:
-    CardRegistry() = default; // Private constructor
-    std::map<std::string, std::unique_ptr<Card>> card_map;
+ private:
+  CardRegistry() = default;  // Private constructor
+  std::map<std::string, std::unique_ptr<Card>> card_map;
 };
 
 void registerAllCards();
+void clearCardRegistry();

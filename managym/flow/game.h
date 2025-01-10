@@ -1,3 +1,5 @@
+#pragma once
+
 #include <spdlog/spdlog.h>
 
 #include <vector>
@@ -5,18 +7,16 @@
 #include "managym/action/action.h"
 #include "managym/flow/priority.h"
 #include "managym/flow/turn.h"
-#include "managym/render/game_display.h"
 #include "managym/state/battlefield.h"
 #include "managym/state/card.h"
 #include "managym/state/mana.h"
 #include "managym/state/player.h"
 #include "managym/state/zone.h"
 #include "managym/state/zones.h"
+#include "managym/ui/game_display.h"
 
-class Game {
- public:
+struct Game {
   std::vector<std::unique_ptr<Player>> players;
-  std::map<Player *, Mana> mana_pools;
 
   std::unique_ptr<Zones> zones;
   std::unique_ptr<GameDisplay> display;
@@ -24,9 +24,13 @@ class Game {
 
   std::unique_ptr<Graveyard> graveyard;
 
+  std::unique_ptr<ActionSpace> current_action_space;
+
   Game(std::vector<PlayerConfig> player_configs, bool headless = false);
 
   void play();
+  // Returns true if game can continue, false if game is over or should stop.
+  bool tick();
   bool isGameOver();
   void nextStep();
   void clearManaPools();
@@ -34,36 +38,35 @@ class Game {
   void allowPlayerActions();
 
   // Lookups
-  Card *card(int id);
-  std::vector<Card *> cardsInHand(Player *player);
-  Player *activePlayer();
-  Player *nonActivePlayer();
-  std::vector<Player *> priorityOrder();
+  Card* card(int id);
+  Player* activePlayer();
+  Player* nonActivePlayer();
+  std::vector<Player*> priorityOrder();
 
-  bool isActivePlayer(Player *player) const;
-  bool canPlayLand(Player *player) const;
-  bool canCastSorceries(Player *player) const;
-  bool canPayManaCost(Player *player, const ManaCost &mana_cost) const;
-  bool isPlayerAlive(Player *player);
+  bool isActivePlayer(Player* player) const;
+  bool canPlayLand(Player* player) const;
+  bool canCastSorceries(Player* player) const;
+  bool canPayManaCost(Player* player, const ManaCost& mana_cost) const;
+  bool isPlayerAlive(Player* player);
 
   // Automatic Actions
-  void untapAllPermanents(Player *player);
-  void markPermanentsNotSummoningSick(Player *player);
-  void drawCards(Player *player, int amount);
-  void loseGame(Player *player);
+  void untapAllPermanents(Player* player);
+  void markPermanentsNotSummoningSick(Player* player);
+  void drawCards(Player* player, int amount);
+  void loseGame(Player* player);
   void performStateBasedActions();
   void clearDamage();
 
   // Game State Mutations
-  void addMana(Player *player, const Mana &mana);
-  void spendMana(Player *player, const ManaCost &mana_cost);
-  void castSpell(Player *player, Card *card);
-  void playLand(Player *player, Card *card);
+  void addMana(Player* player, const Mana& mana);
+  void spendMana(Player* player, const ManaCost& mana_cost);
+  void castSpell(Player* player, Card* card);
+  void playLand(Player* player, Card* card);
 };
 
 class GameOverException : public std::exception {
  public:
   std::string message;
-  GameOverException(const std::string &msg) : message(msg) {}
-  const char *what() const noexcept override { return message.c_str(); }
+  GameOverException(const std::string& msg) : message(msg) {}
+  const char* what() const noexcept override { return message.c_str(); }
 };

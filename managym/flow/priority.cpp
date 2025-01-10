@@ -18,7 +18,9 @@ std::unique_ptr<ActionSpace> PrioritySystem::makeActionSpace(Player* player) {
                                        availablePriorityActions(player));
 }
 
-bool PrioritySystem::stackEmpty() { return game->zones->stack->size() == 0; }
+bool PrioritySystem::stackEmpty() {
+  return game->zones->size(ZoneType::STACK, game->activePlayer()) == 0;
+}
 
 void PrioritySystem::reset() {
   state_based_actions_complete = false;
@@ -57,7 +59,7 @@ bool PrioritySystem::playersPassed() {
 }
 
 std::unique_ptr<ActionSpace> PrioritySystem::tick() {
-  spdlog::info("Ticking {}", std::string(typeid(*this).name()));
+  spdlog::debug("Ticking {}", std::string(typeid(*this).name()));
 
   if (isComplete()) {
     throw std::runtime_error("Priority system is complete");
@@ -84,11 +86,13 @@ std::vector<std::unique_ptr<Action>> PrioritySystem::availablePriorityActions(
   std::vector<std::unique_ptr<Action>> actions;
 
   // Get cards in hand
-  std::vector<Card*> hand_cards = game->cardsInHand(player);
+  const std::vector<Card*> hand_cards =
+      game->zones->constHand()->cards.at(player);
 
   if (game->canCastSorceries(player)) {
-    spdlog::info("Producible mana: {}",
-                 game->zones->battlefield->producibleMana(player).toString());
+    spdlog::debug(
+        "Producible mana: {}",
+        game->zones->constBattlefield()->producibleMana(player).toString());
   }
 
   for (Card* card : hand_cards) {
@@ -98,7 +102,8 @@ std::vector<std::unique_ptr<Action>> PrioritySystem::availablePriorityActions(
     if (card->types.isLand() && game->canPlayLand(player)) {
       actions.push_back(std::make_unique<PlayLand>(card, player, game));
     } else if (card->types.isCastable() && game->canCastSorceries(player)) {
-      Mana producible_mana = game->zones->battlefield->producibleMana(player);
+      Mana producible_mana =
+          game->zones->constBattlefield()->producibleMana(player);
 
       if (game->canPayManaCost(player, card->mana_cost.value())) {
         actions.push_back(std::make_unique<CastSpell>(card, player, game));
@@ -115,14 +120,14 @@ std::vector<std::unique_ptr<Action>> PrioritySystem::availablePriorityActions(
 std::unique_ptr<ActionSpace> PrioritySystem::performStateBasedActions() {
   std::vector<Player*> players = game->priorityOrder();
 
-  // 704.5a If a player has 0 or less life, that player loses the game->
+  // MR04.5a If a player has 0 or less life, that player loses the game->
   for (Player* player : players) {
     if (player->life <= 0) {
       game->loseGame(player);
     }
   }
 
-  // 704.5b 704.5b If a player attempted to draw a card from a library with no
+  // MR704.5b 704.5b If a player attempted to draw a card from a library with no
   // cards in it since the last time state-based actions were checked, that
   // player loses the game->
   //  TODO: Move from drawCards
@@ -134,7 +139,7 @@ std::unique_ptr<ActionSpace> PrioritySystem::performStateBasedActions() {
   std::vector<Permanent*> permanents_to_destroy;
 
   for (Player* player : players) {
-    game->zones->battlefield->forEach(
+    game->zones->forEachPermanent(
         [&](Permanent* permanent) {
           if (permanent->hasLethalDamage()) {
             permanents_to_destroy.push_back(permanent);
@@ -147,18 +152,18 @@ std::unique_ptr<ActionSpace> PrioritySystem::performStateBasedActions() {
   for (Permanent* permanent : permanents_to_destroy) {
     spdlog::info("{} has lethal damage and is destroyed",
                  permanent->card->toString());
-    game->zones->battlefield->destroy(permanent);
+    game->zones->destroy(permanent);
   }
 
   return nullptr;
 }
 
 std::unique_ptr<ActionSpace> PrioritySystem::resolveTopOfStack() {
-  if (game->zones->stack->size() > 0) {
-    Card* card = game->zones->stack->pop();
+  if (game->zones->size(ZoneType::STACK, game->activePlayer()) > 0) {
+    Card* card = game->zones->popStack();
     spdlog::info("Casting {}", card->toString());
     if (card->types.isPermanent()) {
-      game->zones->battlefield->enter(card);
+      game->zones->move(card, ZoneType::BATTLEFIELD);
     } else {
       // TODO
     }

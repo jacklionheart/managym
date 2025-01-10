@@ -5,13 +5,13 @@
 
 void Stack::push(Card* card) {
   objects.push_back(card);
-  Zone::add(card);
+  Zone::enter(card);
 }
 
 Card* Stack::pop() {
   Card* card = objects.back();
   objects.pop_back();
-  Zone::remove(card);
+  Zone::exit(card);
   return card;
 }
 

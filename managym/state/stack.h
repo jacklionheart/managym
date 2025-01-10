@@ -7,14 +7,17 @@
 
 class Game;  // Forward declaration
 class Card;
+class Zones;
 
-struct Stack : public Zone {
+class Stack : public Zone {
+ public:
   using Zone::Zone;
 
-  std::vector<Card* > objects;
+  std::vector<Card*> objects;
+  Card* top();
 
+ protected:
+  friend class Zones;
   void push(Card* card);
   Card* pop();
-
-  Card* top();
 };

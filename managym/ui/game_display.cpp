@@ -197,7 +197,7 @@ void GameDisplay::drawPermanent(const Permanent* permanent, float x, float y,
 }
 
 void GameDisplay::drawHand(Player* player, const sf::FloatRect& bounds) {
-  const auto& hand_cards = game->zones->hand->cards[player];
+  const auto& hand_cards = game->zones->constHand()->cards.at(player);
   LayoutMetrics layout = calculateLayout();
 
   float total_cards_width = (hand_cards.size() * layout.card_width) +
@@ -228,7 +228,8 @@ void GameDisplay::drawBattlefield(Player* player, const sf::FloatRect& bounds) {
   window.draw(separator);
 
   LayoutMetrics layout = calculateLayout();
-  const auto& permanents = game->zones->battlefield->permanents[player];
+  const auto& permanents =
+      game->zones->constBattlefield()->permanents.at(player);
 
   std::vector<const Permanent*> lands, creatures;
   for (const auto& permanent : permanents) {

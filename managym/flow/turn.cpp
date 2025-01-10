@@ -14,6 +14,135 @@ TurnSystem::TurnSystem(Game* game) : game(game) {
   active_player_index = 0;
 }
 
+const Phase* TurnSystem::currentPhase() const {
+  if (!current_turn) return nullptr;
+  return current_turn->currentPhase();
+}
+
+PhaseType TurnSystem::currentPhaseType() const {
+  if (!current_turn) return PhaseType::BEGINNING;  // or throw?
+  return static_cast<PhaseType>(current_turn->current_phase_index);
+}
+
+StepType TurnSystem::currentStepType() const {
+  const Phase* phase = currentPhase();
+  if (!phase) return StepType::BEGINNING_UNTAP;  // or throw?
+
+  return stepTypeFromIndex(currentPhaseType(), phase->current_step_index);
+}
+
+bool TurnSystem::isInPhase(PhaseType phase) const {
+  return currentPhaseType() == phase;
+}
+
+bool TurnSystem::isInStep(StepType step) const {
+  return currentStepType() == step;
+}
+
+PhaseType TurnSystem::getPhaseForStep(StepType step) {
+  switch (step) {
+    case StepType::BEGINNING_UNTAP:
+    case StepType::BEGINNING_UPKEEP:
+    case StepType::BEGINNING_DRAW:
+      return PhaseType::BEGINNING;
+
+    case StepType::MAIN_STEP:
+      // Could be either main phase, context needed
+      throw std::runtime_error("Main step requires phase context");
+
+    case StepType::COMBAT_BEGIN:
+    case StepType::COMBAT_DECLARE_ATTACKERS:
+    case StepType::COMBAT_DECLARE_BLOCKERS:
+    case StepType::COMBAT_DAMAGE:
+    case StepType::COMBAT_END:
+      return PhaseType::COMBAT;
+
+    case StepType::ENDING_END:
+    case StepType::ENDING_CLEANUP:
+      return PhaseType::ENDING;
+  }
+  throw std::runtime_error("Unknown step type");
+}
+
+StepType TurnSystem::stepTypeFromIndex(PhaseType phase, int stepIndex) {
+  switch (phase) {
+    case PhaseType::BEGINNING:
+      switch (stepIndex) {
+        case 0:
+          return StepType::BEGINNING_UNTAP;
+        case 1:
+          return StepType::BEGINNING_UPKEEP;
+        case 2:
+          return StepType::BEGINNING_DRAW;
+        default:
+          throw std::out_of_range("Invalid beginning phase step index");
+      }
+
+    case PhaseType::PRECOMBAT_MAIN:
+    case PhaseType::POSTCOMBAT_MAIN:
+      if (stepIndex == 0) return StepType::MAIN_STEP;
+      throw std::out_of_range("Invalid main phase step index");
+
+    case PhaseType::COMBAT:
+      switch (stepIndex) {
+        case 0:
+          return StepType::COMBAT_BEGIN;
+        case 1:
+          return StepType::COMBAT_DECLARE_ATTACKERS;
+        case 2:
+          return StepType::COMBAT_DECLARE_BLOCKERS;
+        case 3:
+          return StepType::COMBAT_DAMAGE;
+        case 4:
+          return StepType::COMBAT_END;
+        default:
+          throw std::out_of_range("Invalid combat phase step index");
+      }
+
+    case PhaseType::ENDING:
+      switch (stepIndex) {
+        case 0:
+          return StepType::ENDING_END;
+        case 1:
+          return StepType::ENDING_CLEANUP;
+        default:
+          throw std::out_of_range("Invalid ending phase step index");
+      }
+  }
+  throw std::runtime_error("Unknown phase type");
+}
+
+int TurnSystem::stepIndexFromType(StepType step) {
+  switch (step) {
+    case StepType::BEGINNING_UNTAP:
+      return 0;
+    case StepType::BEGINNING_UPKEEP:
+      return 1;
+    case StepType::BEGINNING_DRAW:
+      return 2;
+
+    case StepType::MAIN_STEP:
+      return 0;
+
+    case StepType::COMBAT_BEGIN:
+      return 0;
+    case StepType::COMBAT_DECLARE_ATTACKERS:
+      return 1;
+    case StepType::COMBAT_DECLARE_BLOCKERS:
+      return 2;
+    case StepType::COMBAT_DAMAGE:
+      return 3;
+    case StepType::COMBAT_END:
+      return 4;
+
+    case StepType::ENDING_END:
+      return 0;
+    case StepType::ENDING_CLEANUP:
+      return 1;
+  }
+  throw std::runtime_error("Unknown step type");
+}
+
 std::unique_ptr<ActionSpace> TurnSystem::tick() {
   if (current_turn == nullptr || current_turn->isComplete()) {
     startNextTurn();
@@ -79,7 +208,7 @@ std::unique_ptr<ActionSpace> Turn::tick() {
 }
 
 std::unique_ptr<ActionSpace> Phase::tick() {
-  spdlog::info("Ticking {}", std::string(typeid(*this).name()));
+  spdlog::debug("Ticking {}", std::string(typeid(*this).name()));
 
   if (current_step_index >= steps.size()) {
     return nullptr;
@@ -101,7 +230,7 @@ bool Step::isComplete() {
 }
 
 std::unique_ptr<ActionSpace> Step::tick() {
-    spdlog::info("Ticking {}", std::string(typeid(*this).name()));
+  spdlog::debug("Ticking {}", std::string(typeid(*this).name()));
 
   if (!initialized) {
     initialize();
@@ -128,7 +257,8 @@ std::unique_ptr<ActionSpace> Step::tick() {
 // Implementations of specific Steps
 
 std::unique_ptr<ActionSpace> UntapStep::performTurnBasedActions() {
-  spdlog::info("Starting {}", std::string(typeid(*this).name()));
+  spdlog::debug("Starting {} for {}", std::string(typeid(*this).name()),
+               activePlayer()->name);
   game()->markPermanentsNotSummoningSick(activePlayer());
   game()->untapAllPermanents(activePlayer());
   turn_based_actions_complete = true;

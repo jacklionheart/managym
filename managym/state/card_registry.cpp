@@ -1,9 +1,11 @@
 // card_registry.cpp
 #include "card_registry.h"
-#include "managym/cardsets/alpha/alpha.h"
-#include "managym/cardsets/basics/basic_lands.h"
+
 #include <format>
 #include <stdexcept>
+
+#include "managym/cardsets/alpha/alpha.h"
+#include "managym/cardsets/basics/basic_lands.h"
 
 CardRegistry &CardRegistry::instance() {
   static CardRegistry registry;
@@ -27,7 +29,11 @@ std::unique_ptr<Card> CardRegistry::instantiate(const std::string &name) {
   }
 }
 
+void CardRegistry::clear() { card_map.clear(); }
+
 void registerAllCards() {
   registerBasicLands();
   registerAlpha();
 }
+
+void clearCardRegistry() { CardRegistry::instance().clear(); }

@@ -9,30 +9,26 @@
 #include "managym/state/player.h"
 #include "managym/state/zone.h"
 
-struct Battlefield : public Zone {
+class Battlefield : public Zone {
+ public:
   std::map<Player*, std::vector<std::unique_ptr<Permanent>>> permanents;
 
   Battlefield(Zones* zones, std::vector<Player*>& players);
 
-  void add(Card* card) override;
-  void remove(Card* card) override;
-
-  void destroy(Permanent* permanent);
-
-  void enter(Card* card);
-
-  void forEach(const std::function<void(Permanent*)>& func);
-  void forEach(const std::function<void(Permanent*)>& func, Player* player);
-
-  std::vector<Permanent*> attackers(Player* player);
-
-  std::vector<Permanent*> eligibleAttackers(Player* player);
-  std::vector<Permanent*> eligibleBlockers(Player* player);
-
-  Permanent* find(const Card* card);
-
+  std::vector<Permanent*> attackers(Player* player) const;
+  std::vector<Permanent*> eligibleAttackers(Player* player) const;
+  std::vector<Permanent*> eligibleBlockers(Player* player) const;
   Mana producibleMana(Player* player) const;
+  Permanent* find(const Card* card) const;
+
+ protected:
+  friend class Zones;
+  void destroy(Permanent* permanent);
+  void forEachAll(const std::function<void(Permanent*)>& func);
+  void forEach(const std::function<void(Permanent*)>& func, Player* player);
   void produceMana(const ManaCost& mana_cost, Player* player);
+  void enter(Card* card) override;
+  void exit(Card* card) override;
 };
 
 struct Permanent {

@@ -35,7 +35,9 @@ void DeclareAttackerAction::execute() {
 
 void DeclareBlockerAction::execute() {
   spdlog::info("Player {} Declaring blocker", player->id);
-  step->combat_phase->attacker_to_blockers[attacker].push_back(blocker);
+  if (attacker != nullptr) {
+    step->combat_phase->attacker_to_blockers[attacker].push_back(blocker);
+  }
 }
 
 PlayLand::PlayLand(Card *card, Player *player, Game *game)
@@ -55,15 +57,22 @@ CastSpell::CastSpell(Card *card, Player *player, Game *game)
 
 void CastSpell::execute() {
   spdlog::info("Player {} Casting spell: {}", player->id, card->toString());
-  game->zones->battlefield->produceMana(card->mana_cost.value(), player);
+  spdlog::debug("Player's mana pool before: {}", player->mana_pool.toString());
+  game->zones->produceMana(card->mana_cost.value(), player);
+  spdlog::debug("Player's mana pool after producing mana: {}",
+                player->mana_pool.toString());
   game->castSpell(player, card);
+  spdlog::debug("Player's mana pool after casting spell: {}",
+                player->mana_pool.toString());
   game->spendMana(player, card->mana_cost.value());
+  spdlog::debug("Player's mana pool after spending mana: {}",
+                player->mana_pool.toString());
 }
 
 PassPriority::PassPriority(Player *player, PrioritySystem *priority_system)
     : Action(player), priority_system(priority_system) {}
 
 void PassPriority::execute() {
-  spdlog::info("Player {} Passing priority", player->id);
+  spdlog::debug("Player {} Passing priority", player->id);
   priority_system->passPriority(player);
 }

@@ -23,13 +23,13 @@ CombatStep::CombatStep(CombatPhase* parent_combat_phase)
 void DeclareAttackersStep::initialize() {
   Player* active_player = game()->activePlayer();
   attackers_to_declare =
-      game()->zones->battlefield->eligibleAttackers(active_player);
+      game()->zones->constBattlefield()->eligibleAttackers(active_player);
 }
 
 void DeclareBlockersStep::initialize() {
   Player* defending_player = game()->nonActivePlayer();
   blockers_to_declare =
-      game()->zones->battlefield->eligibleBlockers(defending_player);
+      game()->zones->constBattlefield()->eligibleBlockers(defending_player);
 }
 
 std::unique_ptr<ActionSpace> DeclareAttackersStep::makeActionSpace(
@@ -76,10 +76,12 @@ std::unique_ptr<ActionSpace> DeclareBlockersStep::makeActionSpace(
 
 std::unique_ptr<ActionSpace> DeclareBlockersStep::performTurnBasedActions() {
   if (blockers_to_declare.empty()) {
+    spdlog::debug("No blockers to declare");
     turn_based_actions_complete = true;
     return nullptr;
   }
 
+  spdlog::debug("Blockers to declare: {}", blockers_to_declare.size());
   Permanent* blocker = blockers_to_declare.back();
   blockers_to_declare.pop_back();
 
@@ -87,12 +89,18 @@ std::unique_ptr<ActionSpace> DeclareBlockersStep::performTurnBasedActions() {
 }
 
 std::unique_ptr<ActionSpace> CombatDamageStep::performTurnBasedActions() {
+  spdlog::debug("CombatDamageStep.performTurnBasedActions");
   Player* active_player = combat_phase->turn->active_player;
   Game* game = combat_phase->turn->turn_system->game;
 
-  for (auto& pair : combat_phase->attacker_to_blockers) {
-    Permanent* attacker = pair.first;
-    std::vector<Permanent*> blockers = pair.second;
+  spdlog::debug("hi");
+  for (auto pair = combat_phase->attacker_to_blockers.begin();
+       pair != combat_phase->attacker_to_blockers.end(); pair++) {
+    assert(pair->first != nullptr);
+
+    spdlog::debug("Attacker: {}", pair->first->card->toString());
+    Permanent* attacker = pair->first;
+    std::vector<Permanent*> blockers = pair->second;
     for (Permanent* blocker : blockers) {
       spdlog::info("{} blocks {}", blocker->card->toString(),
                    attacker->card->toString());

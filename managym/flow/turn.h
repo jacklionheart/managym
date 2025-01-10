@@ -13,12 +13,55 @@ class Turn;
 class Player;
 class Game;
 
+enum class PhaseType {
+  BEGINNING,
+  PRECOMBAT_MAIN,
+  COMBAT,
+  POSTCOMBAT_MAIN,
+  ENDING,
+};
+
+enum class StepType {
+  // Beginning Phase Steps
+  BEGINNING_UNTAP,
+  BEGINNING_UPKEEP,
+  BEGINNING_DRAW,
+
+  // Main Phase Steps (only one step)
+  MAIN_STEP,
+
+  // Combat Phase Steps
+  COMBAT_BEGIN,
+  COMBAT_DECLARE_ATTACKERS,
+  COMBAT_DECLARE_BLOCKERS,
+  COMBAT_DAMAGE,
+  COMBAT_END,
+
+  // Ending Phase Steps
+  ENDING_END,
+  ENDING_CLEANUP
+};
+
 struct TurnSystem {
   std::unique_ptr<Turn> current_turn;
   int active_player_index;
   int global_turn_count;
   std::map<Player*, int> turn_counts;
   Game* game;
+
+  const Phase* currentPhase() const;
+  PhaseType currentPhaseType() const;
+  StepType currentStepType() const;
+
+  bool isInPhase(PhaseType phase) const;
+  bool isInStep(StepType step) const;
+
+  // Get the phase that contains a step
+  static PhaseType getPhaseForStep(StepType step);
+
+  // Convert step index within a phase to StepType
+  static StepType stepTypeFromIndex(PhaseType phase, int stepIndex);
+  static int stepIndexFromType(StepType step);
 
   Player* activePlayer();
   Player* nonActivePlayer();
@@ -53,7 +96,7 @@ struct Phase {
   Phase(Turn* turn) : turn(turn) {}
 
   bool isComplete() { return current_step_index >= steps.size(); }
-  virtual bool canCastSorceries() { return true; }
+  virtual bool canCastSorceries() { return false; }
 
   std::unique_ptr<ActionSpace> tick();
   virtual ~Phase() = default;

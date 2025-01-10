@@ -14,13 +14,8 @@ Battlefield::Battlefield(Zones* zones, std::vector<Player*>& players)
     permanents[player] = std::vector<std::unique_ptr<Permanent>>();
   }
 }
-
 void Battlefield::enter(Card* card) {
-  add(card);
-}
-
-void Battlefield::add(Card* card) {
-  Zone::add(card);
+  Zone::enter(card);
   if (!card->types.isPermanent()) {
     throw std::invalid_argument("Card is not a permanent: " + card->toString());
   }
@@ -29,8 +24,8 @@ void Battlefield::add(Card* card) {
   permanents[controller].push_back(std::make_unique<Permanent>(card));
 }
 
-void Battlefield::remove(Card* card) {
-  Zone::remove(card);
+void Battlefield::exit(Card* card) {
+  Zone::exit(card);
   Player* controller = card->owner;
   permanents[controller].erase(
       std::remove_if(permanents[controller].begin(),
@@ -41,21 +36,7 @@ void Battlefield::remove(Card* card) {
       permanents[controller].end());
 }
 
-void Battlefield::destroy(Permanent* permanent) {
-  zones->move(permanent->card, zones->graveyard.get());
-
-  spdlog::info("{} is destroyed", permanent->card->toString());
-  Player* controller = permanent->card->owner;
-  permanents[controller].erase(
-      std::remove_if(permanents[controller].begin(),
-                     permanents[controller].end(),
-                     [&permanent](const std::unique_ptr<Permanent>& p) {
-                       return p.get() == permanent;
-                     }),
-      permanents[controller].end());
-}
-
-Permanent* Battlefield::find(const Card* card) {
+Permanent* Battlefield::find(const Card* card) const {
   for (const auto& [player, player_permanents] : permanents) {
     for (const std::unique_ptr<Permanent>& permanent : player_permanents) {
       if (permanent->card == card) {
@@ -65,7 +46,7 @@ Permanent* Battlefield::find(const Card* card) {
   }
   return nullptr;
 }
-void Battlefield::forEach(const std::function<void(Permanent*)>& func) {
+void Battlefield::forEachAll(const std::function<void(Permanent*)>& func) {
   for (const auto& [player, player_permanents] : permanents) {
     for (const std::unique_ptr<Permanent>& permanent : player_permanents) {
       func(permanent.get());
@@ -82,10 +63,10 @@ void Battlefield::forEach(const std::function<void(Permanent*)>& func,
   }
 }
 
-std::vector<Permanent*> Battlefield::attackers(Player* player) {
+std::vector<Permanent*> Battlefield::attackers(Player* player) const {
   std::vector<Permanent*> attackers;
-  std::vector<std::unique_ptr<Permanent>>& player_permanents =
-      permanents[player];
+  const std::vector<std::unique_ptr<Permanent>>& player_permanents =
+      permanents.at(player);
   for (const std::unique_ptr<Permanent>& permanent : player_permanents) {
     if (permanent->attacking) {
       attackers.push_back(permanent.get());
@@ -94,11 +75,11 @@ std::vector<Permanent*> Battlefield::attackers(Player* player) {
   return attackers;
 }
 
-std::vector<Permanent*> Battlefield::eligibleAttackers(Player* player) {
+std::vector<Permanent*> Battlefield::eligibleAttackers(Player* player) const {
   std::vector<Permanent*> eligible_attackers;
 
-  std::vector<std::unique_ptr<Permanent>>& player_permanents =
-      permanents[player];
+  const std::vector<std::unique_ptr<Permanent>>& player_permanents =
+      permanents.at(player);
   for (const std::unique_ptr<Permanent>& permanent : player_permanents) {
     if (permanent->canAttack()) {
       eligible_attackers.push_back(permanent.get());
@@ -107,11 +88,11 @@ std::vector<Permanent*> Battlefield::eligibleAttackers(Player* player) {
   return eligible_attackers;
 }
 
-std::vector<Permanent*> Battlefield::eligibleBlockers(Player* player) {
+std::vector<Permanent*> Battlefield::eligibleBlockers(Player* player) const {
   std::vector<Permanent*> eligible_blockers;
 
-  std::vector<std::unique_ptr<Permanent>>& player_permanents =
-      permanents[player];
+  const std::vector<std::unique_ptr<Permanent>>& player_permanents =
+      permanents.at(player);
   for (const std::unique_ptr<Permanent>& permanent : player_permanents) {
     if (permanent->canBlock()) {
       eligible_blockers.push_back(permanent.get());
@@ -132,28 +113,35 @@ Mana Battlefield::producibleMana(Player* player) const {
 }
 
 void Battlefield::produceMana(const ManaCost& mana_cost, Player* player) {
-  Mana producible = producibleMana(player);
-  if (!producible.canPay(mana_cost)) {
-    throw std::runtime_error(
-        "Not enough producible mana to pay for mana cost.");
-  }
-
-  std::vector<std::unique_ptr<Permanent>>& player_permanents =
-      permanents[player];
-  for (const std::unique_ptr<Permanent>& permanent : player_permanents) {
-    if (!player->mana_pool.canPay(mana_cost)) {
-      permanent->activateAllManaAbilities();
-    } else {
-      break;
+    spdlog::debug("Attempting to produce {} for {}", mana_cost.toString(), player->name);
+    
+    // First check if we can potentially produce enough mana
+    Mana producible = producibleMana(player);
+    spdlog::debug("Producible mana: {}", producible.toString());
+    
+    if (!producible.canPay(mana_cost)) {
+        throw std::runtime_error("Not enough producible mana to pay for mana cost.");
     }
-  }
 
-  if (!player->mana_pool.canPay(mana_cost)) {
-    throw std::runtime_error(
-        "Did not generate enough mana to pay for mana cost.");
-  }
+    std::vector<std::unique_ptr<Permanent>>& player_permanents = permanents[player];
+    
+    // Keep activating mana abilities until we have enough
+    for (auto& permanent : player_permanents) {
+        if (player->mana_pool.canPay(mana_cost)) {
+            break;
+        }
+
+        if (!permanent->tapped && !permanent->card->mana_abilities.empty()) {
+            permanent->activateAllManaAbilities();
+            spdlog::debug("After activating abilities on {}, mana pool is: {}", 
+                      permanent->card->toString(), player->mana_pool.toString());
+        }
+    }
+
+    if (!player->mana_pool.canPay(mana_cost)) {
+        throw std::runtime_error("Did not generate enough mana to pay for mana cost.");
+    }
 }
-
 int Permanent::next_id = 0;
 
 Permanent::Permanent(Card* card)
@@ -169,7 +157,7 @@ bool Permanent::canTap() const {
 
 void Permanent::untap() { tapped = false; }
 void Permanent::tap() {
-  spdlog::info("Tapping {}", card->toString());
+  spdlog::debug("Tapping {}", card->toString());
   tapped = true;
 }
 
@@ -210,7 +198,7 @@ void Permanent::activateAllManaAbilities() {
 }
 
 void Permanent::activateAbility(ActivatedAbility* ability) {
-  spdlog::info("Activating ability on {}", card->toString());
+  spdlog::debug("Activating ability on {}", card->toString());
   assert(ability != nullptr);
   if (!ability->canBeActivated(this)) {
     throw std::logic_error("Ability cannot be activated.");

@@ -13,30 +13,36 @@
 Game::Game(std::vector<PlayerConfig> player_configs, bool headless)
     : turn_system(std::make_unique<TurnSystem>(this)) {
   int num_players = player_configs.size();
-
   if (num_players != 2) {
     throw std::invalid_argument("Game must start with 2 players.");
   }
 
-  for (PlayerConfig player_config : player_configs) {
+  // Create players first
+  for (PlayerConfig& player_config : player_configs) {
     players.emplace_back(std::make_unique<Player>(player_config));
   }
 
   std::vector<Player*> weak_players = {players[0].get(), players[1].get()};
-
   zones = std::make_unique<Zones>(weak_players);
 
-  // Initialize libraries with the decks, then draw up to 7 cards
-  for (std::unique_ptr<Player>& player : players) {
-    Deck* deck = player->deck.get();
-    for (std::unique_ptr<Card>& card : *deck) {
-      zones->library->add(card.get());
+  // Initialize libraries and draw starting hands
+  for (std::unique_ptr<Player>& player_uptr : players) {
+    Player* player = player_uptr.get();
+
+    // Move all cards from deck to library
+    for (std::unique_ptr<Card>& card : *player->deck) {
+      zones->move(card.get(), ZoneType::LIBRARY);
     }
 
-    int starting_hand_size =
-        std::min<int>(7, zones->library->numCards(player.get()));
-    for (int i = 0; i < starting_hand_size; ++i) {
-      zones->move(zones->library->top(player.get()), zones->hand.get());
+    // Shuffle before drawing
+    zones->shuffle(ZoneType::LIBRARY, player);
+
+    // Draw starting hand
+    const int STARTING_HAND_SIZE = 7;
+    for (int i = 0; i < STARTING_HAND_SIZE; i++) {
+      if (zones->size(ZoneType::LIBRARY, player) > 0) {
+        zones->moveTop(ZoneType::LIBRARY, ZoneType::HAND, player);
+      }
     }
   }
 
@@ -46,38 +52,50 @@ Game::Game(std::vector<PlayerConfig> player_configs, bool headless)
 }
 
 void Game::play() {
+  while (tick()) {
+  }
+}
+
+bool Game::tick() {
   try {
-    std::unique_ptr<ActionSpace> action_space = nullptr;
-
-    while (true) {
-      if (display) {
-        spdlog::info("Rendering");
-        display->render();
+    // Handle display if it exists
+    if (display) {
+      display->processEvents();
+      if (!display->isOpen()) {
+        return false;
       }
+      display->render();
+    }
 
-      if (action_space != nullptr) {
-        if (action_space->actionSelected()) {
-          spdlog::info("Executing action");
-          Action* selected_action =
-              action_space->actions[action_space->chosen_index].get();
-          selected_action->execute();
-          spdlog::info("Executed action");
-          action_space = nullptr;
-        } else {
-          spdlog::info("Waiting for action selection");
-        }
+    // Handle current action space if it exists
+    if (current_action_space != nullptr) {
+      if (current_action_space->actionSelected()) {
+        Action* selected_action =
+            current_action_space->actions[current_action_space->chosen_index]
+                .get();
+        selected_action->execute();
+        current_action_space = nullptr;
       }
+    }
 
-      if (action_space == nullptr) {
-        spdlog::info("Ticking turn system");
-        action_space = turn_system->tick();
-        if (action_space != nullptr) {
-          action_space->selectAction(0);
+    // Get next action space if needed
+    if (current_action_space == nullptr) {
+      current_action_space = turn_system->tick();
+
+      // Auto-select action for now
+      if (current_action_space) {
+        current_action_space->selectAction(0);
+        if (display && current_action_space->actions.size() > 1) {
+          sf::sleep(sf::milliseconds(100));
         }
       }
     }
+
+    return true;
+
   } catch (const GameOverException& e) {
     spdlog::info(e.what());
+    return false;
   }
 }
 
@@ -89,33 +107,34 @@ bool Game::isGameOver() {
 }
 
 void Game::clearManaPools() {
-  for (auto& [player, mana_pool] : mana_pools) {
-    mana_pool.clear();
+  for (std::unique_ptr<Player>& player_uptr : players) {
+    Player* player = player_uptr.get();
+    player->mana_pool.clear();
   }
 }
 
 void Game::clearDamage() {
-  zones->battlefield->forEach(
+  zones->forEachPermanentAll(
       [&](Permanent* permanent) { permanent->damage = 0; });
 }
 
 void Game::untapAllPermanents(Player* player) {
-  zones->battlefield->forEach([&](Permanent* permanent) { permanent->untap(); },
-                              player);
+  zones->forEachPermanent([&](Permanent* permanent) { permanent->untap(); },
+                          player);
 }
 
 void Game::markPermanentsNotSummoningSick(Player* player) {
-  zones->battlefield->forEach(
+  zones->forEachPermanent(
       [&](Permanent* permanent) { permanent->summoning_sick = false; }, player);
 }
 
 void Game::drawCards(Player* player, int amount) {
   for (int i = 0; i < amount; ++i) {
-    if (zones->library->numCards(player) == 0) {
+    if (zones->size(ZoneType::LIBRARY, player) == 0) {
       break;
     } else {
-      Card* card = zones->library->top(player);
-      zones->move(card, zones->hand.get());
+      Card* card = zones->top(ZoneType::LIBRARY, player);
+      zones->moveTop(ZoneType::LIBRARY, ZoneType::HAND, player);
     }
   }
 }
@@ -128,10 +147,6 @@ void Game::loseGame(Player* player) {
     throw GameOverException("Player " + std::to_string(player->id) +
                             " has lost the game->");
   }
-}
-
-std::vector<Card*> Game::cardsInHand(Player* player) {
-  return zones->hand->cards[player];
 }
 
 Player* Game::activePlayer() { return turn_system->activePlayer(); }
@@ -152,22 +167,22 @@ bool Game::canPlayLand(Player* player) const {
 }
 
 bool Game::canCastSorceries(Player* player) const {
-  return isActivePlayer(player) && zones->stack->size() == 0 &&
+  return isActivePlayer(player) && zones->size(ZoneType::STACK, player) == 0 &&
          turn_system->current_turn->currentPhase()->canCastSorceries();
 }
 
 bool Game::canPayManaCost(Player* player, const ManaCost& mana_cost) const {
-  return zones->battlefield->producibleMana(player).canPay(mana_cost);
+  return zones->constBattlefield()->producibleMana(player).canPay(mana_cost);
 }
 
 // Game State Mutations
 
 void Game::addMana(Player* player, const Mana& mana) {
-  mana_pools[player].add(mana);
+  player->mana_pool.add(mana);
 }
 
 void Game::spendMana(Player* player, const ManaCost& mana_cost) {
-  mana_pools[player].pay(mana_cost);
+  player->mana_pool.pay(mana_cost);
 }
 
 void Game::castSpell(Player* player, Card* card) {
@@ -177,7 +192,7 @@ void Game::castSpell(Player* player, Card* card) {
   if (card->owner != player) {
     throw std::invalid_argument("Card does not belong to player.");
   }
-  zones->stack->push(card);
+  zones->pushStack(card);
 }
 
 void Game::playLand(Player* player, Card* card) {
@@ -187,8 +202,8 @@ void Game::playLand(Player* player, Card* card) {
   if (!canPlayLand(player)) {
     throw std::logic_error("Cannot play land this turn.");
   }
-  spdlog::info("we canPlayLand");
+  spdlog::debug("we canPlayLand");
   turn_system->current_turn->lands_played += 1;
-  spdlog::info("{} plays a land {}", player->name, card->toString());
-  zones->battlefield->enter(card);
+  spdlog::debug("{} plays a land {}", player->name, card->toString());
+  zones->move(card, ZoneType::BATTLEFIELD);
 }

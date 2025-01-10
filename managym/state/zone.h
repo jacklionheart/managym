@@ -10,39 +10,50 @@
 // Forward declaration
 class Zones;
 
-struct Zone {
+class Zone {
+ public:
   virtual ~Zone() = default;
   Zones* zones;
 
   Zone(Zones* zones, std::vector<Player*>& players);
   std::map<Player*, std::vector<Card*>> cards;
 
-  virtual void add(Card* card);
-  virtual void remove(Card* card);
   void shuffle(Player* player);
   Card* top(Player* player);
 
-  size_t numCards(Player* player) const;
-  size_t size() const;
+  size_t size(Player* player) const;
+  size_t totalSize() const;
   bool contains(const Card* card, Player* player) const;
+
+ protected:
+  friend class Zones;
+  virtual void enter(Card* card);
+  virtual void exit(Card* card);
+  virtual void forEach(const std::function<void(Card*)>& func, Player* player);
+  virtual void forEachAll(const std::function<void(Card*)>& func);
 };
 
-struct Library : public Zone {
+class Library : public Zone {
+ public:
   using Zone::Zone;
 };
 
-struct Graveyard : public Zone {
+class Graveyard : public Zone {
+ public:
   using Zone::Zone;
 };
 
-struct Hand : public Zone {
+class Hand : public Zone {
+ public:
   using Zone::Zone;
 };
 
-struct Exile : public Zone {
+class Exile : public Zone {
+ public:
   using Zone::Zone;
 };
 
-struct Command : public Zone {
+class Command : public Zone {
+ public:
   using Zone::Zone;
 };

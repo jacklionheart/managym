@@ -3,7 +3,20 @@
 #include <iostream>
 #include <memory>
 
-int main() {
+int main(int argc, char** argv) {
+    // Check for debug flag
+    bool debug = false;
+    for (int i = 1; i < argc; i++) {
+        if (std::string(argv[i]) == "--debug") {
+            debug = true;
+            spdlog::set_level(spdlog::level::debug);
+            break;
+        }
+    }
+    if (!debug) {
+        spdlog::set_level(spdlog::level::info);
+    }
+
     // Register all cards that we'll use
     registerAllCards();
 
