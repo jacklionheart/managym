@@ -1,58 +1,80 @@
 #pragma once
 
+#include "managym/flow/turn.h"
+
 #include <map>
 #include <vector>
-
-#include "managym/flow/combat.h"
-#include "managym/flow/turn.h"
 
 class Permanent;
 class ActionSpace;
 
+// Main phase for handling combat sequence
 struct CombatPhase : public Phase {
-  CombatPhase(Turn* parent_turn);
+    CombatPhase(Turn* parent_turn);
 
-  std::vector<Permanent*> attackers;
-  std::map<Permanent*, std::vector<Permanent*>> attacker_to_blockers;
+    // Data
+    std::vector<Permanent*> attackers;
+    std::map<Permanent*, std::vector<Permanent*>> attacker_to_blockers;
 };
 
+// Base step for all combat steps
 struct CombatStep : public Step {
-  CombatPhase* combat_phase;
-  CombatStep(CombatPhase* parent_combat_phase);
+    CombatStep(CombatPhase* parent_combat_phase);
+
+    // Data
+    CombatPhase* combat_phase;
 };
 
+// First step of combat phase
 struct BeginningOfCombatStep : public CombatStep {
-  BeginningOfCombatStep(CombatPhase* parent_combat_phase)
-      : CombatStep(parent_combat_phase) {}
+    BeginningOfCombatStep(CombatPhase* parent_combat_phase) : CombatStep(parent_combat_phase) {}
 };
 
+// Step for declaring attacking creatures
 struct DeclareAttackersStep : public CombatStep {
-  std::vector<Permanent*> attackers_to_declare;
+    DeclareAttackersStep(CombatPhase* parent_combat_phase) : CombatStep(parent_combat_phase) {}
 
-  DeclareAttackersStep(CombatPhase* parent_combat_phase)
-      : CombatStep(parent_combat_phase) {}
-  virtual std::unique_ptr<ActionSpace> performTurnBasedActions() override;
-  virtual void initialize() override;
-  std::unique_ptr<ActionSpace> makeActionSpace(Permanent* attacker);
+    // Data
+    std::vector<Permanent*> attackers_to_declare;
+
+    // Writes
+
+    // Process turn-based actions for this step
+    std::unique_ptr<ActionSpace> performTurnBasedActions() override;
+    // Initialize step state
+    void initialize() override;
+    // Create action space for a potential attacker
+    std::unique_ptr<ActionSpace> makeActionSpace(Permanent* attacker);
 };
 
+// Step for declaring blocking creatures
 struct DeclareBlockersStep : public CombatStep {
-  std::vector<Permanent*> blockers_to_declare;
+    DeclareBlockersStep(CombatPhase* parent_combat_phase) : CombatStep(parent_combat_phase) {}
 
-  DeclareBlockersStep(CombatPhase* parent_combat_phase)
-      : CombatStep(parent_combat_phase) {}
-  virtual std::unique_ptr<ActionSpace> performTurnBasedActions() override;
-  virtual void initialize() override;
-  std::unique_ptr<ActionSpace> makeActionSpace(Permanent* blocker);
+    // Data
+    std::vector<Permanent*> blockers_to_declare;
+
+    // Writes
+
+    // Process turn-based actions for this step
+    std::unique_ptr<ActionSpace> performTurnBasedActions() override;
+    // Initialize step state
+    void initialize() override;
+    // Create action space for a potential blocker
+    std::unique_ptr<ActionSpace> makeActionSpace(Permanent* blocker);
 };
 
+// Step for dealing and resolving combat damage
 struct CombatDamageStep : public CombatStep {
-  CombatDamageStep(CombatPhase* parent_combat_phase)
-      : CombatStep(parent_combat_phase) {}
-  virtual std::unique_ptr<ActionSpace> performTurnBasedActions() override;
+    CombatDamageStep(CombatPhase* parent_combat_phase) : CombatStep(parent_combat_phase) {}
+
+    // Writes
+
+    // Process turn-based actions for this step
+    std::unique_ptr<ActionSpace> performTurnBasedActions() override;
 };
 
+// Final step of combat phase
 struct EndOfCombatStep : public CombatStep {
-  EndOfCombatStep(CombatPhase* parent_combat_phase)
-      : CombatStep(parent_combat_phase) {}
+    EndOfCombatStep(CombatPhase* parent_combat_phase) : CombatStep(parent_combat_phase) {}
 };

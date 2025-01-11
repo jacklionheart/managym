@@ -11,94 +11,134 @@ class DeclareBlockersStep;
 class DeclareAttackersStep;
 class Permanent;
 
+// Base struct for all game actions
 struct Action {
-  Player* player;
-  Action(Player* player) : player(player) {}
-  virtual void execute() {}
-  virtual ~Action() = default;
+    // Data
+    Player* player;
+
+    // Constructor
+    Action(Player* player) : player(player) {}
+    virtual ~Action() = default;
+
+    // Writes
+    // Execute this action's game effects
+    virtual void execute() {}
 };
 
+// Types of actions available to players
 enum struct ActionType {
-  Priority,
-  DeclareAttacker,
-  DeclareBlocker,
+    Priority,
+    DeclareAttacker,
+    DeclareBlocker,
 };
 
+// Collection of possible actions for a game decision point
 struct ActionSpace {
-  Player* player;
-  ActionType action_type;
-  Permanent* focus;
-  int chosen_index = -1;
-  std::vector<std::unique_ptr<Action>> actions;
-  ActionSpace(Player* player, ActionType action_type,
-              std::vector<std::unique_ptr<Action>>&& actions)
-      : player(player), action_type(action_type), actions(std::move(actions)) {}
+    ActionSpace(Player* player, ActionType action_type,
+                std::vector<std::unique_ptr<Action>>&& actions)
+        : player(player), action_type(action_type), actions(std::move(actions)) {}
+    virtual ~ActionSpace() = default;
 
-  void selectAction(int index) { chosen_index = index; }
-  bool actionSelected() { return chosen_index != -1; }
+    // Data
+    Player* player;
+    ActionType action_type;
+    Permanent* focus;
+    int chosen_index = -1;
+    std::vector<std::unique_ptr<Action>> actions;
 
-  virtual ~ActionSpace() = default;
-  bool empty();
+    // Writes
+    // Select an action from the available choices
+    void selectAction(int index) { chosen_index = index; }
+
+    // Reads
+    // Check if an action has been selected
+    bool actionSelected() { return chosen_index != -1; }
+    // Check if there are no available actions
+    bool empty();
 };
 
-// Combat actions
-
+// Action for declaring an attacking creature
 struct DeclareAttackerAction : public Action {
-  Permanent* attacker;
-  DeclareAttackersStep* step;
-  bool attack;
-  virtual void execute() override;
+    DeclareAttackerAction(Permanent* attacker, bool attack, Player* player,
+                          DeclareAttackersStep* step)
+        : Action(player), attacker(attacker), step(step), attack(attack) {}
 
-  DeclareAttackerAction(Permanent* attacker, bool attack, Player* player,
-                        DeclareAttackersStep* step)
-      : Action(player), attacker(attacker), step(step), attack(attack) {}
+    // Data
+    Permanent* attacker;
+    DeclareAttackersStep* step;
+    bool attack;
+
+    // Writes
+    // Execute the attack declaration
+    void execute() override;
 };
 
+// Action for declaring a blocking creature
 struct DeclareBlockerAction : public Action {
-  Permanent* blocker;
-  Permanent* attacker;
-  DeclareBlockersStep* step;
+    DeclareBlockerAction(Permanent* blocker, Permanent* attacker, Player* player,
+                         DeclareBlockersStep* step)
+        : Action(player), blocker(blocker), attacker(attacker), step(step) {}
 
-  virtual void execute() override;
+    // Data
+    Permanent* blocker;
+    Permanent* attacker;
+    DeclareBlockersStep* step;
 
-  DeclareBlockerAction(Permanent* blocker, Permanent* attacker, Player* player,
-                       DeclareBlockersStep* step)
-      : Action(player), blocker(blocker), attacker(attacker), step(step) {}
+    // Writes
+    // Execute the block declaration
+    void execute() override;
 };
 
-// Priority actions
-
+// Action for playing a land
 struct PlayLand : public Action {
-  Game* game;
-  Card* card;
+    PlayLand(Card* card, Player* player, Game* game);
 
-  PlayLand(Card* card, Player* player, Game* game);
+    // Data
+    Game* game;
+    Card* card;
 
-  void execute() override;
+    // Writes
+    // Execute the land play
+    void execute() override;
 };
 
+// Action for casting a spell
 struct CastSpell : public Action {
-  Game* game;
-  Card* card;
+    CastSpell(Card* card, Player* player, Game* game);
 
-  CastSpell(Card* card, Player* player, Game* game);
+    // Data
+    Game* game;
+    Card* card;
 
-  void execute() override;
+    // Writes
+
+    // Execute the spell cast
+    void execute() override;
 };
 
+// Action for passing priority
 struct PassPriority : public Action {
-  PrioritySystem* priority_system;
+    PassPriority(Player* player, PrioritySystem* priority_system);
 
-  PassPriority(Player* player, PrioritySystem* priority_system);
+    // Data
+    PrioritySystem* priority_system;
 
-  void execute() override;
+    // Writes
+
+    // Execute the priority pass
+    void execute() override;
 };
 
-// Agents
-
+// Interface for AI agents making game decisions
 struct Agent {
-  Action* chosen_action;
+    // Data
+    Action* chosen_action;
 
-  void selectAction(ActionSpace* action_space);
-  Action* chosenAction() { return chosen_action; }
+    // Writes
+    // Choose an action from available options
+    void selectAction(ActionSpace* action_space);
+
+    // Reads
+    // Get the currently selected action
+    Action* chosenAction() { return chosen_action; }
 };

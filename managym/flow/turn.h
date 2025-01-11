@@ -1,218 +1,237 @@
+// turn.h
 #pragma once
+
+#include "managym/flow/priority.h"
 
 #include <map>
 #include <memory>
 #include <vector>
 
-#include "managym/flow/priority.h"
-
-class ActionSpace;
-class Step;
-class Phase;
-class Turn;
+struct Step;
+struct Phase;
+struct Turn;
 class Player;
 class Game;
 
+// Represents different phases of a turn
 enum class PhaseType {
-  BEGINNING,
-  PRECOMBAT_MAIN,
-  COMBAT,
-  POSTCOMBAT_MAIN,
-  ENDING,
+    BEGINNING,
+    PRECOMBAT_MAIN,
+    COMBAT,
+    POSTCOMBAT_MAIN,
+    ENDING,
 };
 
+// Represents specific steps within each phase
 enum class StepType {
-  // Beginning Phase Steps
-  BEGINNING_UNTAP,
-  BEGINNING_UPKEEP,
-  BEGINNING_DRAW,
+    // Beginning Phase Steps
+    BEGINNING_UNTAP,
+    BEGINNING_UPKEEP,
+    BEGINNING_DRAW,
 
-  // Main Phase Steps (only one step)
-  MAIN_STEP,
+    // Main Phase Steps
+    MAIN_STEP,
 
-  // Combat Phase Steps
-  COMBAT_BEGIN,
-  COMBAT_DECLARE_ATTACKERS,
-  COMBAT_DECLARE_BLOCKERS,
-  COMBAT_DAMAGE,
-  COMBAT_END,
+    // Combat Phase Steps
+    COMBAT_BEGIN,
+    COMBAT_DECLARE_ATTACKERS,
+    COMBAT_DECLARE_BLOCKERS,
+    COMBAT_DAMAGE,
+    COMBAT_END,
 
-  // Ending Phase Steps
-  ENDING_END,
-  ENDING_CLEANUP
+    // Ending Phase Steps
+    ENDING_END,
+    ENDING_CLEANUP
 };
 
-struct TurnSystem {
-  std::unique_ptr<Turn> current_turn;
-  int active_player_index;
-  int global_turn_count;
-  std::map<Player*, int> turn_counts;
-  Game* game;
+// Manages turn sequence and transitions between players
+class TurnSystem {
+public:
+    // Data
+    std::unique_ptr<Turn> current_turn;
+    int active_player_index;
+    int global_turn_count;
+    std::map<Player*, int> turn_counts;
+    Game* game;
 
-  const Phase* currentPhase() const;
-  PhaseType currentPhaseType() const;
-  StepType currentStepType() const;
+    TurnSystem(Game* game);
 
-  bool isInPhase(PhaseType phase) const;
-  bool isInStep(StepType step) const;
+    // Reads
 
-  // Get the phase that contains a step
-  static PhaseType getPhaseForStep(StepType step);
+    // Get the current phase
+    const Phase* currentPhase() const;
+    // Get the current phase type
+    PhaseType currentPhaseType() const;
+    // Get the current step type
+    StepType currentStepType() const;
+    // Check if game is in a specific phase
+    bool isInPhase(PhaseType phase) const;
+    // Check if game is in a specific step
+    bool isInStep(StepType step) const;
+    // Get controlling player's order for priority
+    std::vector<Player*> priorityOrder();
+    // Get current active player
+    Player* activePlayer();
+    // Get non-active player
+    Player* nonActivePlayer();
 
-  // Convert step index within a phase to StepType
-  static StepType stepTypeFromIndex(PhaseType phase, int stepIndex);
-  static int stepIndexFromType(StepType step);
+    // Writes
 
-  Player* activePlayer();
-  Player* nonActivePlayer();
+    // Advance game state by one action
+    std::unique_ptr<ActionSpace> tick();
+    // Start a new turn
+    std::unique_ptr<ActionSpace> startNextTurn();
 
-  TurnSystem(Game* game);
-  std::unique_ptr<ActionSpace> tick();
-  std::unique_ptr<ActionSpace> startNextTurn();
-  std::vector<Player*> priorityOrder();
+    // Helper functions
+
+    // Get the phase that contains a step
+    static PhaseType getPhaseForStep(StepType step);
+    // Convert step index to step type
+    static StepType stepTypeFromIndex(PhaseType phase, int stepIndex);
+    // Convert step type to index
+    static int stepIndexFromType(StepType step);
 };
 
-struct Turn {
-  TurnSystem* turn_system;
-  Player* active_player;
-
-  std::vector<std::unique_ptr<Phase>> phases;
-  int current_phase_index = 0;
-  int lands_played = 0;
-
-  Phase* currentPhase() { return phases[current_phase_index].get(); }
-
-  Turn(Player* active_player, TurnSystem* turn_system);
-  std::unique_ptr<ActionSpace> tick();
-  bool isComplete() { return current_phase_index >= phases.size(); }
-};
-
-struct Phase {
-  Turn* turn;
-
-  std::vector<std::unique_ptr<Step>> steps;
-  int current_step_index = 0;
-
-  Phase(Turn* turn) : turn(turn) {}
-
-  bool isComplete() { return current_step_index >= steps.size(); }
-  virtual bool canCastSorceries() { return false; }
-
-  std::unique_ptr<ActionSpace> tick();
-  virtual ~Phase() = default;
-};
-
+// Represents a single step within a phase
 struct Step {
-  Phase* phase;
-  bool initialized = false;
-  bool has_priority_window = true;
-  bool turn_based_actions_complete = false;
-  bool mana_pools_emptied = false;
 
-  std::unique_ptr<PrioritySystem> priority_system;
+    Step(Phase* phase);
+    virtual ~Step() = default;
 
-  bool isComplete();
+    // Data
+    Phase* phase;
+    bool initialized = false;
+    bool has_priority_window = true;
+    bool turn_based_actions_complete = false;
+    bool mana_pools_emptied = false;
+    std::unique_ptr<PrioritySystem> priority_system;
 
-  virtual void initialize() {}
+    // Reads
+    // Check if step is completed
+    bool isComplete();
+    // Get current game
+    Game* game();
+    // Get turn system
+    TurnSystem* turn_system();
+    // Get current turn
+    Turn* turn();
+    // Get active player
+    Player* activePlayer();
 
-  virtual std::unique_ptr<ActionSpace> performTurnBasedActions() {
-    turn_based_actions_complete = true;
-    return nullptr;
-  };
-
-  Step(Phase* phase)
-      : phase(phase),
-        priority_system(std::make_unique<PrioritySystem>(
-            phase->turn->turn_system->game, phase->turn->active_player)) {}
-
-  // Inline reference accesors
-  Game* game() { return phase->turn->turn_system->game; }
-  TurnSystem* turn_system() { return phase->turn->turn_system; }
-  Turn* turn() { return phase->turn; }
-  Player* activePlayer() { return phase->turn->active_player; }
-
-  std::unique_ptr<ActionSpace> tick();
-  virtual ~Step() = default;
+    // Writes
+    // Perform game actions for this step
+    virtual std::unique_ptr<ActionSpace> performTurnBasedActions();
+    // Initialize step state
+    virtual void initialize();
+    // Advance step state
+    std::unique_ptr<ActionSpace> tick();
 };
 
-// Define specific Steps and Phases
+// Base struct for all phases in a turn
+struct Phase {
 
-// BeginningSteps
+    Phase(Turn* turn) : turn(turn) {}
+    virtual ~Phase() = default;
+    // Data
+    Turn* turn;
+    std::vector<std::unique_ptr<Step>> steps;
+    int current_step_index = 0;
 
+    // Reads
+
+    // Check if phase is completed
+    bool isComplete() { return current_step_index >= steps.size(); }
+    // Check if sorcery-speed spells can be cast
+    virtual bool canCastSorceries() { return false; }
+
+    // Writes
+
+    // Move forward one unit of time. returning the next ActionSpace (possibly nullptr) for a player
+    // to take.
+    std::unique_ptr<ActionSpace> tick();
+};
+
+// Represents a complete turn in the game
+struct Turn {
+    // Data
+    TurnSystem* turn_system;
+    Player* active_player;
+    std::vector<std::unique_ptr<Phase>> phases;
+    int current_phase_index = 0;
+    int lands_played = 0;
+
+    Turn(Player* active_player, TurnSystem* turn_system);
+
+    // Reads
+
+    // Get current phase
+    Phase* currentPhase() { return phases[current_phase_index].get(); }
+    // Check if turn is completed
+    bool isComplete() { return current_phase_index >= phases.size(); }
+
+    // Writes
+
+    // Advance turn state
+    std::unique_ptr<ActionSpace> tick();
+};
+
+// Beginning phase steps
+
+// Step where permanents become untapped
 struct UntapStep : public Step {
-  UntapStep(Phase* parent_phase) : Step(parent_phase) {
-    has_priority_window = false;
-  }
-
-  virtual std::unique_ptr<ActionSpace> performTurnBasedActions() override;
+    UntapStep(Phase* parent_phase) : Step(parent_phase) { has_priority_window = false; }
+    std::unique_ptr<ActionSpace> performTurnBasedActions() override;
 };
 
+// Step for upkeep triggers
 struct UpkeepStep : public Step {
-  UpkeepStep(Phase* parent_phase) : Step(parent_phase) {
-    has_priority_window = true;
-  }
+    UpkeepStep(Phase* parent_phase) : Step(parent_phase) { has_priority_window = true; }
 };
 
+// Step where active player draws a card
 struct DrawStep : public Step {
-  DrawStep(Phase* parent_phase) : Step(parent_phase) {
-    has_priority_window = true;
-  }
-
-  virtual std::unique_ptr<ActionSpace> performTurnBasedActions() override;
+    DrawStep(Phase* parent_phase) : Step(parent_phase) { has_priority_window = true; }
+    std::unique_ptr<ActionSpace> performTurnBasedActions() override;
 };
 
-// Main Step
-
+// Main phase step
 struct MainStep : public Step {
-  MainStep(Phase* parent_phase) : Step(parent_phase) {
-    has_priority_window = true;
-  }
+    MainStep(Phase* parent_phase) : Step(parent_phase) { has_priority_window = true; }
 };
 
-// Ending Steps
+// End phase steps
 
+// Step for end of turn triggers
 struct EndStep : public Step {
-  EndStep(Phase* parent_phase) : Step(parent_phase) {
-    has_priority_window = true;
-  }
+    EndStep(Phase* parent_phase) : Step(parent_phase) { has_priority_window = true; }
 };
 
+// Step for cleanup actions
 struct CleanupStep : public Step {
-  CleanupStep(Phase* parent_phase) : Step(parent_phase) {
-    has_priority_window = false;
-  }
-
-  virtual std::unique_ptr<ActionSpace> performTurnBasedActions() override;
+    CleanupStep(Phase* parent_phase) : Step(parent_phase) { has_priority_window = false; }
+    std::unique_ptr<ActionSpace> performTurnBasedActions() override;
 };
 
-// Phases
+// Phase implementations
+
+// Initial phase of the turn
 struct BeginningPhase : public Phase {
-  BeginningPhase(Turn* parent_turn) : Phase(parent_turn) {
-    steps.emplace_back(new UntapStep(this));
-    steps.emplace_back(new UpkeepStep(this));
-    steps.emplace_back(new DrawStep(this));
-  }
+    BeginningPhase(Turn* parent_turn);
 };
 
+// First main phase
 struct PrecombatMainPhase : public Phase {
-  virtual bool canCastSorceries() override { return true; }
-
-  PrecombatMainPhase(Turn* parent_turn) : Phase(parent_turn) {
-    steps.emplace_back(new MainStep(this));
-  }
+    bool canCastSorceries() override { return true; }
+    PrecombatMainPhase(Turn* parent_turn);
 };
 
+// Second main phase
 struct PostcombatMainPhase : public Phase {
-  virtual bool canCastSorceries() override { return true; }
-
-  PostcombatMainPhase(Turn* parent_turn) : Phase(parent_turn) {
-    steps.emplace_back(new MainStep(this));
-  }
+    bool canCastSorceries() override { return true; }
+    PostcombatMainPhase(Turn* parent_turn);
 };
 
+// Final phase of the turn
 struct EndingPhase : public Phase {
-  EndingPhase(Turn* parent_turn) : Phase(parent_turn) {
-    steps.emplace_back(new EndStep(this));
-    steps.emplace_back(new CleanupStep(this));
-  }
+    EndingPhase(Turn* parent_turn);
 };

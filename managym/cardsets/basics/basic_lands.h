@@ -1,11 +1,11 @@
 // basic_lands.h
 #pragma once
 
-#include <memory>
-
 #include "managym/state/card.h"
 
-Card createBasicLandCard(const std::string &name, Color color);
+#include <memory>
+
+Card createBasicLandCard(const std::string& name, Color color);
 
 // Basic lands
 Card basicPlains();

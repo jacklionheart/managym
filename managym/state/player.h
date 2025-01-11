@@ -1,44 +1,48 @@
 #pragma once
 
+#include "managym/action/action.h"
+#include "managym/state/card.h"
+#include "managym/state/mana.h"
+
 #include <map>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "managym/action/action.h"
-#include "managym/state/card.h"
-#include "managym/state/mana.h"
-
+// Configuration for creating a new player, including their name and decklist
 struct PlayerConfig {
-  std::string name;
-  std::map<std::string, int> decklist;
+    std::string name;
+    std::map<std::string, int> decklist;
 
-  PlayerConfig(std::string name,
-               const std::map<std::string, int>& cardQuantities)
-      : name(std::move(name)), decklist(cardQuantities) {}
+    PlayerConfig(std::string name, const std::map<std::string, int>& cardQuantities)
+        : name(std::move(name)), decklist(cardQuantities) {}
 };
 
+// Represents a player in the game, managing their resources and game state
 class Player {
- public:
-  static int next_id;
-  int id;
+public:
+    // Basic UUID generator
+    static int next_id;
 
-  std::unique_ptr<Deck> deck;
+    // Data
+    int id;
+    std::unique_ptr<Deck> deck;
+    std::unique_ptr<Agent> agent;
+    std::string name;
+    int life = 20;
+    bool alive = true;
+    Mana mana_pool;
 
-  std::unique_ptr<Agent> agent;
+    Player(const PlayerConfig& config);
 
-  std::string name;
-  int life = 20;
-  bool alive = true;
-  Mana mana_pool;
+    // Reads
+    std::string toString() const;
 
-  Player(const PlayerConfig& config);
+    // Writes
+    void takeDamage(int damage);
 
-  void takeDamage(int damage);
-
-  [[nodiscard]] std::string toString() const;
-
- private:
-  std::unique_ptr<Deck> instantiateDeck(const PlayerConfig& config);
+private:
+    // Helpers
+    std::unique_ptr<Deck> instantiateDeck(const PlayerConfig& config);
 };

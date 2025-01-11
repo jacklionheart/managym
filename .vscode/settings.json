@@ -18,7 +18,7 @@
     "clangd.arguments": [
         "--background-index",
         "--compile-commands-dir=${workspaceFolder}/build",
-        "--header-insertion=never",
+        "--header-insertion=iwyu",
         "--pch-storage=memory",
         "-j=4",
         "--clang-tidy",
@@ -26,13 +26,17 @@
         "--offset-encoding=utf-16",
         "--query-driver=/usr/bin/clang++",
         "--cross-file-rename",
-        "--fallback-style=Google",
+        "--fallback-style=Mozilla",A
         "--suggest-missing-includes"
     ],
     "C_Cpp.intelliSenseEngine": "disabled",
     "editor.formatOnSave": true,
-    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
     "problems.defaultViewMode": "tree",
     "problems.showCurrentInStatus": true,
-    "problems.decorations.enabled": true
+    "problems.decorations.enabled": true,
+    "[cpp]": {
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true
+    }
 }

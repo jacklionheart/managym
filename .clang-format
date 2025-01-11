@@ -1,0 +1,44 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+IndentWidth: 4    # Override LLVM's default 2-space
+AccessModifierOffset: -4
+DerivePointerAlignment: false
+PointerAlignment: Left
+UseTab: Never
+ColumnLimit: 100
+
+# Include Ordering
+IncludeBlocks: Regroup
+IncludeIsMainRegex: '([-_](test|unittest))?$'  # Matches foo.h for foo.cpp
+
+IncludeCategories:
+  # Corresponding header (pulled out by IncludeIsMainRegex)
+  - Regex: '^"'
+    Priority: 1
+    SortPriority: 0
+    CaseSensitive: false
+  
+  # Headers in same directory
+  - Regex: '^"[^/]*"'
+    Priority: 2
+    SortPriority: 0
+    CaseSensitive: false
+  
+  # Other managym headers
+  - Regex: '^"managym/'
+    Priority: 3
+    SortPriority: 0
+    CaseSensitive: false
+  
+  # 3rd party headers
+  - Regex: '^<(.+/)'  # Must contain at least one slash
+    Priority: 4
+    SortPriority: 0
+    CaseSensitive: false
+  
+  # stdlib
+  - Regex: '^<.*>'
+    Priority: 5
+    SortPriority: 0
+    CaseSensitive: false

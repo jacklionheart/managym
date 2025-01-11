@@ -1,0 +1,2 @@
+CompileFlags:
+  Add: [-DSPDLOG_USE_STD_FORMAT=0]

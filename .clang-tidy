@@ -1,0 +1,24 @@
+# Implement the style guide
+---
+Checks: >
+    -*, # Turn off all checks by default
+    readability-identifier-naming # Only enable naming checks
+
+    - key: readability-identifier-naming.ClassCase
+      value: CamelCase
+    - key: readability-identifier-naming.StructCase
+      value: CamelCase
+    - key: readability-identifier-naming.EnumCase
+      value: CamelCase
+    - key: readability-identifier-naming.MethodCase
+      value: camelCase
+    - key: readability-identifier-naming.VariableCase
+      value: lower_case
+    - key: readability-identifier-naming.ParameterCase
+      value: lower_case
+    - key: readability-identifier-naming.MemberCase
+      value: lower_case
+
+# Turn off warnings about the configuration itself
+WarningsAsErrors: ''
+FormatStyle: file  # Use .clang-format file for formatting

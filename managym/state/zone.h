@@ -1,59 +1,80 @@
 #pragma once
 
+#include "managym/state/card.h"
+#include "managym/state/player.h"
+
 #include <map>
 #include <memory>
 #include <vector>
 
-#include "managym/state/card.h"
-#include "managym/state/player.h"
-
 // Forward declaration
 class Zones;
 
+// Base class for all game zones. A zone represents a collection of cards
+// that follows specific game rules for adding and removing cards.
 class Zone {
- public:
-  virtual ~Zone() = default;
-  Zones* zones;
+public:
+    virtual ~Zone() = default;
+    Zones* zones;
 
-  Zone(Zones* zones, std::vector<Player*>& players);
-  std::map<Player*, std::vector<Card*>> cards;
+    Zone(Zones* zones, std::vector<Player*>& players);
 
-  void shuffle(Player* player);
-  Card* top(Player* player);
+    // Data
+    std::map<Player*, std::vector<Card*>> cards;
 
-  size_t size(Player* player) const;
-  size_t totalSize() const;
-  bool contains(const Card* card, Player* player) const;
+    // Reads
 
- protected:
-  friend class Zones;
-  virtual void enter(Card* card);
-  virtual void exit(Card* card);
-  virtual void forEach(const std::function<void(Card*)>& func, Player* player);
-  virtual void forEachAll(const std::function<void(Card*)>& func);
+    // Randomize the order of the cards in this zone for a player.
+    void shuffle(Player* player);
+
+    // Get the top card in this zone for a player.
+    Card* top(Player* player);
+
+    // Number of cards in this zone for a player.
+    size_t size(Player* player) const;
+
+    // Total number of cards in this zone.
+    size_t totalSize() const;
+
+    // Check if this zone contains a specific card for a player.
+    bool contains(const Card* card, Player* player) const;
+
+protected:
+    friend class Zones;
+
+    // Move a card into this zone. Primarily called by `Zones::move`.
+    virtual void enter(Card* card);
+
+    // Move a card out of this zone. Primarily called by `Zones::move`.
+    virtual void exit(Card* card);
+
+    // Perform a lambda on all cards in this zone for a player.
+    virtual void forEach(const std::function<void(Card*)>& func, Player* player);
+    // Perform a lambda on all cards in this zone for all players.
+    virtual void forEachAll(const std::function<void(Card*)>& func);
 };
 
 class Library : public Zone {
- public:
-  using Zone::Zone;
+public:
+    using Zone::Zone;
 };
 
 class Graveyard : public Zone {
- public:
-  using Zone::Zone;
+public:
+    using Zone::Zone;
 };
 
 class Hand : public Zone {
- public:
-  using Zone::Zone;
+public:
+    using Zone::Zone;
 };
 
 class Exile : public Zone {
- public:
-  using Zone::Zone;
+public:
+    using Zone::Zone;
 };
 
 class Command : public Zone {
- public:
-  using Zone::Zone;
+public:
+    using Zone::Zone;
 };

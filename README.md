@@ -16,13 +16,28 @@ The major areas of the codebase are:
 
 # Style Guide
 
-## Naming Conventions   
+Use the [LLVM Coding Standards](https://llvm.org/docs/CodingStandards) as a suggestion for anything unspecified here html.
 
-Objects are `CamelCase`. Member variables are `snake_case`. Methods are `camelCase`. Files are `snake_case`.
+## Formatting
+
+Objects are `CamelCase`. Member variables are `snake_case`. Methods are `camelCase`. Files are `snake_case`. 
+Pointers are `Object* ptr`, not `Object *ptr`. 
+
+Indentations are 4 spaces. 
+
+Includes should be sorted in group order, with spaces between the groups:
+
+- Corresponding header: #include "me.h"
+- Headers in same directory: #include "sibling.h"
+- Any other managym headers: #include "managym/other.h"
+- 3rd Party: #include <3rdparty.h>
+- Built-ins: #include <spdlog/spdlog.h>
+
+Prefer alphabetical within each indentation groups.
 
 ## Objects
 
-Each object has one owner, which stores it in a std::unique_ptr<T>. Other references are simple T* pointers. We do not use std::shared_ptr or std::weak_ptr.
+Each object has one owner, which stores it in a std::unique_ptr<T>. Other references are simple T* pointers. We do not use std::shared_ptr or std::weak_ptr. Objects should be declared as `struct` unless access control is used. Classes in headers may be forward-declared to avoid unnecessary imports.
 
 Simple subobjects which are not referenced by other objects are stored directly as member variables.
 
@@ -34,12 +49,13 @@ When a comment starts with MR405.1 that is a reference to the section 405.1 of t
 
 Public APIs should have concise explanations with an emphasis on clarity rather than exhaustiveness. These comments should live in the cpp file.
 
-In both header and cpp files, include sectional headers for e.g. the following major areas, with further subdivision as appropriate:
+In both header and cpp files, include sectional headers for e.g. the following major areas, with further subdivision as appropriate, in the following order:
 
-// Constructor
 // Data
 // Reads
 // Writes
+
+The first line in a struct or class should be its constructor.
 
 General overviews should appear as class comments. Header comments should be 1-line summaries of each methods. Most code should speak for itself, but organizational comments are welcome.
 

@@ -4,50 +4,67 @@
 #include <set>
 #include <string>
 
+// Represents the five colors of mana plus colorless
 enum struct Color { COLORLESS, WHITE, BLUE, BLACK, RED, GREEN };
 
+// Convert a color to its standard one-letter representation
 inline std::string toString(Color color) {
-  switch (color) {
+    switch (color) {
     case Color::WHITE:
-      return "W";
+        return "W";
     case Color::BLUE:
-      return "U";
+        return "U";
     case Color::BLACK:
-      return "B";
+        return "B";
     case Color::RED:
-      return "R";
+        return "R";
     case Color::GREEN:
-      return "G";
+        return "G";
     case Color::COLORLESS:
-      return "C";
+        return "C";
     default:
-      return "?";
-  }
+        return "?";
+    }
 }
 
+// Set of colors, used for card color identity
 using Colors = std::set<Color>;
 
+// Represents a mana cost that must be paid to cast a spell or activate an ability
 struct ManaCost {
-  std::map<Color, int> cost;
-  int generic;
+    // Data
+    std::map<Color, int> cost;
+    int generic;
 
-  ManaCost();
-  [[nodiscard]] static ManaCost parse(const std::string& mana_cost_str);
-  [[nodiscard]] std::string toString() const;
-  [[nodiscard]] Colors colors() const;
-  [[nodiscard]] int manaValue() const;
+    ManaCost();
+
+    // Static Methods
+    static ManaCost parse(const std::string& mana_cost_str);
+
+    // Reads
+    std::string toString() const;
+    Colors colors() const;
+    int manaValue() const;
 };
 
+// Represents actual mana in a player's mana pool
 struct Mana {
-  std::map<Color, int> mana;
-  static Mana parse(const std::string& mana_cost_str);
-  static Mana single(Color color);
+    // Data
+    std::map<Color, int> mana;
 
-  Mana();
-  void add(const Mana& other);
-  [[nodiscard]] int total() const;
-  [[nodiscard]] bool canPay(const ManaCost& mana_cost) const;
-  void pay(const ManaCost& mana_cost);
-  void clear();
-  [[nodiscard]] std::string toString() const;
+    // Static Methods
+    static Mana parse(const std::string& mana_str);
+    static Mana single(Color color);
+
+    Mana();
+
+    // Writes
+    void add(const Mana& other);
+    void pay(const ManaCost& mana_cost);
+    void clear();
+
+    // Reads
+    int total() const;
+    bool canPay(const ManaCost& mana_cost) const;
+    std::string toString() const;
 };

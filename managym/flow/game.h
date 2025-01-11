@@ -1,9 +1,5 @@
 #pragma once
 
-#include <spdlog/spdlog.h>
-
-#include <vector>
-
 #include "managym/action/action.h"
 #include "managym/flow/priority.h"
 #include "managym/flow/turn.h"
@@ -15,58 +11,86 @@
 #include "managym/state/zones.h"
 #include "managym/ui/game_display.h"
 
-struct Game {
-  std::vector<std::unique_ptr<Player>> players;
+#include <spdlog/spdlog.h>
 
-  std::unique_ptr<Zones> zones;
-  std::unique_ptr<GameDisplay> display;
-  std::unique_ptr<TurnSystem> turn_system;
+#include <vector>
 
-  std::unique_ptr<Graveyard> graveyard;
+// Core game class that manages game state and rules enforcement
+class Game {
+public:
+    Game(std::vector<PlayerConfig> player_configs, bool headless = false);
 
-  std::unique_ptr<ActionSpace> current_action_space;
+    // Data
+    std::vector<std::unique_ptr<Player>> players;
+    std::unique_ptr<Zones> zones;
+    std::unique_ptr<GameDisplay> display;
+    std::unique_ptr<TurnSystem> turn_system;
+    std::unique_ptr<ActionSpace> current_action_space;
 
-  Game(std::vector<PlayerConfig> player_configs, bool headless = false);
+    // Reads
 
-  void play();
-  // Returns true if game can continue, false if game is over or should stop.
-  bool tick();
-  bool isGameOver();
-  void nextStep();
-  void clearManaPools();
-  void grantPriority();
-  void allowPlayerActions();
+    // Get card by ID
+    Card* card(int id);
+    // Get currently active player
+    Player* activePlayer();
+    // Get non-active player
+    Player* nonActivePlayer();
+    // Get player order for priority
+    std::vector<Player*> priorityOrder();
+    // Check if player is active player
+    bool isActivePlayer(Player* player) const;
+    // Check if player can play a land
+    bool canPlayLand(Player* player) const;
+    // Check if player can cast sorceries
+    bool canCastSorceries(Player* player) const;
+    // Check if player can pay a mana cost
+    bool canPayManaCost(Player* player, const ManaCost& mana_cost) const;
+    // Check if player is still alive
+    bool isPlayerAlive(Player* player);
+    // Check if game is over
+    bool isGameOver();
 
-  // Lookups
-  Card* card(int id);
-  Player* activePlayer();
-  Player* nonActivePlayer();
-  std::vector<Player*> priorityOrder();
+    // Writes
 
-  bool isActivePlayer(Player* player) const;
-  bool canPlayLand(Player* player) const;
-  bool canCastSorceries(Player* player) const;
-  bool canPayManaCost(Player* player, const ManaCost& mana_cost) const;
-  bool isPlayerAlive(Player* player);
-
-  // Automatic Actions
-  void untapAllPermanents(Player* player);
-  void markPermanentsNotSummoningSick(Player* player);
-  void drawCards(Player* player, int amount);
-  void loseGame(Player* player);
-  void performStateBasedActions();
-  void clearDamage();
-
-  // Game State Mutations
-  void addMana(Player* player, const Mana& mana);
-  void spendMana(Player* player, const ManaCost& mana_cost);
-  void castSpell(Player* player, Card* card);
-  void playLand(Player* player, Card* card);
+    // Run the game to completion
+    void play();
+    // Execute a single game action
+    bool tick();
+    // Clear all players' mana pools
+    void clearManaPools();
+    // Clear all damage from permanents
+    void clearDamage();
+    // Untap all permanents controlled by a player
+    void untapAllPermanents(Player* player);
+    // Mark creatures not summoning sick for a player
+    void markPermanentsNotSummoningSick(Player* player);
+    // Draw specified number of cards for a player
+    void drawCards(Player* player, int amount);
+    // Make specified player lose the game
+    void loseGame(Player* player);
+    // Add mana to a player's mana pool
+    void addMana(Player* player, const Mana& mana);
+    // Remove mana from a player's pool
+    void spendMana(Player* player, const ManaCost& mana_cost);
+    // Move card to stack and start casting process
+    void castSpell(Player* player, Card* card);
+    // Move a land card to the battlefield
+    void playLand(Player* player, Card* card);
+    // Perform state-based actions
+    void performStateBasedActions();
+    // Grant priority to the appropriate player
+    void grantPriority();
+    // Allow player to take game actions
+    void allowPlayerActions();
+    // Move to next game step
+    void nextStep();
 };
 
+// Exception thrown when game ends
 class GameOverException : public std::exception {
- public:
-  std::string message;
-  GameOverException(const std::string& msg) : message(msg) {}
-  const char* what() const noexcept override { return message.c_str(); }
+    std::string message;
+
+public:
+    GameOverException(const std::string& msg) : message(msg) {}
+    const char* what() const noexcept override { return message.c_str(); }
 };
