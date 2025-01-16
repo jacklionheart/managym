@@ -1,0 +1,14 @@
+CompileFlags:
+  Add: [-DSPDLOG_USE_STD_FORMAT=0, -std=c++20]
+
+Diagnostics:
+  UnusedIncludes: Strict
+  
+InlayHints:
+  Enabled: Yes
+  ParameterNames: Yes
+  DeducedTypes: Yes
+
+Hover:
+  ShowAKA: Yes
+
