@@ -1,9 +1,8 @@
 #pragma once
 
-#include "managym/action/action.h"
+#include "managym/agent/action.h"
 #include "managym/flow/priority.h"
 #include "managym/flow/turn.h"
-#include "managym/state/battlefield.h"
 #include "managym/state/card.h"
 #include "managym/state/mana.h"
 #include "managym/state/player.h"
@@ -29,14 +28,12 @@ public:
 
     // Reads
 
-    // Get card by ID
-    Card* card(int id);
     // Get currently active player
-    Player* activePlayer();
+    Player* activePlayer() const;
     // Get non-active player
-    Player* nonActivePlayer();
+    Player* nonActivePlayer() const;
     // Get player order for priority
-    std::vector<Player*> priorityOrder();
+    std::vector<Player*> priorityOrder() const;
     // Check if player is active player
     bool isActivePlayer(Player* player) const;
     // Check if player can play a land
@@ -46,15 +43,15 @@ public:
     // Check if player can pay a mana cost
     bool canPayManaCost(Player* player, const ManaCost& mana_cost) const;
     // Check if player is still alive
-    bool isPlayerAlive(Player* player);
+    bool isPlayerAlive(Player* player) const;
     // Check if game is over
-    bool isGameOver();
+    bool isGameOver() const;
 
     // Writes
 
     // Run the game to completion
     void play();
-    // Execute a single game action
+    // Execute a single game action. Returns true if the game is over.
     bool tick();
     // Clear all players' mana pools
     void clearManaPools();
@@ -76,14 +73,6 @@ public:
     void castSpell(Player* player, Card* card);
     // Move a land card to the battlefield
     void playLand(Player* player, Card* card);
-    // Perform state-based actions
-    void performStateBasedActions();
-    // Grant priority to the appropriate player
-    void grantPriority();
-    // Allow player to take game actions
-    void allowPlayerActions();
-    // Move to next game step
-    void nextStep();
 };
 
 // Exception thrown when game ends

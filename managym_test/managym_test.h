@@ -25,11 +25,21 @@ void registerTestCards();
 std::unique_ptr<Game> elvesVsOgres(bool headless = true, int redMountains = 4, int redOgres = 3,
                                    int greenForests = 4, int greenElves = 3);
 
-bool advanceToPhase(Game* game, PhaseType targetPhase, int maxTicks = 1000);
+// Put a permanent in play
+void putPermanentInPlay(Game* game, Player* player, const std::string& cardName);
 
+// Advance to a phase (main, combat, etc.) Does not advance if already in the target phase.
+// Set require_action_space to true to require an action space to be returned.
+bool advanceToPhase(Game* game, PhaseType targetPhase, bool require_action_space = false,
+                    int maxTicks = 1000);
+
+// Advance to a phase step (declare attackers, declare blockers, etc.) Does not advance if already
+// in the target step.
 bool advanceToPhaseStep(Game* game, PhaseType targetPhase,
-                        std::optional<StepType> targetStep = std::nullopt, int maxTicks = 1000);
+                        std::optional<StepType> targetStep = std::nullopt,
+                        bool require_action_space = false, int maxTicks = 1000);
 
+// Advance to the next turn.
 bool advanceToNextTurn(Game* game, int maxTicks = 1000);
 
 struct ManagymTest : public ::testing::Test {

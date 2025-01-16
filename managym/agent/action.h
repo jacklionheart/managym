@@ -1,17 +1,15 @@
 #pragma once
 
-#include <memory>
-#include <vector>
-
+#include <string>
+class Game;
 class Player;
 class PrioritySystem;
 class Card;
-class Game;
 class DeclareBlockersStep;
 class DeclareAttackersStep;
 class Permanent;
 
-// Base struct for all game actions
+// Base struct for all game actions performed by agents
 struct Action {
     // Data
     Player* player;
@@ -20,6 +18,9 @@ struct Action {
     Action(Player* player) : player(player) {}
     virtual ~Action() = default;
 
+    // Reads
+    virtual std::string toString() const { return "Action"; }
+
     // Writes
     // Execute this action's game effects
     virtual void execute() {}
@@ -27,35 +28,26 @@ struct Action {
 
 // Types of actions available to players
 enum struct ActionType {
+    Invalid,
     Priority,
     DeclareAttacker,
     DeclareBlocker,
 };
 
-// Collection of possible actions for a game decision point
-struct ActionSpace {
-    ActionSpace(Player* player, ActionType action_type,
-                std::vector<std::unique_ptr<Action>>&& actions)
-        : player(player), action_type(action_type), actions(std::move(actions)) {}
-    virtual ~ActionSpace() = default;
-
-    // Data
-    Player* player;
-    ActionType action_type;
-    Permanent* focus;
-    int chosen_index = -1;
-    std::vector<std::unique_ptr<Action>> actions;
-
-    // Writes
-    // Select an action from the available choices
-    void selectAction(int index) { chosen_index = index; }
-
-    // Reads
-    // Check if an action has been selected
-    bool actionSelected() { return chosen_index != -1; }
-    // Check if there are no available actions
-    bool empty();
-};
+inline std::string toString(ActionType type) {
+    switch (type) {
+    case ActionType::Invalid:
+        return "Invalid";
+    case ActionType::Priority:
+        return "Priority";
+    case ActionType::DeclareAttacker:
+        return "DeclareAttacker";
+    case ActionType::DeclareBlocker:
+        return "DeclareBlocker";
+    default:
+        return "Unknown";
+    }
+}
 
 // Action for declaring an attacking creature
 struct DeclareAttackerAction : public Action {
@@ -67,6 +59,9 @@ struct DeclareAttackerAction : public Action {
     Permanent* attacker;
     DeclareAttackersStep* step;
     bool attack;
+
+    // Reads
+    std::string toString() const override;
 
     // Writes
     // Execute the attack declaration
@@ -84,6 +79,9 @@ struct DeclareBlockerAction : public Action {
     Permanent* attacker;
     DeclareBlockersStep* step;
 
+    // Reads
+    std::string toString() const override;
+
     // Writes
     // Execute the block declaration
     void execute() override;
@@ -96,6 +94,9 @@ struct PlayLand : public Action {
     // Data
     Game* game;
     Card* card;
+
+    // Reads
+    std::string toString() const override;
 
     // Writes
     // Execute the land play
@@ -110,6 +111,9 @@ struct CastSpell : public Action {
     Game* game;
     Card* card;
 
+    // Reads
+    std::string toString() const override;
+
     // Writes
 
     // Execute the spell cast
@@ -123,22 +127,11 @@ struct PassPriority : public Action {
     // Data
     PrioritySystem* priority_system;
 
+    // Reads
+    std::string toString() const override;
+
     // Writes
 
     // Execute the priority pass
     void execute() override;
-};
-
-// Interface for AI agents making game decisions
-struct Agent {
-    // Data
-    Action* chosen_action;
-
-    // Writes
-    // Choose an action from available options
-    void selectAction(ActionSpace* action_space);
-
-    // Reads
-    // Get the currently selected action
-    Action* chosenAction() { return chosen_action; }
 };

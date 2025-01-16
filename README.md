@@ -10,7 +10,7 @@ The major areas of the codebase are:
 
 - `managym/state/`: All of the game state. The most foundational package. Should have minimal dependencies on other parts of the codebase.
 - `managym/flow/`: Executes the flow of game, including the core game loop, turn structure, and combat.
-- `managym/action/`: The interface and execution of actions, i.e. making choices in gameplay and the execution of those choices.
+- `managym/agent`: The interface and execution of actions, i.e. making choices in gameplay and the execution of those choices.
 - `managym/ui/`: Some basic code for rendering the game. Mostly for debugging.
 - `managym/cardsets`: Implementations of individual Magic cards that can be used in the game. 
 

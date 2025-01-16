@@ -26,11 +26,15 @@
         "--offset-encoding=utf-16",
         "--query-driver=/usr/bin/clang++",
         "--cross-file-rename",
-        "--fallback-style=Mozilla",A
-        "--suggest-missing-includes"
+        "--fallback-style=LLVM", // Changed to match your .clang-format
+        "--suggest-missing-includes",
+        "--header-insertion-decorators",
+        "--completion-style=detailed",
+        "--enable-config"
     ],
     "C_Cpp.intelliSenseEngine": "disabled",
     "editor.formatOnSave": true,
+    "editor.formatOnType": true, // Added this
     "problems.defaultViewMode": "tree",
     "problems.showCurrentInStatus": true,
     "problems.decorations.enabled": true,

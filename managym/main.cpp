@@ -2,7 +2,6 @@
 #include "managym/state/card_registry.h"
 
 #include <iostream>
-#include <memory>
 
 int main(int argc, char** argv) {
     // Check for debug flag
@@ -38,6 +37,7 @@ int main(int argc, char** argv) {
 
     // Start the game loop
     try {
+        std::cout << "starting game" << std::endl;
         game.play();
     } catch (const GameOverException& e) {
         std::cout << "Game over: " << e.what() << std::endl;

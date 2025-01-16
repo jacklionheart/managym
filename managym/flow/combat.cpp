@@ -1,6 +1,6 @@
 #include "combat.h"
 
-#include "managym/action/action.h"
+#include "managym/agent/action.h"
 #include "managym/flow/game.h"
 #include "managym/state/battlefield.h"
 #include "managym/state/zones.h"
@@ -22,6 +22,7 @@ CombatStep::CombatStep(CombatPhase* parent_combat_phase)
 
 void DeclareAttackersStep::initialize() {
     Player* active_player = game()->activePlayer();
+    spdlog::debug("DeclareAttackersStep::initialize");
     attackers_to_declare = game()->zones->constBattlefield()->eligibleAttackers(active_player);
 }
 
@@ -37,12 +38,14 @@ std::unique_ptr<ActionSpace> DeclareAttackersStep::makeActionSpace(Permanent* at
     actions.emplace_back(new DeclareAttackerAction(attacker, true, active_player, this));
     actions.emplace_back(new DeclareAttackerAction(attacker, false, active_player, this));
 
-    return std::make_unique<ActionSpace>(active_player, ActionType::DeclareAttacker,
-                                         std::move(actions));
+    return std::make_unique<ActionSpace>(ActionType::DeclareAttacker, std::move(actions),
+                                         active_player, game());
 }
 
 std::unique_ptr<ActionSpace> DeclareAttackersStep::performTurnBasedActions() {
     if (attackers_to_declare.empty()) {
+        spdlog::debug(
+            "DeclareAttackersStep::performTurnBasedActions -- no more attackers to declare");
         turn_based_actions_complete = true;
         return nullptr;
     }
@@ -50,6 +53,8 @@ std::unique_ptr<ActionSpace> DeclareAttackersStep::performTurnBasedActions() {
     Permanent* attacker = attackers_to_declare.back();
     attackers_to_declare.pop_back();
 
+    spdlog::debug("DeclareAttackersStep::performTurnBasedActions -- making actionSpace for "
+                  "declaring an attacker");
     return makeActionSpace(attacker);
 }
 
@@ -62,8 +67,8 @@ std::unique_ptr<ActionSpace> DeclareBlockersStep::makeActionSpace(Permanent* blo
     }
     actions.emplace_back(new DeclareBlockerAction(blocker, nullptr, blocking_player, this));
 
-    return std::make_unique<ActionSpace>(blocking_player, ActionType::DeclareBlocker,
-                                         std::move(actions));
+    return std::make_unique<ActionSpace>(ActionType::DeclareBlocker, std::move(actions),
+                                         blocking_player, game());
 }
 
 std::unique_ptr<ActionSpace> DeclareBlockersStep::performTurnBasedActions() {

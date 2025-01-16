@@ -6,7 +6,6 @@
 
 #include <map>
 #include <memory>
-#include <stdexcept>
 #include <vector>
 
 // MR400.1 A zone is a place where objects can be during a game. There are

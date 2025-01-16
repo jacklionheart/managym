@@ -18,16 +18,16 @@ TEST_F(TestState, CardMovementBetweenZones) {
     ASSERT_TRUE(game != nullptr);
 
     // Grab top card from the hand
-    Player* p0 = game->players[0].get();
-    Card* topCard = game->zones->top(ZoneType::HAND, p0);
+    Player* red_player = game->players[0].get();
+    Card* topCard = game->zones->top(ZoneType::HAND, red_player);
     ASSERT_NE(topCard, nullptr);
 
     // Move it to the hand
-    game->zones->moveTop(ZoneType::HAND, ZoneType::LIBRARY, p0);
+    game->zones->moveTop(ZoneType::HAND, ZoneType::LIBRARY, red_player);
 
     // Check it's no longer in the library but now in the hand
-    EXPECT_FALSE(game->zones->contains(topCard, ZoneType::HAND, p0));
-    EXPECT_TRUE(game->zones->contains(topCard, ZoneType::LIBRARY, p0));
+    EXPECT_FALSE(game->zones->contains(topCard, ZoneType::HAND, red_player));
+    EXPECT_TRUE(game->zones->contains(topCard, ZoneType::LIBRARY, red_player));
 }
 
 TEST_F(TestState, InitialGameStateSetup) {

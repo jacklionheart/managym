@@ -24,7 +24,9 @@ TEST_F(TestFlow, CorrectPlayerStartsWithPriority) {
     ASSERT_TRUE(game != nullptr);
 
     Player* active = game->activePlayer();
-    std::unique_ptr<ActionSpace> space = game->turn_system->tick();
+
+    ASSERT_TRUE(advanceToPhaseStep(game.get(), PhaseType::PRECOMBAT_MAIN));
+    ActionSpace* space = game->current_action_space.get();
 
     // If the ActionSpace is for priority, the player should match 'active'
     if (space && !space->actionSelected()) {

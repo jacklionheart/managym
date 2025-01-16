@@ -1,6 +1,6 @@
 #include "card.h"
 
-#include "battlefield.h"
+#include "managym/state/battlefield.h"
 
 #include <utility>
 

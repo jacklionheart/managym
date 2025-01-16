@@ -1,23 +1,17 @@
 #include "action.h"
 
+#include "managym/agent/observation.h"
 #include "managym/flow/combat.h"
 #include "managym/flow/game.h"
 #include "managym/flow/turn.h"
 #include "managym/state/battlefield.h"
 #include "managym/state/zones.h"
 
+#include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
 #include <cassert>
-
-void Agent::selectAction(ActionSpace* action_space) {
-    if (action_space->empty()) {
-        throw std::logic_error("No actions in action space");
-    }
-    action_space->selectAction(0);
-}
-
-bool ActionSpace::empty() { return actions.empty(); }
+#include <memory>
 
 void DeclareAttackerAction::execute() {
     spdlog::info("Player {} Declaring attacker", player->id);
@@ -71,4 +65,27 @@ PassPriority::PassPriority(Player* player, PrioritySystem* priority_system)
 void PassPriority::execute() {
     spdlog::debug("Player {} Passing priority", player->id);
     priority_system->passPriority(player);
+}
+
+std::string DeclareAttackerAction::toString() const {
+    return fmt::format("DeclareAttackerAction(attacker={}, attack={}, player={})",
+                       attacker->card->toString(), attack, player->name);
+}
+
+std::string DeclareBlockerAction::toString() const {
+    return fmt::format("DeclareBlockerAction(blocker={}, attacker={}, player={})",
+                       blocker->card->toString(), attacker ? attacker->card->toString() : "nullptr",
+                       player->name);
+}
+
+std::string PlayLand::toString() const {
+    return fmt::format("PlayLand(card={}, player={})", card->toString(), player->name);
+}
+
+std::string CastSpell::toString() const {
+    return fmt::format("CastSpell(card={}, player={})", card->toString(), player->name);
+}
+
+std::string PassPriority::toString() const {
+    return fmt::format("PassPriority(player={})", player->name);
 }

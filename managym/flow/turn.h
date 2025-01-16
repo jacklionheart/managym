@@ -14,7 +14,7 @@ class Player;
 class Game;
 
 // Represents different phases of a turn
-enum class PhaseType {
+enum struct PhaseType {
     BEGINNING,
     PRECOMBAT_MAIN,
     COMBAT,
@@ -22,8 +22,24 @@ enum class PhaseType {
     ENDING,
 };
 
+inline std::string toString(PhaseType phase) {
+    switch (phase) {
+    case PhaseType::BEGINNING:
+        return "BEGINNING";
+    case PhaseType::PRECOMBAT_MAIN:
+        return "PRECOMBAT_MAIN";
+    case PhaseType::COMBAT:
+        return "COMBAT";
+    case PhaseType::POSTCOMBAT_MAIN:
+        return "POSTCOMBAT_MAIN";
+    case PhaseType::ENDING:
+        return "ENDING";
+    default:
+        return "UNKNOWN";
+    }
+}
 // Represents specific steps within each phase
-enum class StepType {
+enum struct StepType {
     // Beginning Phase Steps
     BEGINNING_UNTAP,
     BEGINNING_UPKEEP,
@@ -44,6 +60,34 @@ enum class StepType {
     ENDING_CLEANUP
 };
 
+inline std::string toString(StepType step) {
+    switch (step) {
+    case StepType::BEGINNING_UNTAP:
+        return "BEGINNING_UNTAP";
+    case StepType::BEGINNING_UPKEEP:
+        return "BEGINNING_UPKEEP";
+    case StepType::BEGINNING_DRAW:
+        return "BEGINNING_DRAW";
+    case StepType::MAIN_STEP:
+        return "MAIN_STEP";
+    case StepType::COMBAT_BEGIN:
+        return "COMBAT_BEGIN";
+    case StepType::COMBAT_DECLARE_ATTACKERS:
+        return "COMBAT_DECLARE_ATTACKERS";
+    case StepType::COMBAT_DECLARE_BLOCKERS:
+        return "COMBAT_DECLARE_BLOCKERS";
+    case StepType::COMBAT_DAMAGE:
+        return "COMBAT_DAMAGE";
+    case StepType::COMBAT_END:
+        return "COMBAT_END";
+    case StepType::ENDING_END:
+        return "ENDING_END";
+    case StepType::ENDING_CLEANUP:
+        return "ENDING_CLEANUP";
+    default:
+        return "UNKNOWN";
+    }
+}
 // Manages turn sequence and transitions between players
 class TurnSystem {
 public:
@@ -79,13 +123,15 @@ public:
 
     // Advance game state by one action
     std::unique_ptr<ActionSpace> tick();
-    // Start a new turn
-    std::unique_ptr<ActionSpace> startNextTurn();
 
     // Helper functions
-
     // Get the phase that contains a step
     static PhaseType getPhaseForStep(StepType step);
+
+protected:
+    // Start a new turn; called by tick().
+    void startNextTurn();
+
     // Convert step index to step type
     static StepType stepTypeFromIndex(PhaseType phase, int stepIndex);
     // Convert step type to index
@@ -105,10 +151,9 @@ struct Step {
     bool turn_based_actions_complete = false;
     bool mana_pools_emptied = false;
     std::unique_ptr<PrioritySystem> priority_system;
+    bool completed = false;
 
     // Reads
-    // Check if step is completed
-    bool isComplete();
     // Get current game
     Game* game();
     // Get turn system
@@ -129,18 +174,17 @@ struct Step {
 
 // Base struct for all phases in a turn
 struct Phase {
-
     Phase(Turn* turn) : turn(turn) {}
     virtual ~Phase() = default;
+
     // Data
     Turn* turn;
     std::vector<std::unique_ptr<Step>> steps;
     int current_step_index = 0;
+    bool completed = false;
 
     // Reads
 
-    // Check if phase is completed
-    bool isComplete() { return current_step_index >= steps.size(); }
     // Check if sorcery-speed spells can be cast
     virtual bool canCastSorceries() { return false; }
 
@@ -153,22 +197,21 @@ struct Phase {
 
 // Represents a complete turn in the game
 struct Turn {
+    Turn(Player* active_player, TurnSystem* turn_system);
+
     // Data
     TurnSystem* turn_system;
     Player* active_player;
     std::vector<std::unique_ptr<Phase>> phases;
     int current_phase_index = 0;
     int lands_played = 0;
-
-    Turn(Player* active_player, TurnSystem* turn_system);
+    bool completed = false;
 
     // Reads
 
     // Get current phase
     Phase* currentPhase() { return phases[current_phase_index].get(); }
-    // Check if turn is completed
-    bool isComplete() { return current_phase_index >= phases.size(); }
-
+    
     // Writes
 
     // Advance turn state

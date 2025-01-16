@@ -1,6 +1,6 @@
 #include "priority.h"
 
-#include "managym/action/action.h"
+#include "managym/agent/action_space.h"
 #include "managym/flow/game.h"
 #include "managym/state/zones.h"
 
@@ -14,8 +14,8 @@ PrioritySystem::PrioritySystem(Game* game, Player* active_player)
 }
 
 std::unique_ptr<ActionSpace> PrioritySystem::makeActionSpace(Player* player) {
-    return std::make_unique<ActionSpace>(player, ActionType::Priority,
-                                         availablePriorityActions(player));
+    return std::make_unique<ActionSpace>(ActionType::Priority,
+                                         availablePriorityActions(player), player, game);
 }
 
 bool PrioritySystem::stackEmpty() {

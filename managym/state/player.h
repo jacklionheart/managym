@@ -1,14 +1,12 @@
 #pragma once
 
-#include "managym/action/action.h"
+#include "managym/agent/agent.h"
 #include "managym/state/card.h"
 #include "managym/state/mana.h"
 
 #include <map>
 #include <memory>
 #include <string>
-#include <utility>
-#include <vector>
 
 // Configuration for creating a new player, including their name and decklist
 struct PlayerConfig {

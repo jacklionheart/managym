@@ -1,4 +1,3 @@
-// turn.cpp
 #include "turn.h"
 
 #include "managym/flow/combat.h"
@@ -76,7 +75,8 @@ StepType TurnSystem::stepTypeFromIndex(PhaseType phase, int stepIndex) {
         case 2:
             return StepType::BEGINNING_DRAW;
         default:
-            throw std::out_of_range("Invalid beginning phase step index");
+            throw std::out_of_range("Invalid beginning phase step index: " +
+                                    std::to_string(stepIndex));
         }
 
     case PhaseType::PRECOMBAT_MAIN:
@@ -143,22 +143,26 @@ int TurnSystem::stepIndexFromType(StepType step) {
 }
 
 std::unique_ptr<ActionSpace> TurnSystem::tick() {
-    if (current_turn == nullptr || current_turn->isComplete()) {
+    if (current_turn == nullptr) {
         startNextTurn();
     }
 
-    return current_turn->tick();
+    std::unique_ptr<ActionSpace> result = current_turn->tick();
+
+    if (current_turn->completed) {
+        startNextTurn();
+    }
+
+    return result;
 }
 
-std::unique_ptr<ActionSpace> TurnSystem::startNextTurn() {
+void TurnSystem::startNextTurn() {
     if (global_turn_count != 0) {
         active_player_index = (active_player_index + 1) % game->players.size();
     }
     current_turn = std::make_unique<Turn>(activePlayer(), this);
     turn_counts[activePlayer()]++;
     global_turn_count++;
-
-    return nullptr;
 }
 
 std::vector<Player*> TurnSystem::priorityOrder() {
@@ -190,17 +194,22 @@ Turn::Turn(Player* active_player, TurnSystem* turn_system)
 }
 
 std::unique_ptr<ActionSpace> Turn::tick() {
-    if (current_phase_index >= phases.size()) {
-        return nullptr;
+    if (completed || current_phase_index >= phases.size()) {
+        throw std::runtime_error("Turn is complete");
     }
 
     Phase* current_phase = phases[current_phase_index].get();
-    if (current_phase->isComplete()) {
-        current_phase_index++;
-        return nullptr;
-    } else {
-        return current_phase->tick();
+    auto result = current_phase->tick();
+
+    if (current_phase->completed) {
+        if (current_phase_index < phases.size() - 1) {
+            current_phase_index++;
+        } else {
+            completed = true;
+        }
     }
+
+    return result;
 }
 
 // Phase implementation
@@ -208,17 +217,22 @@ std::unique_ptr<ActionSpace> Turn::tick() {
 std::unique_ptr<ActionSpace> Phase::tick() {
     spdlog::debug("Ticking {}", std::string(typeid(*this).name()));
 
-    if (current_step_index >= steps.size()) {
-        return nullptr;
+    if (completed || current_step_index >= steps.size()) {
+        throw std::runtime_error("Phase is complete");
     }
 
     Step* current_step = steps[current_step_index].get();
-    if (current_step->isComplete()) {
-        current_step_index++;
-        return nullptr;
-    } else {
-        return current_step->tick();
+    auto result = current_step->tick();
+
+    if (current_step->completed) {
+        if (current_step_index < steps.size() - 1) {
+            current_step_index++;
+        } else {
+            completed = true;
+        }
     }
+
+    return result;
 }
 
 // Step implementations
@@ -226,12 +240,6 @@ std::unique_ptr<ActionSpace> Phase::tick() {
 Step::Step(Phase* phase)
     : phase(phase), priority_system(std::make_unique<PrioritySystem>(phase->turn->turn_system->game,
                                                                      phase->turn->active_player)) {}
-
-bool Step::isComplete() {
-    return turn_based_actions_complete && (!has_priority_window || priority_system->isComplete()) &&
-           mana_pools_emptied;
-}
-
 std::unique_ptr<ActionSpace> Step::tick() {
     spdlog::debug("Ticking {}", std::string(typeid(*this).name()));
 
@@ -240,21 +248,24 @@ std::unique_ptr<ActionSpace> Step::tick() {
         initialized = true;
     }
 
-    if (isComplete()) {
+    if (completed) {
         throw std::runtime_error("Step is complete");
     }
 
+    std::unique_ptr<ActionSpace> result = nullptr;
+
     if (!turn_based_actions_complete) {
-        return performTurnBasedActions();
+        result = performTurnBasedActions();
+    } else if (has_priority_window && !priority_system->isComplete()) {
+        result = priority_system->tick();
+    } else if (!mana_pools_emptied) {
+        game()->clearManaPools();
+        mana_pools_emptied = true;
+    } else {
+        completed = true;
     }
 
-    if (has_priority_window && !priority_system->isComplete()) {
-        return priority_system->tick();
-    }
-
-    game()->clearManaPools();
-    mana_pools_emptied = true;
-    return nullptr;
+    return result;
 }
 
 void Step::initialize() {}
@@ -271,6 +282,7 @@ TurnSystem* Step::turn_system() { return phase->turn->turn_system; }
 Turn* Step::turn() { return phase->turn; }
 
 Player* Step::activePlayer() { return phase->turn->active_player; }
+
 std::unique_ptr<ActionSpace> UntapStep::performTurnBasedActions() {
     spdlog::debug("Starting {} for {}", std::string(typeid(*this).name()), activePlayer()->name);
     game()->markPermanentsNotSummoningSick(activePlayer());

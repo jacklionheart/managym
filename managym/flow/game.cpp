@@ -1,13 +1,13 @@
-// game->cpp
-
 #include "game.h"
 
+#include "managym/agent/observation.h"
 #include "managym/state/zones.h"
 
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cassert>
+#include <memory>
 #include <stdexcept>
 
 Game::Game(std::vector<PlayerConfig> player_configs, bool headless)
@@ -47,28 +47,68 @@ Game::Game(std::vector<PlayerConfig> player_configs, bool headless)
     }
 
     if (!headless) {
-        display = std::make_unique<GameDisplay>(this);
+        display = std::make_unique<GameDisplay>();
     }
 }
 
+// Reads
+
+Player* Game::activePlayer() const { return turn_system->activePlayer(); }
+
+Player* Game::nonActivePlayer() const { return turn_system->nonActivePlayer(); }
+
+std::vector<Player*> Game::priorityOrder() const { return turn_system->priorityOrder(); }
+
+bool Game::isActivePlayer(Player* player) const { return player == turn_system->activePlayer(); }
+
+bool Game::canPlayLand(Player* player) const {
+    return canCastSorceries(player) && turn_system->current_turn->lands_played < 1;
+}
+
+bool Game::canCastSorceries(Player* player) const {
+    return isActivePlayer(player) && zones->size(ZoneType::STACK, player) == 0 &&
+           turn_system->current_turn->currentPhase()->canCastSorceries();
+}
+
+bool Game::canPayManaCost(Player* player, const ManaCost& mana_cost) const {
+    return zones->constBattlefield()->producibleMana(player).canPay(mana_cost);
+}
+
+bool Game::isPlayerAlive(Player* player) const { return player->alive; }
+
+bool Game::isGameOver() const {
+    return std::count_if(players.begin(), players.end(),
+                         [](const std::unique_ptr<Player>& player) { return player->alive; }) < 2;
+}
+
+// Writes
+
 void Game::play() {
-    while (tick()) {
+    while (true) {
+        bool done = tick();
+        if (done) {
+            spdlog::debug("game over in play");
+            break;
+        }
     }
 }
 
 bool Game::tick() {
     try {
+        //        sf::sleep(sf::milliseconds(100));
+        std::unique_ptr<Observation> obs =
+            std::make_unique<Observation>(this, current_action_space.get());
+
         // Handle display if it exists
         if (display) {
             display->processEvents();
-            if (!display->isOpen()) {
-                return false;
+            if (display->isOpen()) {
+                display->render(obs.get());
             }
-            display->render();
         }
 
         // Handle current action space if it exists
-        if (current_action_space != nullptr) {
+        if (current_action_space) {
             if (current_action_space->actionSelected()) {
                 Action* selected_action =
                     current_action_space->actions[current_action_space->chosen_index].get();
@@ -78,29 +118,22 @@ bool Game::tick() {
         }
 
         // Get next action space if needed
-        if (current_action_space == nullptr) {
+        if (!current_action_space) {
             current_action_space = turn_system->tick();
 
             // Auto-select action for now
             if (current_action_space) {
                 current_action_space->selectAction(0);
-                if (display && current_action_space->actions.size() > 1) {
-                    sf::sleep(sf::milliseconds(100));
-                }
             }
         }
 
-        return true;
+        return false;
 
     } catch (const GameOverException& e) {
+        spdlog::debug("game over");
         spdlog::info(e.what());
-        return false;
+        return true;
     }
-}
-
-bool Game::isGameOver() {
-    return std::count_if(players.begin(), players.end(),
-                         [](const std::unique_ptr<Player>& player) { return player->alive; }) < 2;
 }
 
 void Game::clearManaPools() {
@@ -134,37 +167,12 @@ void Game::drawCards(Player* player, int amount) {
     }
 }
 
-bool Game::isPlayerAlive(Player* player) { return player->alive; }
-
 void Game::loseGame(Player* player) {
     player->alive = false;
     if (!isPlayerAlive(player)) {
         throw GameOverException("Player " + std::to_string(player->id) + " has lost the game->");
     }
 }
-
-Player* Game::activePlayer() { return turn_system->activePlayer(); }
-
-Player* Game::nonActivePlayer() { return turn_system->nonActivePlayer(); }
-
-std::vector<Player*> Game::priorityOrder() { return turn_system->priorityOrder(); }
-
-bool Game::isActivePlayer(Player* player) const { return player == turn_system->activePlayer(); }
-
-bool Game::canPlayLand(Player* player) const {
-    return canCastSorceries(player) && turn_system->current_turn->lands_played < 1;
-}
-
-bool Game::canCastSorceries(Player* player) const {
-    return isActivePlayer(player) && zones->size(ZoneType::STACK, player) == 0 &&
-           turn_system->current_turn->currentPhase()->canCastSorceries();
-}
-
-bool Game::canPayManaCost(Player* player, const ManaCost& mana_cost) const {
-    return zones->constBattlefield()->producibleMana(player).canPay(mana_cost);
-}
-
-// Game State Mutations
 
 void Game::addMana(Player* player, const Mana& mana) { player->mana_pool.add(mana); }
 

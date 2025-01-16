@@ -3,8 +3,6 @@
 
 #include "managym/state/card.h"
 
-#include <memory>
-
 Card createBasicLandCard(const std::string& name, Color color);
 
 // Basic lands
