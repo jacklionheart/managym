@@ -2,10 +2,9 @@
 
 #include "managym/agent/action.h"
 #include "managym/flow/game.h"
+#include "managym/infra/log.h"
 #include "managym/state/battlefield.h"
 #include "managym/state/zones.h"
-
-#include <spdlog/spdlog.h>
 
 #include <memory>
 
@@ -22,7 +21,7 @@ CombatStep::CombatStep(CombatPhase* parent_combat_phase)
 
 void DeclareAttackersStep::initialize() {
     Player* active_player = game()->activePlayer();
-    spdlog::debug("DeclareAttackersStep::initialize");
+    managym::log::debug(Category::COMBAT, "DeclareAttackersStep::initialize");
     attackers_to_declare = game()->zones->constBattlefield()->eligibleAttackers(active_player);
 }
 
@@ -44,7 +43,8 @@ std::unique_ptr<ActionSpace> DeclareAttackersStep::makeActionSpace(Permanent* at
 
 std::unique_ptr<ActionSpace> DeclareAttackersStep::performTurnBasedActions() {
     if (attackers_to_declare.empty()) {
-        spdlog::debug(
+        managym::log::debug(
+            Category::COMBAT,
             "DeclareAttackersStep::performTurnBasedActions -- no more attackers to declare");
         turn_based_actions_complete = true;
         return nullptr;
@@ -53,8 +53,9 @@ std::unique_ptr<ActionSpace> DeclareAttackersStep::performTurnBasedActions() {
     Permanent* attacker = attackers_to_declare.back();
     attackers_to_declare.pop_back();
 
-    spdlog::debug("DeclareAttackersStep::performTurnBasedActions -- making actionSpace for "
-                  "declaring an attacker");
+    managym::log::debug(Category::COMBAT,
+                        "DeclareAttackersStep::performTurnBasedActions -- making actionSpace for "
+                        "declaring an attacker");
     return makeActionSpace(attacker);
 }
 
@@ -68,17 +69,17 @@ std::unique_ptr<ActionSpace> DeclareBlockersStep::makeActionSpace(Permanent* blo
     actions.emplace_back(new DeclareBlockerAction(blocker, nullptr, blocking_player, this));
 
     return std::make_unique<ActionSpace>(ActionType::DeclareBlocker, std::move(actions),
-                                         blocking_player, game());
+                                             blocking_player, game());
 }
 
 std::unique_ptr<ActionSpace> DeclareBlockersStep::performTurnBasedActions() {
     if (blockers_to_declare.empty()) {
-        spdlog::debug("No blockers to declare");
+        managym::log::debug(Category::COMBAT, "No blockers to declare");
         turn_based_actions_complete = true;
         return nullptr;
     }
 
-    spdlog::debug("Blockers to declare: {}", blockers_to_declare.size());
+    managym::log::debug(Category::COMBAT, "Blockers to declare: {}", blockers_to_declare.size());
     Permanent* blocker = blockers_to_declare.back();
     blockers_to_declare.pop_back();
 
@@ -86,31 +87,32 @@ std::unique_ptr<ActionSpace> DeclareBlockersStep::performTurnBasedActions() {
 }
 
 std::unique_ptr<ActionSpace> CombatDamageStep::performTurnBasedActions() {
-    spdlog::debug("CombatDamageStep.performTurnBasedActions");
+    managym::log::debug(Category::COMBAT, "CombatDamageStep.performTurnBasedActions");
     Player* active_player = combat_phase->turn->active_player;
     Game* game = combat_phase->turn->turn_system->game;
 
-    spdlog::debug("hi");
+    managym::log::debug(Category::COMBAT, "hi");
     for (auto pair = combat_phase->attacker_to_blockers.begin();
          pair != combat_phase->attacker_to_blockers.end(); pair++) {
         assert(pair->first != nullptr);
 
-        spdlog::debug("Attacker: {}", pair->first->card->toString());
+        managym::log::debug(Category::COMBAT, "Attacker: {}", pair->first->card->toString());
         Permanent* attacker = pair->first;
         std::vector<Permanent*> blockers = pair->second;
         for (Permanent* blocker : blockers) {
-            spdlog::info("{} blocks {}", blocker->card->toString(), attacker->card->toString());
+            managym::log::info(Category::COMBAT, "{} blocks {}", blocker->card->toString(),
+                               attacker->card->toString());
             attacker->takeDamage(blocker->card->power.value_or(0));
-            spdlog::info("{} receives {} damage", attacker->card->toString(),
-                         blocker->card->power.value_or(0));
+            managym::log::info(Category::COMBAT, "{} receives {} damage",
+                               attacker->card->toString(), blocker->card->power.value_or(0));
             blocker->takeDamage(attacker->card->power.value_or(0));
-            spdlog::info("{} receives {} damage", blocker->card->toString(),
-                         attacker->card->power.value_or(0));
+            managym::log::info(Category::COMBAT, "{} receives {} damage", blocker->card->toString(),
+                               attacker->card->power.value_or(0));
         }
         if (blockers.empty()) {
             game->nonActivePlayer()->takeDamage(attacker->card->power.value_or(0));
-            spdlog::info("{} takes {} damage", game->nonActivePlayer()->name,
-                         attacker->card->power.value_or(0));
+            managym::log::info(Category::COMBAT, "{} takes {} damage",
+                               game->nonActivePlayer()->name, attacker->card->power.value_or(0));
         }
     }
     turn_based_actions_complete = true;

@@ -1,8 +1,7 @@
 // zones.cpp
 #include "zones.h"
 
-#include <spdlog/spdlog.h>
-
+#include "managym/infra/log.h"
 Zones::Zones(std::vector<Player*>& players)
     : library(std::make_unique<Library>(this, players)),
       graveyard(std::make_unique<Graveyard>(this, players)),
@@ -107,7 +106,7 @@ void Zones::forEachAll(const std::function<void(Card*)>& func, ZoneType zoneType
 // Battlefield Mutations
 
 void Zones::destroy(Permanent* permanent) {
-    spdlog::info("{} is destroyed", permanent->card->toString());
+    managym::log::info(Category::STATE, "{} is destroyed", permanent->card->toString());
     move(permanent->card, ZoneType::GRAVEYARD);
 }
 

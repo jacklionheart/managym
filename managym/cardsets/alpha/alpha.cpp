@@ -1,7 +1,9 @@
 #include "managym/cardsets/alpha/alpha.h"
 
 #include "managym/state/card.h"
-#include "managym/state/card_registry.h"
+#include "managym/cardsets/card_registry.h"
+
+namespace managym::cardsets {
 
 Card llanowarElves() {
     return Card("Llanowar Elves", ManaCost::parse("G"), CardTypes({CardType::CREATURE}), {},
@@ -13,7 +15,9 @@ Card greyOgre() {
                 {}, "", 2, 2);
 }
 
-void registerAlpha() {
-    CardRegistry::instance().registerCard("Llanowar Elves", llanowarElves());
-    CardRegistry::instance().registerCard("Grey Ogre", greyOgre());
+void registerAlpha(CardRegistry* registry) {
+    registry->registerCard("Llanowar Elves", llanowarElves());
+    registry->registerCard("Grey Ogre", greyOgre());
 }
+
+} // namespace managym::cardsets

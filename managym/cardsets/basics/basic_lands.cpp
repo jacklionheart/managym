@@ -1,8 +1,9 @@
 // basic_lands.cpp
-#include "basic_lands.h"
+#include "managym/cardsets/basics/basic_lands.h"
 
-#include "managym/state/card_registry.h"
+#include "managym/cardsets/card_registry.h"
 
+namespace managym::cardsets {
 Card createBasicLandCard(const std::string& name, Color color) {
     return Card(name,
                 std::nullopt, // No mana cost for basic lands
@@ -21,10 +22,12 @@ Card basicForest() { return createBasicLandCard("Forest", Color::GREEN); }
 
 Card basicSwamp() { return createBasicLandCard("Swamp", Color::BLACK); }
 
-void registerBasicLands() {
-    CardRegistry::instance().registerCard("Plains", basicPlains());
-    CardRegistry::instance().registerCard("Island", basicIsland());
-    CardRegistry::instance().registerCard("Mountain", basicMountain());
-    CardRegistry::instance().registerCard("Forest", basicForest());
-    CardRegistry::instance().registerCard("Swamp", basicSwamp());
+void registerBasicLands(CardRegistry* registry) {
+    registry->registerCard("Plains", basicPlains());
+    registry->registerCard("Island", basicIsland());
+    registry->registerCard("Mountain", basicMountain());
+    registry->registerCard("Forest", basicForest());
+    registry->registerCard("Swamp", basicSwamp());
 }
+
+} // namespace managym::cardsets

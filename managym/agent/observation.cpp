@@ -7,13 +7,13 @@
 
 #include <fmt/format.h>
 
-Observation::Observation(const Game* game, const ActionSpace* action_space) {
+Observation::Observation(const Game* game) {
     // Initialize game flow state
     turn_number = game->turn_system->global_turn_count;
-    active_player_id = game->activePlayer()->id;
+    active_player_index = game->activePlayerIndex();
     is_game_over = game->isGameOver();
-    action_type = action_space ? action_space->action_type : ActionType::Invalid;
-    winner_id = -1;
+    action_type = game->current_action_space->action_type;
+    winner_index = game->winnerIndex();
 
     // Initialize player states
     for (const auto& player_ptr : game->players) {
@@ -45,7 +45,6 @@ Observation::Observation(const Game* game, const ActionSpace* action_space) {
         for (const auto& permanent : player_permanents) {
             CardState card_state;
             card_state.card_id = permanent->card->id;
-            card_state.instance_id = permanent->id;
             card_state.name = permanent->card->name;
             card_state.tapped = permanent->tapped;
             card_state.summoning_sick = permanent->summoning_sick;
@@ -71,14 +70,9 @@ std::string Observation::CardState::toJSON() const {
         "attacking": {},
         "blocking": {}
     }})",
-        card_id, 
-        instance_id ? std::to_string(*instance_id) : "null",
-        name,
-        tapped ? "true" : "false",
-        summoning_sick ? "true" : "false", 
-        damage,
-        attacking ? "true" : "false",
-        blocking ? "true" : "false");
+                       card_id, instance_id ? std::to_string(*instance_id) : "null", name,
+                       tapped ? "true" : "false", summoning_sick ? "true" : "false", damage,
+                       attacking ? "true" : "false", blocking ? "true" : "false");
 }
 
 std::string Observation::PlayerState::toJSON() const {
@@ -92,7 +86,7 @@ std::string Observation::PlayerState::toJSON() const {
         first_zone = false;
 
         zones_json += fmt::format(R"("{}": [)", static_cast<int>(zone_type));
-        
+
         // Add cards for this zone
         for (size_t i = 0; i < cards.size(); ++i) {
             if (i > 0) {
@@ -110,10 +104,7 @@ std::string Observation::PlayerState::toJSON() const {
         "mana_pool": "{}",
         "zones": {}
     }})",
-        life_total,
-        library_size,
-        mana_pool.toString(),
-        zones_json);
+                       life_total, library_size, mana_pool.toString(), zones_json);
 }
 
 std::string Observation::toJSON() const {
@@ -128,16 +119,13 @@ std::string Observation::toJSON() const {
 
     return fmt::format(R"({{
         "turn_number": {},
-        "active_player_id": {},
+        "active_player_index": {},
         "is_game_over": {},
         "winner_id": {},
         "action_type": "{}",
         "player_states": {}
     }})",
-        turn_number,
-        active_player_id,
-        is_game_over ? "true" : "false",
-        winner_id == -1 ? "null" : std::to_string(winner_id),
-        static_cast<int>(action_type),
-        player_states_json);
+                       turn_number, active_player_index, is_game_over ? "true" : "false",
+                       winner_index == -1 ? "null" : std::to_string(winner_index),
+                       static_cast<int>(action_type), player_states_json);
 }

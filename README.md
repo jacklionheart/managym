@@ -6,12 +6,17 @@ It is built to be used with [manabot](https://github.com/jacklionheart/manabot).
 
 # Codebase Areas
 
-The major areas of the codebase are:
+API:
+- `managym/agent`: Defines how agents (like manabot) can interact with the game.
+The literal Python API used by manabot is defined in `managym/agent/pybind.cpp`.
 
-- `managym/state/`: All of the game state. The most foundational package. Should have minimal dependencies on other parts of the codebase.
+Core game logic:
+- `managym/state/`: Game state tracking and mutations.
 - `managym/flow/`: Executes the flow of game, including the core game loop, turn structure, and combat.
-- `managym/agent`: The interface and execution of actions, i.e. making choices in gameplay and the execution of those choices.
+
+Additional areas:
 - `managym/ui/`: Some basic code for rendering the game. Mostly for debugging.
+- `managym/infra/`: Currently just logging.
 - `managym/cardsets`: Implementations of individual Magic cards that can be used in the game. 
 
 # Style Guide
@@ -61,7 +66,7 @@ General overviews should appear as class comments. Header comments should be 1-l
 
 ## C++
 
-Generally, this codebase aspires to use as little of C++ as possible. We are currently avoiding:
+Generally, this codebase aspires to use as little of C++ as possible. AVOID:
 
 - Multiple inheritance
 - Operator overloading (beyond ==)
@@ -70,3 +75,4 @@ Generally, this codebase aspires to use as little of C++ as possible. We are cur
 - Manual memory management / reference counting
 - dynamic_cast
 - std::shared_ptr
+- `auto` typing

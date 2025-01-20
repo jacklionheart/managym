@@ -6,9 +6,7 @@
 
 // ActivatedAbility
 
-int ActivatedAbility::next_id = 0;
-
-ActivatedAbility::ActivatedAbility() : id(next_id++) { uses_stack = true; }
+ActivatedAbility::ActivatedAbility() : uses_stack(true) {}
 
 ManaAbility::ManaAbility(Mana mana) : ActivatedAbility(), mana(std::move(mana)) {
     uses_stack = false;
@@ -63,15 +61,13 @@ bool CardTypes::isBattle() const { return types.contains(CardType::BATTLE); }
 
 // Card
 
-int Card::next_id = 0;
-
 Card::Card(std::string name, std::optional<ManaCost> mana_cost, CardTypes types,
            const std::vector<std::string>& supertypes, const std::vector<std::string>& subtypes,
            const std::vector<ManaAbility>& mana_abilities, std::string text_box,
            std::optional<int> power, std::optional<int> toughness)
-    : id(next_id++), name(std::move(name)), mana_cost(mana_cost), types(std::move(types)),
-      supertypes(supertypes), subtypes(subtypes), mana_abilities(mana_abilities),
-      text_box(std::move(text_box)), power(power), toughness(toughness), owner(nullptr) {
+    : name(std::move(name)), mana_cost(mana_cost), types(std::move(types)), supertypes(supertypes),
+      subtypes(subtypes), mana_abilities(mana_abilities), text_box(std::move(text_box)),
+      power(power), toughness(toughness), owner(nullptr) {
 
     if (mana_cost.has_value()) {
         colors = mana_cost->colors();
@@ -81,13 +77,11 @@ Card::Card(std::string name, std::optional<ManaCost> mana_cost, CardTypes types,
 }
 
 Card::Card(const Card& other)
-    : id(next_id++), name(other.name), mana_cost(other.mana_cost), colors(other.colors),
+    : id(other.id), name(other.name), mana_cost(other.mana_cost), colors(other.colors),
       types(other.types), supertypes(other.supertypes), subtypes(other.subtypes),
       mana_abilities(other.mana_abilities), text_box(other.text_box), power(other.power),
       toughness(other.toughness), owner(nullptr) {}
 
 // Reads
-
-bool Card::operator==(const Card* other) const { return this->id == other->id; }
 
 std::string Card::toString() const { return "{name: " + name + "}"; }

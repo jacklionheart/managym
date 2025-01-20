@@ -1,16 +1,11 @@
 #include "battlefield.h"
 
+#include "managym/infra/log.h"
 #include "managym/state/zones.h"
-
-#include <spdlog/spdlog.h>
 
 #include <cassert>
 
-// Permanent implementation
-
-int Permanent::next_id = 0;
-
-Permanent::Permanent(Card* card) : controller(card->owner), id(next_id++), card(card) {
+Permanent::Permanent(Card* card) : controller(card->owner), card(card) {
     tapped = false;
     summoning_sick = card->types.isCreature();
     damage = 0;
@@ -27,8 +22,6 @@ bool Permanent::hasLethalDamage() const {
     return card->types.isCreature() && damage >= card->toughness;
 }
 
-bool Permanent::operator==(const Permanent& other) const { return this->id == other.id; }
-
 Mana Permanent::producibleMana() const {
     Mana totalMana;
     for (const ManaAbility& ability : card->mana_abilities) {
@@ -43,7 +36,7 @@ Mana Permanent::producibleMana() const {
 void Permanent::untap() { tapped = false; }
 
 void Permanent::tap() {
-    spdlog::debug("Tapping {}", card->toString());
+    managym::log::debug(Category::STATE, "Tapping {}", card->toString());
     tapped = true;
 }
 
@@ -52,6 +45,7 @@ void Permanent::takeDamage(int dmg) { damage += dmg; }
 void Permanent::clearDamage() { damage = 0; }
 
 void Permanent::attack() {
+    managym::log::debug(Category::STATE, "{} attacks", card->toString());
     attacking = true;
     tap();
 }
@@ -65,7 +59,7 @@ void Permanent::activateAllManaAbilities() {
 }
 
 void Permanent::activateAbility(ActivatedAbility* ability) {
-    spdlog::debug("Activating ability on {}", card->toString());
+    managym::log::debug(Category::STATE, "Activating ability on {}", card->toString());
     assert(ability != nullptr);
     if (!ability->canBeActivated(this)) {
         throw std::logic_error("Ability cannot be activated.");
@@ -151,7 +145,7 @@ void Battlefield::enter(Card* card) {
     if (!card->types.isPermanent()) {
         throw std::invalid_argument("Card is not a permanent: " + card->toString());
     }
-    spdlog::info("{} enters battlefield", card->toString());
+    managym::log::info(Category::STATE, "{} enters battlefield", card->toString());
     Player* controller = card->owner;
     permanents[controller].push_back(std::make_unique<Permanent>(card));
 }
@@ -183,10 +177,11 @@ void Battlefield::forEach(const std::function<void(Permanent*)>& func, Player* p
 }
 
 void Battlefield::produceMana(const ManaCost& mana_cost, Player* player) {
-    spdlog::debug("Attempting to produce {} for {}", mana_cost.toString(), player->name);
+    managym::log::debug(Category::RULES, "Attempting to produce {} for {}", mana_cost.toString(),
+                        player->name);
 
     Mana producible = producibleMana(player);
-    spdlog::debug("Producible mana: {}", producible.toString());
+    managym::log::debug(Category::RULES, "Producible mana: {}", producible.toString());
 
     if (!producible.canPay(mana_cost)) {
         throw std::runtime_error("Not enough producible mana to pay for mana cost.");
@@ -201,8 +196,9 @@ void Battlefield::produceMana(const ManaCost& mana_cost, Player* player) {
 
         if (!permanent->tapped && !permanent->card->mana_abilities.empty()) {
             permanent->activateAllManaAbilities();
-            spdlog::debug("After activating abilities on {}, mana pool is: {}",
-                          permanent->card->toString(), player->mana_pool.toString());
+            managym::log::debug(Category::RULES,
+                                "After activating abilities on {}, mana pool is: {}",
+                                permanent->card->toString(), player->mana_pool.toString());
         }
     }
 

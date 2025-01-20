@@ -12,8 +12,6 @@
 // A permanent on the battlefield with additional game state
 struct Permanent {
     // Data
-    static int next_id;
-    int id;
     Card* card;
     Player* controller;
     bool tapped = false;
@@ -35,8 +33,6 @@ struct Permanent {
     bool hasLethalDamage() const;
     // Calculate total mana this permanent could produce
     Mana producibleMana() const;
-    // Compare permanents by ID
-    bool operator==(const Permanent& other) const;
 
     // Writes
     // Reset this permanent's tapped state

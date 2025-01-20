@@ -4,6 +4,7 @@
 #include "managym/flow/combat.h"
 #include "managym/flow/game.h"
 #include "managym/flow/turn.h"
+#include "managym/infra/log.h"
 #include "managym/state/battlefield.h"
 #include "managym/state/zones.h"
 
@@ -14,7 +15,7 @@
 #include <memory>
 
 void DeclareAttackerAction::execute() {
-    spdlog::info("Player {} Declaring attacker", player->id);
+    managym::log::info(Category::AGENT, "Player {} Declaring attacker", player->name);
     if (attack) {
         if (!attacker->canAttack()) {
             throw std::logic_error("attacker cannot attack");
@@ -27,7 +28,7 @@ void DeclareAttackerAction::execute() {
 }
 
 void DeclareBlockerAction::execute() {
-    spdlog::info("Player {} Declaring blocker", player->id);
+    managym::log::info(Category::AGENT, "Player {} Declaring blocker", player->name);
     if (attacker != nullptr) {
         step->combat_phase->attacker_to_blockers[attacker].push_back(blocker);
     }
@@ -37,7 +38,7 @@ PlayLand::PlayLand(Card* card, Player* player, Game* game)
     : Action(player), game(game), card(card) {}
 
 void PlayLand::execute() {
-    spdlog::info("Player {} PlayLand: {}", player->id, card->toString());
+    managym::log::info(Category::AGENT, "Player {} PlayLand: {}", player->name, card->toString());
     game->playLand(player, card);
 }
 
@@ -49,22 +50,26 @@ CastSpell::CastSpell(Card* card, Player* player, Game* game)
 }
 
 void CastSpell::execute() {
-    spdlog::info("Player {} Casting spell: {}", player->id, card->toString());
-    spdlog::debug("Player's mana pool before: {}", player->mana_pool.toString());
+    managym::log::info(Category::AGENT, "Player {} Casting spell: {}", player->name,
+                       card->toString());
+    managym::log::debug(Category::AGENT, "Player's mana pool before: {}",
+                        player->mana_pool.toString());
     game->zones->produceMana(card->mana_cost.value(), player);
-    spdlog::debug("Player's mana pool after producing mana: {}", player->mana_pool.toString());
+    managym::log::debug(Category::AGENT, "Player's mana pool after producing mana: {}",
+                        player->mana_pool.toString());
     game->castSpell(player, card);
-    spdlog::debug("Player's mana pool after casting spell: {}", player->mana_pool.toString());
+    managym::log::debug(Category::AGENT, "Player's mana pool after casting spell: {}",
+                        player->mana_pool.toString());
     game->spendMana(player, card->mana_cost.value());
-    spdlog::debug("Player's mana pool after spending mana: {}", player->mana_pool.toString());
+    managym::log::debug(Category::AGENT, "Player's mana pool after spending mana: {}",
+                        player->mana_pool.toString());
 }
 
-PassPriority::PassPriority(Player* player, PrioritySystem* priority_system)
-    : Action(player), priority_system(priority_system) {}
+PassPriority::PassPriority(Player* player, Game* game) : Action(player), game(game) {}
 
 void PassPriority::execute() {
-    spdlog::debug("Player {} Passing priority", player->id);
-    priority_system->passPriority(player);
+    managym::log::debug(Category::AGENT, "Player {} Passing priority", player->name);
+    game->priority_system->passPriority();
 }
 
 std::string DeclareAttackerAction::toString() const {

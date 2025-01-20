@@ -25,8 +25,6 @@ class Player;
 // it otherwise leaves the stack. See rule 602, "Activating Activated Abilities."
 struct ActivatedAbility {
     // Data
-    static int next_id;
-    int id;
     bool uses_stack;
 
     ActivatedAbility();
@@ -95,8 +93,7 @@ struct CardTypes {
 // Represents a single Magic card with all its characteristics
 struct Card {
     // Data
-    static int next_id;
-    int id;
+    uint32_t id;
     std::string name;
     std::optional<ManaCost> mana_cost;
     Colors colors;
@@ -109,7 +106,7 @@ struct Card {
     std::optional<int> toughness;
     Player* owner;
 
-    Card(const std::string name, std::optional<ManaCost> mana_cost, CardTypes types,
+    Card(std::string name, std::optional<ManaCost> mana_cost, CardTypes types,
          const std::vector<std::string>& supertypes, const std::vector<std::string>& subtypes,
          const std::vector<ManaAbility>& mana_abilities, std::string text_box,
          std::optional<int> power, std::optional<int> toughness);
@@ -119,8 +116,6 @@ struct Card {
 
     // Get string representation of card
     std::string toString() const;
-    // Compare cards by ID
-    bool operator==(const Card* other) const;
 };
 
 // A deck is a collection of cards.

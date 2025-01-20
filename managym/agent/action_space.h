@@ -30,4 +30,13 @@ struct ActionSpace {
     // Check if there are no available actions
     bool empty();
     std::string toString() const;
+
+    // Create an action space with ActionType::Invalid and no actions.
+    // Returned when the game is over.
+    static std::unique_ptr<ActionSpace> createEmpty() {
+        return std::make_unique<ActionSpace>(ActionType::Invalid, std::vector<std::unique_ptr<Action>>(),
+                                             nullptr, // No player
+                                             nullptr  // No game
+        );
+    }
 };

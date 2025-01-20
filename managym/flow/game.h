@@ -10,6 +10,7 @@
 #include "managym/state/zones.h"
 #include "managym/ui/game_display.h"
 
+#include <managym/agent/observation.h>
 #include <spdlog/spdlog.h>
 
 #include <vector>
@@ -22,16 +23,24 @@ public:
     // Data
     std::vector<std::unique_ptr<Player>> players;
     std::unique_ptr<Zones> zones;
-    std::unique_ptr<GameDisplay> display;
+    // std::unique_ptr<GameDisplay> display;
     std::unique_ptr<TurnSystem> turn_system;
     std::unique_ptr<ActionSpace> current_action_space;
-
+    std::unique_ptr<Observation> current_observation;
+    std::unique_ptr<PrioritySystem> priority_system;
+    std::unique_ptr<CardRegistry> card_registry;
+    
     // Reads
+
+    ActionSpace* actionSpace() const;
+    Observation* observation() const;
 
     // Get currently active player
     Player* activePlayer() const;
     // Get non-active player
     Player* nonActivePlayer() const;
+    // Get index of currently active player
+    int activePlayerIndex() const;
     // Get player order for priority
     std::vector<Player*> priorityOrder() const;
     // Check if player is active player
@@ -46,13 +55,17 @@ public:
     bool isPlayerAlive(Player* player) const;
     // Check if game is over
     bool isGameOver() const;
+    // Get index of the winner
+    int winnerIndex() const;
 
     // Writes
 
-    // Run the game to completion
+    // Execute a single game action. Returns true
+    bool step(int action);
+
+    // Run the game to completion (using action space auto-selection)
     void play();
-    // Execute a single game action. Returns true if the game is over.
-    bool tick();
+
     // Clear all players' mana pools
     void clearManaPools();
     // Clear all damage from permanents
@@ -73,13 +86,9 @@ public:
     void castSpell(Player* player, Card* card);
     // Move a land card to the battlefield
     void playLand(Player* player, Card* card);
-};
 
-// Exception thrown when game ends
-class GameOverException : public std::exception {
-    std::string message;
-
-public:
-    GameOverException(const std::string& msg) : message(msg) {}
-    const char* what() const noexcept override { return message.c_str(); }
+protected:
+    // Move forward in the game until the next action space is available.
+    // Returns true if the game is over.
+    bool tick();
 };

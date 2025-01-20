@@ -19,11 +19,11 @@ struct Action {
     virtual ~Action() = default;
 
     // Reads
-    virtual std::string toString() const { return "Action"; }
+    virtual std::string toString() const = 0;
 
     // Writes
     // Execute this action's game effects
-    virtual void execute() {}
+    virtual void execute() = 0;
 };
 
 // Types of actions available to players
@@ -122,10 +122,10 @@ struct CastSpell : public Action {
 
 // Action for passing priority
 struct PassPriority : public Action {
-    PassPriority(Player* player, PrioritySystem* priority_system);
+    PassPriority(Player* player, Game* game);
 
     // Data
-    PrioritySystem* priority_system;
+    Game* game;
 
     // Reads
     std::string toString() const override;
@@ -134,4 +134,10 @@ struct PassPriority : public Action {
 
     // Execute the priority pass
     void execute() override;
+};
+
+// Thrown when an invalid action is taken.
+class ManagymActionError : public std::runtime_error {
+public:
+    explicit ManagymActionError(const std::string& message) : std::runtime_error(message) {}
 };

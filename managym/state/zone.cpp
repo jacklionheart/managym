@@ -29,7 +29,7 @@ void Zone::exit(Card* card) {
 bool Zone::contains(const Card* card, Player* player) const {
     const auto& playerCards = cards.at(player);
     return std::any_of(playerCards.begin(), playerCards.end(),
-                       [&card](const Card* c) { return *c == card; });
+                       [&card](const Card* c) { return c == card; });
 }
 
 void Zone::shuffle(Player* player) {

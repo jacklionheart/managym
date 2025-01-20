@@ -13,16 +13,16 @@ class ActionSpace;
 
 // Represents a complete game state observation for ML agents
 struct Observation {
-    Observation(const Game* game, const ActionSpace* action_space = nullptr);
+    Observation(const Game* game);
 
     // Data
 
     // Gameflow state
     int turn_number;
-    int active_player_id;
+    int active_player_index;
     bool is_game_over;
     ActionType action_type; // Current type of decision being made
-    int winner_id;
+    int winner_index;
 
     struct CardState {
         int card_id;

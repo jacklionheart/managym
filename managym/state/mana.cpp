@@ -1,9 +1,8 @@
 #include "mana.h"
 
-#include <spdlog/spdlog.h>
+#include "managym/infra/log.h"
 
 #include <cctype>
-#include <iostream>
 #include <stdexcept>
 
 ManaCost::ManaCost() : generic(0) {
@@ -178,10 +177,11 @@ int Mana::total() const {
 }
 
 bool Mana::canPay(const ManaCost& mana_cost) const {
-    spdlog::debug("Mana: {}", toString());
-    spdlog::debug("Checking if can pay Mana cost: {}", mana_cost.toString());
+    managym::log::debug(Category::STATE, "Mana: {}", toString());
+    managym::log::debug(Category::STATE, "Checking if can pay Mana cost: {}", mana_cost.toString());
     if (total() < mana_cost.manaValue()) {
-        spdlog::debug("Not enough total mana (have {}, need {})", total(), mana_cost.manaValue());
+        managym::log::debug(Category::STATE, "Not enough total mana (have {}, need {})", total(),
+                            mana_cost.manaValue());
         return false;
     }
 
@@ -191,8 +191,8 @@ bool Mana::canPay(const ManaCost& mana_cost) const {
     // First pay colored costs
     for (const auto& [color, required] : mana_cost.cost) {
         if (remaining[color] < required) {
-            spdlog::debug("Not enough {} mana (have {}, need {})", ::toString(color),
-                          remaining[color], required);
+            managym::log::debug(Category::RULES, "Not enough {} mana (have {}, need {})",
+                                ::toString(color), remaining[color], required);
             return false;
         }
         remaining[color] -= required;
@@ -205,9 +205,9 @@ bool Mana::canPay(const ManaCost& mana_cost) const {
         available_mana += amount;
     }
 
-    spdlog::debug("For generic cost: need {}, have {} available", generic_needed, available_mana);
-
-    spdlog::debug("Can pay: {}", generic_needed <= available_mana);
+    managym::log::debug(Category::RULES, "For generic cost: need {}, have {} available",
+                        generic_needed, available_mana);
+    managym::log::debug(Category::RULES, "Can pay: {}", generic_needed <= available_mana);
     return generic_needed <= available_mana;
 }
 

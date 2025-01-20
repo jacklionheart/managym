@@ -1,17 +1,17 @@
 #include "game.h"
 
 #include "managym/agent/observation.h"
-#include "managym/state/zones.h"
+#include "managym/infra/log.h"
 
-#include <spdlog/spdlog.h>
+#include <fmt/core.h>
 
-#include <algorithm>
 #include <cassert>
-#include <memory>
 #include <stdexcept>
 
 Game::Game(std::vector<PlayerConfig> player_configs, bool headless)
-    : turn_system(std::make_unique<TurnSystem>(this)) {
+    : turn_system(std::make_unique<TurnSystem>(this)),
+      priority_system(std::make_unique<PrioritySystem>(this)),
+      card_registry(std::make_unique<CardRegistry>()) {
     int num_players = player_configs.size();
     if (num_players != 2) {
         throw std::invalid_argument("Game must start with 2 players.");
@@ -19,7 +19,7 @@ Game::Game(std::vector<PlayerConfig> player_configs, bool headless)
 
     // Create players first
     for (PlayerConfig& player_config : player_configs) {
-        players.emplace_back(std::make_unique<Player>(player_config));
+        players.emplace_back(std::make_unique<Player>(player_config, card_registry.get()));
     }
 
     std::vector<Player*> weak_players = {players[0].get(), players[1].get()};
@@ -47,17 +47,26 @@ Game::Game(std::vector<PlayerConfig> player_configs, bool headless)
     }
 
     if (!headless) {
-        display = std::make_unique<GameDisplay>();
+        // display = std::make_unique<GameDisplay>();
     }
+
+    // Start the game
+    tick();
 }
 
 // Reads
+
+ActionSpace* Game::actionSpace() const { return current_action_space.get(); }
+
+Observation* Game::observation() const { return current_observation.get(); }
 
 Player* Game::activePlayer() const { return turn_system->activePlayer(); }
 
 Player* Game::nonActivePlayer() const { return turn_system->nonActivePlayer(); }
 
 std::vector<Player*> Game::priorityOrder() const { return turn_system->priorityOrder(); }
+
+int Game::activePlayerIndex() const { return turn_system->active_player_index; }
 
 bool Game::isActivePlayer(Player* player) const { return player == turn_system->activePlayer(); }
 
@@ -81,59 +90,83 @@ bool Game::isGameOver() const {
                          [](const std::unique_ptr<Player>& player) { return player->alive; }) < 2;
 }
 
+int Game::winnerIndex() const {
+    if (!isGameOver()) {
+        return -1;
+    }
+
+    for (int i = 0; i < players.size(); i++) {
+        if (players[i]->alive) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
 // Writes
 
 void Game::play() {
     while (true) {
-        bool done = tick();
-        if (done) {
-            spdlog::debug("game over in play");
+        if (step(0)) {
             break;
         }
     }
 }
 
-bool Game::tick() {
-    try {
-        //        sf::sleep(sf::milliseconds(100));
-        std::unique_ptr<Observation> obs =
-            std::make_unique<Observation>(this, current_action_space.get());
-
-        // Handle display if it exists
-        if (display) {
-            display->processEvents();
-            if (display->isOpen()) {
-                display->render(obs.get());
-            }
-        }
-
-        // Handle current action space if it exists
-        if (current_action_space) {
-            if (current_action_space->actionSelected()) {
-                Action* selected_action =
-                    current_action_space->actions[current_action_space->chosen_index].get();
-                selected_action->execute();
-                current_action_space = nullptr;
-            }
-        }
-
-        // Get next action space if needed
-        if (!current_action_space) {
-            current_action_space = turn_system->tick();
-
-            // Auto-select action for now
-            if (current_action_space) {
-                current_action_space->selectAction(0);
-            }
-        }
-
-        return false;
-
-    } catch (const GameOverException& e) {
-        spdlog::debug("game over");
-        spdlog::info(e.what());
-        return true;
+bool Game::step(int action) {
+    // Validate current action space exists
+    if (!current_action_space) {
+        throw std::logic_error("No active action space");
     }
+
+    // Check if the action is within the valid range
+    if (action < 0 || action >= current_action_space->actions.size()) {
+        throw ManagymActionError(fmt::format("Action index {} out of bound: {}.", action,
+                                             current_action_space->actions.size()));
+    }
+
+    if (isGameOver()) {
+        throw ManagymActionError("Game is over");
+    }
+
+    // Execute action and clear current action space
+    managym::log::debug(Category::AGENT, "Available actions: {}", current_action_space->toString());
+    managym::log::debug(Category::AGENT, "Executing action: {}",
+                        current_action_space->actions[action]->toString());
+    current_action_space->actions[action]->execute();
+    current_action_space = nullptr;
+    current_observation = nullptr;
+
+    // Progress game until next action space needed
+    return tick();
+}
+
+bool Game::tick() {
+    // Keep ticking until we have an action space or game ends
+    while (!current_action_space) {
+        // Handle display updates
+        // if (display) {
+        //     display->processEvents();
+        //     if (display->isOpen()) {
+        //         display->render(current_observation.get());
+        //     }
+        // }
+
+        // Get next action space
+        current_action_space = turn_system->tick();
+
+        // Check for game over
+        if (isGameOver()) {
+            current_action_space = ActionSpace::createEmpty();
+            current_observation = std::make_unique<Observation>(this);
+            return true;
+        }
+    }
+
+    // Create new observation for current state
+    current_observation = std::make_unique<Observation>(this);
+    return false;
 }
 
 void Game::clearManaPools() {
@@ -167,12 +200,7 @@ void Game::drawCards(Player* player, int amount) {
     }
 }
 
-void Game::loseGame(Player* player) {
-    player->alive = false;
-    if (!isPlayerAlive(player)) {
-        throw GameOverException("Player " + std::to_string(player->id) + " has lost the game->");
-    }
-}
+void Game::loseGame(Player* player) { player->alive = false; }
 
 void Game::addMana(Player* player, const Mana& mana) { player->mana_pool.add(mana); }
 
@@ -197,8 +225,8 @@ void Game::playLand(Player* player, Card* card) {
     if (!canPlayLand(player)) {
         throw std::logic_error("Cannot play land this turn.");
     }
-    spdlog::debug("we canPlayLand");
+    managym::log::debug(Category::AGENT, "we canPlayLand");
     turn_system->current_turn->lands_played += 1;
-    spdlog::debug("{} plays a land {}", player->name, card->toString());
+    managym::log::debug(Category::AGENT, "{} plays a land {}", player->name, card->toString());
     zones->move(card, ZoneType::BATTLEFIELD);
 }

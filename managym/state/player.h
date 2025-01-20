@@ -1,6 +1,7 @@
 #pragma once
 
 #include "managym/agent/agent.h"
+#include "managym/cardsets/card_registry.h"
 #include "managym/state/card.h"
 #include "managym/state/mana.h"
 
@@ -20,19 +21,15 @@ struct PlayerConfig {
 // Represents a player in the game, managing their resources and game state
 class Player {
 public:
-    // Basic UUID generator
-    static int next_id;
+    Player(const PlayerConfig& config, CardRegistry* registry);
 
     // Data
-    int id;
     std::unique_ptr<Deck> deck;
     std::unique_ptr<Agent> agent;
     std::string name;
     int life = 20;
     bool alive = true;
     Mana mana_pool;
-
-    Player(const PlayerConfig& config);
 
     // Reads
     std::string toString() const;
@@ -42,5 +39,5 @@ public:
 
 private:
     // Helpers
-    std::unique_ptr<Deck> instantiateDeck(const PlayerConfig& config);
+    std::unique_ptr<Deck> instantiateDeck(const PlayerConfig& config, CardRegistry* registry);
 };

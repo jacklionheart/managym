@@ -10,9 +10,9 @@
 // Central registry for card definitions and instantiation
 class CardRegistry {
 public:
-    // Get singleton instance of registry
-    static CardRegistry& instance();
-
+    CardRegistry();
+    // Register all available cards in the game
+    void registerAllCards();
     // Register a new card definition
     void registerCard(const std::string& name, const Card& card);
 
@@ -22,17 +22,7 @@ public:
     // Clear all registered cards
     void clear();
 
-    // Delete copy constructor and assignment to enforce singleton
-    CardRegistry(const CardRegistry&) = delete;
-    CardRegistry& operator=(const CardRegistry&) = delete;
-
 private:
-    CardRegistry() = default;
     std::map<std::string, std::unique_ptr<Card>> card_map;
+    uint32_t next_id = 0;
 };
-
-// Register all available cards in the game
-void registerAllCards();
-
-// Clear the card registry
-void clearCardRegistry();

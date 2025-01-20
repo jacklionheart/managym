@@ -1,5 +1,5 @@
 #include "managym/state/zones.h"
-#include "managym_test/managym_test.h"
+#include "test/managym_test.h"
 
 #include <gtest/gtest.h>
 

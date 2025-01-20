@@ -3,7 +3,9 @@
 
 #include "managym/state/card.h"
 
-Card createBasicLandCard(const std::string& name, Color color);
+class CardRegistry;
+
+namespace managym::cardsets {
 
 // Basic lands
 Card basicPlains();
@@ -12,4 +14,9 @@ Card basicMountain();
 Card basicForest();
 Card basicSwamp();
 
-void registerBasicLands();
+// Helper function to create basic land cards
+Card createBasicLandCard(const std::string& name, Color color);
+
+void registerBasicLands(CardRegistry* registry);
+
+} // namespace managym::cardsets

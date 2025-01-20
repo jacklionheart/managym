@@ -6,17 +6,21 @@
 #include <format>
 #include <stdexcept>
 
-CardRegistry& CardRegistry::instance() {
-    static CardRegistry registry;
-    return registry;
-}
+CardRegistry::CardRegistry() { registerAllCards(); }
 
 // Writes
 void CardRegistry::registerCard(const std::string& name, const Card& card) {
     if (card_map.find(name) != card_map.end()) {
         throw std::runtime_error(std::format("Card already registered: {}", name));
     }
-    card_map.insert({name, std::make_unique<Card>(card)});
+    Card* new_card = new Card(card);
+    new_card->id = next_id++;
+    card_map.insert({name, std::unique_ptr<Card>(new_card)});
+}
+
+void CardRegistry::registerAllCards() {
+    managym::cardsets::registerBasicLands(this);
+    managym::cardsets::registerAlpha(this);
 }
 
 void CardRegistry::clear() { card_map.clear(); }
@@ -30,11 +34,3 @@ std::unique_ptr<Card> CardRegistry::instantiate(const std::string& name) {
         throw std::runtime_error("Card not found in registry: " + name);
     }
 }
-
-// Global registration functions
-void registerAllCards() {
-    registerBasicLands();
-    registerAlpha();
-}
-
-void clearCardRegistry() { CardRegistry::instance().clear(); }

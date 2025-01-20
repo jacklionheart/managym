@@ -1,6 +1,6 @@
 #include "managym_test.h"
 
-#include <spdlog/spdlog.h>
+#include "managym/infra/log.h"
 
 PlayerConfig makePlayerConfig(const std::string& playerName,
                               const std::vector<TestDeckEntry>& deckEntries) {
@@ -29,7 +29,7 @@ std::unique_ptr<Game> elvesVsOgres(bool headless, int redMountains, int redOgres
 
 void putPermanentInPlay(Game* game, Player* player, const std::string& cardName) {
     // Create new card instance
-    std::unique_ptr<Card> card = CardRegistry::instance().instantiate(cardName);
+    std::unique_ptr<Card> card = game->card_registry->instantiate(cardName);
     if (!card->types.isPermanent()) {
         throw std::invalid_argument("Card '" + cardName + "' is not a permanent type");
     }
@@ -47,7 +47,10 @@ void putPermanentInPlay(Game* game, Player* player, const std::string& cardName)
 }
 
 bool advanceToPhaseStep(Game* game, PhaseType targetPhase, std::optional<StepType> targetStep,
-                        bool require_action_space, int maxTicks) {
+                        int maxTicks) {
+    managym::log::debug(Category::TURN, "Advancing to phase step: {} {}, maxTicks={}",
+                        toString(targetPhase), targetStep ? toString(*targetStep) : "none",
+                        maxTicks);
     if (!game)
         throw std::invalid_argument("Game is null");
 
@@ -57,40 +60,34 @@ bool advanceToPhaseStep(Game* game, PhaseType targetPhase, std::optional<StepTyp
     }
 
     int ticks = 0;
-    bool got_to_phase_step = false;
 
     while (ticks < maxTicks) {
-        spdlog::debug("Current phase: {}", toString(game->turn_system->currentPhaseType()));
-        spdlog::debug("Current step: {}", toString(game->turn_system->currentStepType()));
+        managym::log::debug(Category::TURN, "Current phase: {}",
+                            toString(game->turn_system->currentPhaseType()));
+        managym::log::debug(Category::TURN, "Current step: {}",
+                            toString(game->turn_system->currentStepType()));
+
         if (game->current_action_space) {
-            spdlog::debug("Current action space: {}", game->current_action_space->toString());
+            managym::log::debug(Category::TURN, "Current action space: {}",
+                                game->current_action_space->toString());
         }
         if (game->turn_system->currentPhaseType() == targetPhase) {
             if (!targetStep || game->turn_system->currentStepType() == *targetStep) {
-                got_to_phase_step = true;
-                if (require_action_space) {
-                    if (game->current_action_space != nullptr) {
-                        return true;
-                    }
-                } else {
-                    return true;
-                }
-            }
-        } else {
-            if (got_to_phase_step) {
-                // We went past the target step and didn't find an action space.
-                return false;
+                return true;
             }
         }
 
         // Take one step
-        if (game->tick()) {
-            return false; // Game ended
+        bool game_over = game->step(0);
+        if (game_over) {
+            managym::log::debug(Category::TURN, "Game over in advanceToPhaseStep");
+            return false;
         }
         ticks++;
     }
 
-    return false; // Couldn't reach target within maxTicks
+    managym::log::debug(Category::TURN, "Couldn't advance to target phase step within maxTicks");
+    return false;
 }
 
 bool advanceToNextTurn(Game* game, int maxTicks) {
@@ -101,20 +98,23 @@ bool advanceToNextTurn(Game* game, int maxTicks) {
 
     int ticks = 0;
     while (ticks < maxTicks) {
-        if (game->tick()) {
-            return false; // Game ended
+        bool game_over = game->step(0);
+        if (game_over) {
+            managym::log::debug(Category::TURN, "Game over in advanceToNextTurn");
+            return false;
         }
-        ticks++;
 
-        // Check if we've advanced to a new turn
         if (game->turn_system->global_turn_count > currentTurnCount) {
             return true;
         }
+
+        ticks++;
     }
 
+    managym::log::debug(Category::TURN, "Couldn't advance to next turn within maxTicks");
     return false;
 }
 // Convenience overloads
-bool advanceToPhase(Game* game, PhaseType phase, bool require_action_space, int maxTicks) {
-    return advanceToPhaseStep(game, phase, std::nullopt, require_action_space, maxTicks);
+bool advanceToPhase(Game* game, PhaseType phase, int maxTicks) {
+    return advanceToPhaseStep(game, phase, std::nullopt, maxTicks);
 }

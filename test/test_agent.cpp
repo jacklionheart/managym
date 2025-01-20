@@ -1,6 +1,7 @@
 #include "managym/agent/action.h"
 #include "managym/agent/observation.h"
-#include "managym_test/managym_test.h"
+#include "managym/infra/log.h"
+#include "test/managym_test.h"
 
 #include <gtest/gtest.h>
 
@@ -18,8 +19,8 @@ protected:
         green_player = game->players[0].get();
         red_player = game->players[1].get();
 
-        spdlog::info("Advancing to PRECOMBAT_MAIN");
-        ASSERT_TRUE(advanceToPhase(game.get(), PhaseType::PRECOMBAT_MAIN, true));
+        managym::log::info(Category::TEST, "Advancing to PRECOMBAT_MAIN");
+        ASSERT_TRUE(advanceToPhase(game.get(), PhaseType::PRECOMBAT_MAIN));
     }
 };
 
@@ -37,9 +38,9 @@ TEST_F(TestAgent, PlayLandMovesCardToBattlefield) {
     ASSERT_NE(landCard, nullptr) << "No land found in red_player's hand.";
 
     // Execute the action
-    spdlog::info("Advancing to PRECOMBAT_MAIN");
+    managym::log::info(Category::TEST, "Advancing to PRECOMBAT_MAIN");
     advanceToPhase(game.get(), PhaseType::PRECOMBAT_MAIN);
-    spdlog::info("Playing land");
+    managym::log::info(Category::TEST, "Playing land");
     PlayLand playLand(landCard, green_player, game.get());
     playLand.execute();
 
@@ -104,13 +105,13 @@ TEST_F(TestAgent, ObservationForPriorityAction) {
     ASSERT_NE(action_space, nullptr);
     ASSERT_EQ(action_space->action_type, ActionType::Priority);
 
-    Observation obs(game.get(), action_space);
+    Observation obs(game.get());
 
     // Basic observation verification
-    verifyBasicObservation(&obs);
+    verifyBasicObservation(game->observation());
 
     // Priority-specific verification
-    ASSERT_EQ(obs.action_type, ActionType::Priority);
+    ASSERT_EQ(game->observation()->action_type, ActionType::Priority);
 }
 
 TEST_F(TestAgent, ObservationForDeclareAttackers) {
@@ -121,14 +122,14 @@ TEST_F(TestAgent, ObservationForDeclareAttackers) {
     advanceToNextTurn(game.get(), 1000);
 
     // Advance to declare attackers
-    ASSERT_TRUE(advanceToPhaseStep(game.get(), PhaseType::COMBAT,
-                                   StepType::COMBAT_DECLARE_ATTACKERS, true));
+    ASSERT_TRUE(
+        advanceToPhaseStep(game.get(), PhaseType::COMBAT, StepType::COMBAT_DECLARE_ATTACKERS));
 
     ActionSpace* action_space = game->current_action_space.get();
     ASSERT_NE(action_space, nullptr);
     ASSERT_EQ(action_space->action_type, ActionType::DeclareAttacker);
 
-    Observation obs(game.get(), action_space);
+    Observation obs(game.get());
     verifyBasicObservation(&obs);
     ASSERT_EQ(obs.action_type, ActionType::DeclareAttacker);
 }
@@ -143,22 +144,23 @@ TEST_F(TestAgent, ObservationForDeclareBlockers) {
     putPermanentInPlay(game.get(), green_player, "Llanowar Elves");
 
     // Get to declare attackers and declare one attacker
-    ASSERT_TRUE(advanceToPhaseStep(game.get(), PhaseType::COMBAT,
-                                   StepType::COMBAT_DECLARE_ATTACKERS, true));
+    ASSERT_TRUE(
+        advanceToPhaseStep(game.get(), PhaseType::COMBAT, StepType::COMBAT_DECLARE_ATTACKERS));
+    
     ActionSpace* attack_space = game->current_action_space.get();
     ASSERT_NE(attack_space, nullptr);
     ASSERT_EQ(attack_space->action_type, ActionType::DeclareAttacker);
 
     // Advance to declare blockers
     ASSERT_TRUE(
-        advanceToPhaseStep(game.get(), PhaseType::COMBAT, StepType::COMBAT_DECLARE_BLOCKERS, true));
+        advanceToPhaseStep(game.get(), PhaseType::COMBAT, StepType::COMBAT_DECLARE_BLOCKERS));
 
     ASSERT_TRUE(game->zones->constBattlefield()->attackers(red_player).size() >= 1);
     ActionSpace* action_space = game->current_action_space.get();
     ASSERT_NE(action_space, nullptr);
     ASSERT_EQ(action_space->action_type, ActionType::DeclareBlocker);
 
-    Observation obs(game.get(), action_space);
+    Observation obs(game.get());
     verifyBasicObservation(&obs);
     ASSERT_EQ(obs.action_type, ActionType::DeclareBlocker);
 }

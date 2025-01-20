@@ -149,8 +149,6 @@ struct Step {
     bool initialized = false;
     bool has_priority_window = true;
     bool turn_based_actions_complete = false;
-    bool mana_pools_emptied = false;
-    std::unique_ptr<PrioritySystem> priority_system;
     bool completed = false;
 
     // Reads

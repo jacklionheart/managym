@@ -2,9 +2,7 @@
 
 #include "managym/flow/combat.h"
 #include "managym/flow/game.h"
-
-#include <spdlog/spdlog.h>
-
+#include "managym/infra/log.h"
 // TurnSystem implementation
 
 TurnSystem::TurnSystem(Game* game) : game(game) {
@@ -199,7 +197,7 @@ std::unique_ptr<ActionSpace> Turn::tick() {
     }
 
     Phase* current_phase = phases[current_phase_index].get();
-    auto result = current_phase->tick();
+    std::unique_ptr<ActionSpace> result = current_phase->tick();
 
     if (current_phase->completed) {
         if (current_phase_index < phases.size() - 1) {
@@ -215,7 +213,7 @@ std::unique_ptr<ActionSpace> Turn::tick() {
 // Phase implementation
 
 std::unique_ptr<ActionSpace> Phase::tick() {
-    spdlog::debug("Ticking {}", std::string(typeid(*this).name()));
+    managym::log::debug(Category::TURN, "Ticking {}", std::string(typeid(*this).name()));
 
     if (completed || current_step_index >= steps.size()) {
         throw std::runtime_error("Phase is complete");
@@ -237,15 +235,14 @@ std::unique_ptr<ActionSpace> Phase::tick() {
 
 // Step implementations
 
-Step::Step(Phase* phase)
-    : phase(phase), priority_system(std::make_unique<PrioritySystem>(phase->turn->turn_system->game,
-                                                                     phase->turn->active_player)) {}
+Step::Step(Phase* phase) : phase(phase) {}
 std::unique_ptr<ActionSpace> Step::tick() {
-    spdlog::debug("Ticking {}", std::string(typeid(*this).name()));
+    managym::log::debug(Category::TURN, "Ticking {}", std::string(typeid(*this).name()));
 
     if (!initialized) {
         initialize();
         initialized = true;
+        managym::log::debug(Category::TURN, "Step initialized");
     }
 
     if (completed) {
@@ -254,18 +251,39 @@ std::unique_ptr<ActionSpace> Step::tick() {
 
     std::unique_ptr<ActionSpace> result = nullptr;
 
+    // Debug the state machine
+    managym::log::debug(Category::TURN,
+                        "Step state: turn_based_actions_complete={}, has_priority_window={}",
+                        turn_based_actions_complete, has_priority_window);
+
     if (!turn_based_actions_complete) {
         result = performTurnBasedActions();
-    } else if (has_priority_window && !priority_system->isComplete()) {
-        result = priority_system->tick();
-    } else if (!mana_pools_emptied) {
-        game()->clearManaPools();
-        mana_pools_emptied = true;
-    } else {
-        completed = true;
+        if (!result) {
+            turn_based_actions_complete = true;
+            managym::log::debug(Category::TURN, "Turn based actions completed with no result");
+        } else {
+            managym::log::debug(Category::TURN, "Turn based actions produced an action space");
+            return result;
+        }
     }
 
-    return result;
+    if (has_priority_window) {
+        PrioritySystem* priority_system = game()->priority_system.get();
+        managym::log::debug(Category::TURN, "Ticking priority system");
+        result = priority_system->tick();
+        if (result) {
+            return result;
+        }
+        managym::log::debug(Category::TURN, "Priority system completed");
+    }
+
+    managym::log::debug(Category::TURN, "Emptying mana pools");
+    game()->clearManaPools();
+
+    managym::log::debug(Category::TURN, "Step completing");
+    completed = true;
+
+    return nullptr;
 }
 
 void Step::initialize() {}
@@ -284,7 +302,8 @@ Turn* Step::turn() { return phase->turn; }
 Player* Step::activePlayer() { return phase->turn->active_player; }
 
 std::unique_ptr<ActionSpace> UntapStep::performTurnBasedActions() {
-    spdlog::debug("Starting {} for {}", std::string(typeid(*this).name()), activePlayer()->name);
+    managym::log::debug(Category::TURN, "Starting {} for {}", std::string(typeid(*this).name()),
+                        activePlayer()->name);
     game()->markPermanentsNotSummoningSick(activePlayer());
     game()->untapAllPermanents(activePlayer());
     turn_based_actions_complete = true;

@@ -9,7 +9,7 @@ bool ActionSpace::empty() { return actions.empty(); }
 std::string ActionSpace::toString() const {
     std::string actions_str = "[\n";
     for (size_t i = 0; i < actions.size(); i++) {
-        if (chosen_index == static_cast<int>(i)) {
+        if (chosen_index == i) {
             actions_str += "  *"; // Mark chosen action with asterisk
         } else {
             actions_str += "   ";
@@ -22,6 +22,8 @@ std::string ActionSpace::toString() const {
     }
     actions_str += "]";
 
-    return fmt::format("ActionSpace(type={}, player={}, actions={})", ::toString(action_type),
-                       player->name, actions_str);
+    std::string name = player ? player->name : "None";
+
+    return fmt::format("ActionSpace(type={}, player={}, actions={})", ::toString(action_type), name,
+                       actions_str);
 }

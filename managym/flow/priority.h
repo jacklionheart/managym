@@ -1,35 +1,41 @@
 #pragma once
-#include <map>
 #include <memory>
 
 class Game;
 class Player;
 class ActionSpace;
 class Action;
+
+// System for managing priority passing between players
 struct PrioritySystem {
+    // Data
     Game* game;
-    Player* active_player;
+    int pass_count = 0;
+    bool sba_done = false;
 
-    std::map<Player*, bool> passed;
-    bool state_based_actions_complete = false;
+    // Constructor
+    explicit PrioritySystem(Game* game);
 
-    PrioritySystem(Game* game, Player* active_player);
+    // Writes
 
+    // Reset priority system so that state-based actions will be performed again and all players
+    // will receive priority.
+    void reset();
+    // Pass priority to the next player.
+    void passPriority();
+
+    // Returns the priority action space for the current player or nullptr if all players have
+    // passed and
     std::unique_ptr<ActionSpace> tick();
 
-    void passPriority(Player* player);
+    // Reads
+    // Return true if priority round is complete - all players passed and stack is empty
+    bool isComplete() const;
 
-    bool playersPassed();
-    Player* playerWithPriority();
-    bool hasPriority(Player* player);
-
-    void reset();
-    bool stackEmpty();
-    bool isComplete() { return state_based_actions_complete && playersPassed() && stackEmpty(); }
-
-    std::vector<std::unique_ptr<Action>> availablePriorityActions(Player* player);
-
+protected:
+    // Helper methods
+    void performStateBasedActions();
     std::unique_ptr<ActionSpace> makeActionSpace(Player* player);
-    std::unique_ptr<ActionSpace> performStateBasedActions();
-    std::unique_ptr<ActionSpace> resolveTopOfStack();
+    void resolveTopOfStack();
+    std::vector<std::unique_ptr<Action>> availablePriorityActions(Player* player);
 };
