@@ -45,8 +45,8 @@ PhaseType TurnSystem::getPhaseForStep(StepType step) {
     case StepType::BEGINNING_DRAW:
         return PhaseType::BEGINNING;
 
-    case StepType::MAIN_STEP:
-        throw std::runtime_error("Main step requires phase context");
+    case StepType::PRECOMBAT_MAIN_STEP:
+        return PhaseType::PRECOMBAT_MAIN;
 
     case StepType::COMBAT_BEGIN:
     case StepType::COMBAT_DECLARE_ATTACKERS:
@@ -54,6 +54,9 @@ PhaseType TurnSystem::getPhaseForStep(StepType step) {
     case StepType::COMBAT_DAMAGE:
     case StepType::COMBAT_END:
         return PhaseType::COMBAT;
+
+    case StepType::POSTCOMBAT_MAIN_STEP:
+        return PhaseType::POSTCOMBAT_MAIN;
 
     case StepType::ENDING_END:
     case StepType::ENDING_CLEANUP:
@@ -78,9 +81,12 @@ StepType TurnSystem::stepTypeFromIndex(PhaseType phase, int stepIndex) {
         }
 
     case PhaseType::PRECOMBAT_MAIN:
+        if (stepIndex == 0)
+            return StepType::PRECOMBAT_MAIN_STEP;
+        throw std::out_of_range("Invalid main phase step index");
     case PhaseType::POSTCOMBAT_MAIN:
         if (stepIndex == 0)
-            return StepType::MAIN_STEP;
+            return StepType::POSTCOMBAT_MAIN_STEP;
         throw std::out_of_range("Invalid main phase step index");
 
     case PhaseType::COMBAT:
@@ -120,7 +126,7 @@ int TurnSystem::stepIndexFromType(StepType step) {
         return 1;
     case StepType::BEGINNING_DRAW:
         return 2;
-    case StepType::MAIN_STEP:
+    case StepType::PRECOMBAT_MAIN_STEP:
         return 0;
     case StepType::COMBAT_BEGIN:
         return 0;
@@ -132,6 +138,8 @@ int TurnSystem::stepIndexFromType(StepType step) {
         return 3;
     case StepType::COMBAT_END:
         return 4;
+    case StepType::POSTCOMBAT_MAIN_STEP:
+        return 0;
     case StepType::ENDING_END:
         return 0;
     case StepType::ENDING_CLEANUP:

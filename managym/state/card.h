@@ -1,6 +1,7 @@
 #pragma once
 
-#include "mana.h"
+#include "managym/state/game_object.h"
+#include "managym/state/mana.h"
 
 #include <memory>
 #include <set>
@@ -86,14 +87,23 @@ struct CardTypes {
     bool isPlaneswalker() const;
     bool isEnchantment() const;
     bool isArtifact() const;
-    bool isTribal() const;
+    bool isKindred() const;
     bool isBattle() const;
 };
 
 // Represents a single Magic card with all its characteristics
-struct Card {
+struct Card : public GameObject {
+     // Used by cardsets to define cards
+    Card(std::string name, std::optional<ManaCost> mana_cost, CardTypes types,
+         const std::vector<std::string>& supertypes, const std::vector<std::string>& subtypes,
+         const std::vector<ManaAbility>& mana_abilities, std::string text_box,
+         std::optional<int> power, std::optional<int> toughness);
+
+    // Used by CardRegistry to instantiate cards
+    Card(ObjectId id, const Card& other);
+
     // Data
-    uint32_t id;
+    int registry_key;
     std::string name;
     std::optional<ManaCost> mana_cost;
     Colors colors;
@@ -106,11 +116,6 @@ struct Card {
     std::optional<int> toughness;
     Player* owner;
 
-    Card(std::string name, std::optional<ManaCost> mana_cost, CardTypes types,
-         const std::vector<std::string>& supertypes, const std::vector<std::string>& subtypes,
-         const std::vector<ManaAbility>& mana_abilities, std::string text_box,
-         std::optional<int> power, std::optional<int> toughness);
-    Card(const Card& other);
 
     // Reads
 

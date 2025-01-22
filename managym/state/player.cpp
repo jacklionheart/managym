@@ -3,9 +3,8 @@
 
 #include "managym/cardsets/card_registry.h"
 
-Player::Player(const PlayerConfig& config, CardRegistry* registry)
-    : name(config.name), deck(instantiateDeck(config, registry)), agent(std::make_unique<Agent>()) {
-}
+Player::Player(const ObjectId& id, const PlayerConfig& config, CardRegistry* registry)
+    : GameObject(id), name(config.name), deck(instantiateDeck(config, registry)) {}
 
 // Writes
 

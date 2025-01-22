@@ -27,6 +27,8 @@ void DeclareAttackerAction::execute() {
     }
 }
 
+std::vector<ObjectId> DeclareAttackerAction::focus() const { return {attacker->id}; }
+
 void DeclareBlockerAction::execute() {
     managym::log::info(Category::AGENT, "Player {} Declaring blocker", player->name);
     if (attacker != nullptr) {
@@ -34,16 +36,27 @@ void DeclareBlockerAction::execute() {
     }
 }
 
+std::vector<ObjectId> DeclareBlockerAction::focus() const {
+    std::vector<ObjectId> focus;
+    focus.push_back(blocker->id);
+    if (attacker != nullptr) {
+        focus.push_back(attacker->id);
+    }
+    return focus;
+}
+
 PlayLand::PlayLand(Card* card, Player* player, Game* game)
-    : Action(player), game(game), card(card) {}
+    : Action(player, ActionType::PRIORITY_PLAY_LAND), game(game), card(card) {}
 
 void PlayLand::execute() {
     managym::log::info(Category::AGENT, "Player {} PlayLand: {}", player->name, card->toString());
     game->playLand(player, card);
 }
 
+std::vector<ObjectId> PlayLand::focus() const { return {card->id}; }
+
 CastSpell::CastSpell(Card* card, Player* player, Game* game)
-    : Action(player), game(game), card(card) {
+    : Action(player, ActionType::PRIORITY_CAST_SPELL), game(game), card(card) {
     if (!card->types.isCastable()) {
         throw std::invalid_argument("Cannot cast a land card.");
     }
@@ -65,12 +78,17 @@ void CastSpell::execute() {
                         player->mana_pool.toString());
 }
 
-PassPriority::PassPriority(Player* player, Game* game) : Action(player), game(game) {}
+std::vector<ObjectId> CastSpell::focus() const { return {card->id}; }
+
+PassPriority::PassPriority(Player* player, Game* game)
+    : Action(player, ActionType::PRIORITY_PASS_PRIORITY), game(game) {}
 
 void PassPriority::execute() {
     managym::log::debug(Category::AGENT, "Player {} Passing priority", player->name);
     game->priority_system->passPriority();
 }
+
+std::vector<ObjectId> PassPriority::focus() const { return {}; }
 
 std::string DeclareAttackerAction::toString() const {
     return fmt::format("DeclareAttackerAction(attacker={}, attack={}, player={})",

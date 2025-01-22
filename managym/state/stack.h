@@ -2,7 +2,6 @@
 
 #include "managym/state/zone.h"
 
-#include <memory>
 #include <vector>
 
 class Game; // Forward declaration

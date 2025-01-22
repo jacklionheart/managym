@@ -3,89 +3,73 @@
 #include "managym/infra/log.h"
 
 #include <cctype>
+#include <numeric>
 #include <stdexcept>
 
-ManaCost::ManaCost() : generic(0) {
-    cost[Color::COLORLESS] = 0;
-    cost[Color::WHITE] = 0;
-    cost[Color::BLUE] = 0;
-    cost[Color::BLACK] = 0;
-    cost[Color::RED] = 0;
-    cost[Color::GREEN] = 0;
-}
+ManaCost::ManaCost() : cost{0, 0, 0, 0, 0, 0}, mana_value(0) {}
 
-ManaCost ManaCost::parse(const std::string& mana_cost_str) {
-    ManaCost mana_cost;
+ManaCost ManaCost::parse(const std::string& mana_str) {
+    ManaCost result;
+    int generic = 0;
+
     size_t i = 0;
-    while (i < mana_cost_str.length()) {
-        char c = mana_cost_str[i];
+    while (i < mana_str.length()) {
+        char c = mana_str[i];
         if (std::isdigit(c)) {
             int num = 0;
-            while (i < mana_cost_str.length() && std::isdigit(mana_cost_str[i])) {
-                num = num * 10 + (mana_cost_str[i] - '0');
+            while (i < mana_str.length() && std::isdigit(mana_str[i])) {
+                num = num * 10 + (mana_str[i] - '0');
                 i++;
             }
-            mana_cost.generic += num;
+            result.cost[6] = num;
         } else {
             switch (c) {
             case 'W':
-                mana_cost.cost[Color::WHITE] += 1;
+                result.cost[0]++;
                 break;
             case 'U':
-                mana_cost.cost[Color::BLUE] += 1;
+                result.cost[1]++;
                 break;
             case 'B':
-                mana_cost.cost[Color::BLACK] += 1;
+                result.cost[2]++;
                 break;
             case 'R':
-                mana_cost.cost[Color::RED] += 1;
+                result.cost[3]++;
                 break;
             case 'G':
-                mana_cost.cost[Color::GREEN] += 1;
+                result.cost[4]++;
                 break;
             case 'C':
-                mana_cost.cost[Color::COLORLESS] += 1;
+                result.cost[5]++;
                 break;
+
             default:
-                throw std::invalid_argument(std::string("Invalid character in mana cost: ") + c);
+                throw std::invalid_argument("Invalid mana symbol: " + std::string(1, c));
             }
             i++;
         }
     }
-    return mana_cost;
+
+    result.mana_value = std::accumulate(result.cost.begin(), result.cost.end(), 0);
+    return result;
 }
 
 std::string ManaCost::toString() const {
     std::string result;
-    if (generic > 0) {
-        result += std::to_string(generic);
+
+    // Generic first (as colorless)
+    if (cost[0] > 0) {
+        result += std::to_string(cost[0]);
     }
-    for (const auto& [color, quantity] : cost) {
-        for (int i = 0; i < quantity; i++) {
-            char symbol;
-            switch (color) {
-            case Color::COLORLESS:
-                symbol = 'C';
-                break;
-            case Color::WHITE:
-                symbol = 'W';
-                break;
-            case Color::BLUE:
-                symbol = 'U';
-                break;
-            case Color::BLACK:
-                symbol = 'B';
-                break;
-            case Color::RED:
-                symbol = 'R';
-                break;
-            case Color::GREEN:
-                symbol = 'G';
-                break;
-            }
-            result += symbol;
+
+    // Colored symbols
+    static const char* symbols = "CWUBRG";
+    for (int i = 1; i < 6; i++) {
+        for (int j = 0; j < cost[i]; j++) {
+            result += symbols[i];
         }
     }
+
     return result;
 }
 
@@ -136,21 +120,13 @@ Mana Mana::single(Color color) {
     return mana;
 }
 Colors ManaCost::colors() const {
-    Colors colors_set;
-    for (const auto& [color, quantity] : cost) {
-        if (quantity > 0 && color != Color::COLORLESS) {
-            colors_set.insert(color);
+    Colors result;
+    for (int i = 0; i < 5; i++) {
+        if (cost[i] > 0) {
+            result.insert(static_cast<Color>(i));
         }
     }
-    return colors_set;
-}
-
-int ManaCost::manaValue() const {
-    int total = generic;
-    for (const auto& [color, quantity] : cost) {
-        total += quantity;
-    }
-    return total;
+    return result;
 }
 
 Mana::Mana() {
@@ -179,27 +155,28 @@ int Mana::total() const {
 bool Mana::canPay(const ManaCost& mana_cost) const {
     managym::log::debug(Category::STATE, "Mana: {}", toString());
     managym::log::debug(Category::STATE, "Checking if can pay Mana cost: {}", mana_cost.toString());
-    if (total() < mana_cost.manaValue()) {
+    if (total() < mana_cost.mana_value) {
         managym::log::debug(Category::STATE, "Not enough total mana (have {}, need {})", total(),
-                            mana_cost.manaValue());
+                            mana_cost.mana_value);
         return false;
     }
 
     // Work with a copy for simulation
     auto remaining = mana;
 
-    // First pay colored costs
-    for (const auto& [color, required] : mana_cost.cost) {
-        if (remaining[color] < required) {
+    // First pay colored costs (include colorless)
+    for (int i = 0; i < 6; i++) {
+        if (remaining[static_cast<Color>(i)] < mana_cost.cost[i]) {
             managym::log::debug(Category::RULES, "Not enough {} mana (have {}, need {})",
-                                ::toString(color), remaining[color], required);
+                                ::toString(static_cast<Color>(i)), remaining[static_cast<Color>(i)],
+                                mana_cost.cost[i]);
             return false;
         }
-        remaining[color] -= required;
+        remaining[static_cast<Color>(i)] -= mana_cost.cost[i];
     }
 
     // Then check for generic mana needed
-    int generic_needed = mana_cost.generic;
+    int generic_needed = mana_cost.cost[6];
     int available_mana = 0;
     for (const auto& [color, amount] : remaining) {
         available_mana += amount;
@@ -217,12 +194,12 @@ void Mana::pay(const ManaCost& mana_cost) {
     }
 
     // Pay colored mana costs
-    for (const auto& [color, required] : mana_cost.cost) {
-        mana[color] -= required;
+    for (int i = 0; i < 6; i++) {
+        mana[static_cast<Color>(i)] -= mana_cost.cost[i];
     }
 
     // Pay generic mana costs
-    int generic_needed = mana_cost.generic;
+    int generic_needed = mana_cost.cost[6];
     while (generic_needed > 0) {
         for (auto& [color, amount] : mana) {
             if (amount > 0) {

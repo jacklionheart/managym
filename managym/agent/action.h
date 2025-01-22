@@ -1,6 +1,10 @@
 #pragma once
 
+#include "managym/state/game_object.h"
+
 #include <string>
+#include <vector>
+
 class Game;
 class Player;
 class PrioritySystem;
@@ -9,51 +13,56 @@ class DeclareBlockersStep;
 class DeclareAttackersStep;
 class Permanent;
 
+// Types of actions available to players
+enum struct ActionType {
+    PRIORITY_PLAY_LAND,
+    PRIORITY_CAST_SPELL,
+    PRIORITY_PASS_PRIORITY,
+    DECLARE_ATTACKER,
+    DECLARE_BLOCKER,
+};
+
+inline std::string toString(ActionType type) {
+    switch (type) {
+    case ActionType::PRIORITY_PLAY_LAND:
+        return "priority_play_land";
+    case ActionType::PRIORITY_CAST_SPELL:
+        return "priority_cast_spell";
+    case ActionType::PRIORITY_PASS_PRIORITY:
+        return "priority_pass_priority";
+    case ActionType::DECLARE_ATTACKER:
+        return "declare_attacker";
+    case ActionType::DECLARE_BLOCKER:
+        return "declare_blocker";
+    default:
+        return "unknown";
+    }
+}
+
 // Base struct for all game actions performed by agents
 struct Action {
+    Action(Player* player, ActionType type) : player(player), type(type) {}
+    virtual ~Action() = default;
+
     // Data
     Player* player;
-
-    // Constructor
-    Action(Player* player) : player(player) {}
-    virtual ~Action() = default;
+    ActionType type;
 
     // Reads
     virtual std::string toString() const = 0;
+    virtual std::vector<ObjectId> focus() const = 0;
 
     // Writes
     // Execute this action's game effects
     virtual void execute() = 0;
 };
 
-// Types of actions available to players
-enum struct ActionType {
-    Invalid,
-    Priority,
-    DeclareAttacker,
-    DeclareBlocker,
-};
-
-inline std::string toString(ActionType type) {
-    switch (type) {
-    case ActionType::Invalid:
-        return "Invalid";
-    case ActionType::Priority:
-        return "Priority";
-    case ActionType::DeclareAttacker:
-        return "DeclareAttacker";
-    case ActionType::DeclareBlocker:
-        return "DeclareBlocker";
-    default:
-        return "Unknown";
-    }
-}
-
 // Action for declaring an attacking creature
 struct DeclareAttackerAction : public Action {
     DeclareAttackerAction(Permanent* attacker, bool attack, Player* player,
                           DeclareAttackersStep* step)
-        : Action(player), attacker(attacker), step(step), attack(attack) {}
+        : Action(player, ActionType::DECLARE_ATTACKER), attacker(attacker), step(step),
+          attack(attack) {}
 
     // Data
     Permanent* attacker;
@@ -62,6 +71,7 @@ struct DeclareAttackerAction : public Action {
 
     // Reads
     std::string toString() const override;
+    std::vector<ObjectId> focus() const override;
 
     // Writes
     // Execute the attack declaration
@@ -72,7 +82,8 @@ struct DeclareAttackerAction : public Action {
 struct DeclareBlockerAction : public Action {
     DeclareBlockerAction(Permanent* blocker, Permanent* attacker, Player* player,
                          DeclareBlockersStep* step)
-        : Action(player), blocker(blocker), attacker(attacker), step(step) {}
+        : Action(player, ActionType::DECLARE_BLOCKER), blocker(blocker), attacker(attacker),
+          step(step) {}
 
     // Data
     Permanent* blocker;
@@ -81,7 +92,7 @@ struct DeclareBlockerAction : public Action {
 
     // Reads
     std::string toString() const override;
-
+    std::vector<ObjectId> focus() const override;
     // Writes
     // Execute the block declaration
     void execute() override;
@@ -97,7 +108,7 @@ struct PlayLand : public Action {
 
     // Reads
     std::string toString() const override;
-
+    std::vector<ObjectId> focus() const override;
     // Writes
     // Execute the land play
     void execute() override;
@@ -113,7 +124,7 @@ struct CastSpell : public Action {
 
     // Reads
     std::string toString() const override;
-
+    std::vector<ObjectId> focus() const override;
     // Writes
 
     // Execute the spell cast
@@ -129,7 +140,7 @@ struct PassPriority : public Action {
 
     // Reads
     std::string toString() const override;
-
+    std::vector<ObjectId> focus() const override;
     // Writes
 
     // Execute the priority pass
@@ -137,7 +148,7 @@ struct PassPriority : public Action {
 };
 
 // Thrown when an invalid action is taken.
-class ManagymActionError : public std::runtime_error {
+class AgentError : public std::runtime_error {
 public:
-    explicit ManagymActionError(const std::string& message) : std::runtime_error(message) {}
+    explicit AgentError(const std::string& message) : std::runtime_error(message) {}
 };

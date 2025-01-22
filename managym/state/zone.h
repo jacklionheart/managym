@@ -4,7 +4,6 @@
 #include "managym/state/player.h"
 
 #include <map>
-#include <memory>
 #include <vector>
 
 // Forward declaration
@@ -20,24 +19,24 @@ public:
     Zone(Zones* zones, std::vector<Player*>& players);
 
     // Data
-    std::map<Player*, std::vector<Card*>> cards;
+    std::map<const Player*, std::vector<Card*>> cards;
 
     // Reads
 
     // Randomize the order of the cards in this zone for a player.
-    void shuffle(Player* player);
+    void shuffle(const Player* player);
 
     // Get the top card in this zone for a player.
-    Card* top(Player* player);
+    Card* top(const Player* player);
 
     // Number of cards in this zone for a player.
-    size_t size(Player* player) const;
+    size_t size(const Player* player) const;
 
     // Total number of cards in this zone.
     size_t totalSize() const;
 
     // Check if this zone contains a specific card for a player.
-    bool contains(const Card* card, Player* player) const;
+    bool contains(const Card* card, const Player* player) const;
 
 protected:
     friend class Zones;
@@ -49,7 +48,7 @@ protected:
     virtual void exit(Card* card);
 
     // Perform a lambda on all cards in this zone for a player.
-    virtual void forEach(const std::function<void(Card*)>& func, Player* player);
+    virtual void forEach(const std::function<void(Card*)>& func, const Player* player);
     // Perform a lambda on all cards in this zone for all players.
     virtual void forEachAll(const std::function<void(Card*)>& func);
 };

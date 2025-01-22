@@ -1,8 +1,6 @@
 // stack.cpp
 #include "stack.h"
 
-#include <format>
-
 // Writes
 
 void Stack::push(Card* card) {

@@ -55,7 +55,7 @@ TEST_F(TestFlow, PriorityPassingTest) {
     // Verify we have a priority action space
     auto action_space = game->actionSpace();
     ASSERT_NE(action_space, nullptr);
-    ASSERT_EQ(action_space->action_type, ActionType::Priority);
+    ASSERT_EQ(action_space->type, ActionSpaceType::PRIORITY);
 
     managym::log::info(Category::TEST, "Action space: {}", action_space->toString());
 
@@ -65,7 +65,7 @@ TEST_F(TestFlow, PriorityPassingTest) {
 
     action_space = game->actionSpace();
     ASSERT_NE(action_space, nullptr);
-    ASSERT_EQ(action_space->action_type, ActionType::Priority);
+    ASSERT_EQ(action_space->type, ActionSpaceType::PRIORITY);
 
     managym::log::info(Category::TEST, "Action space: {}", action_space->toString());
     managym::log::info(Category::TEST, "Non-active player passing priority");

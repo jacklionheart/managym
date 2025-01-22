@@ -4,6 +4,27 @@ managym is an reinforcement learning environment for the game of Magic: The Gath
 
 It is built to be used with [manabot](https://github.com/jacklionheart/manabot).
 
+# Build
+
+from root directory:
+```
+rm -rf build
+mkdir build
+cd build
+cmake ..
+make
+```
+
+See CMakeLists.txt for more details.
+
+# Test
+
+from `build` directory:
+```
+make test
+./managym_test --gtest_filter=TestRegex.* --log=priority,turn,test
+```
+
 # Codebase Areas
 
 API:

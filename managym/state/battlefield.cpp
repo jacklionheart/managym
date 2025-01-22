@@ -5,7 +5,8 @@
 
 #include <cassert>
 
-Permanent::Permanent(Card* card) : controller(card->owner), card(card) {
+Permanent::Permanent(ObjectId id, Card* card)
+    : GameObject(id), controller(card->owner), card(card) {
     tapped = false;
     summoning_sick = card->types.isCreature();
     damage = 0;
@@ -76,7 +77,8 @@ void Permanent::activateAbility(ActivatedAbility* ability) {
 
 // Battlefield implementation
 
-Battlefield::Battlefield(Zones* zones, std::vector<Player*>& players) : Zone(zones, players) {
+Battlefield::Battlefield(Zones* zones, std::vector<Player*>& players, IDGenerator* id_generator)
+    : Zone(zones, players), id_generator(id_generator) {
     for (Player* player : players) {
         cards[player] = std::vector<Card*>();
         permanents[player] = std::vector<std::unique_ptr<Permanent>>();
@@ -147,7 +149,7 @@ void Battlefield::enter(Card* card) {
     }
     managym::log::info(Category::STATE, "{} enters battlefield", card->toString());
     Player* controller = card->owner;
-    permanents[controller].push_back(std::make_unique<Permanent>(card));
+    permanents[controller].push_back(std::make_unique<Permanent>(id_generator->next(), card));
 }
 
 void Battlefield::exit(Card* card) {

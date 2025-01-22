@@ -2,6 +2,7 @@
 #pragma once
 
 #include "managym/state/card.h"
+#include "managym/state/game_object.h"
 
 #include <map>
 #include <memory>
@@ -10,7 +11,7 @@
 // Central registry for card definitions and instantiation
 class CardRegistry {
 public:
-    CardRegistry();
+    CardRegistry(IDGenerator* id_generator);
     // Register all available cards in the game
     void registerAllCards();
     // Register a new card definition
@@ -24,5 +25,8 @@ public:
 
 private:
     std::map<std::string, std::unique_ptr<Card>> card_map;
-    uint32_t next_id = 0;
+    // Unique ID amongg game objects, owned by the Game.
+    IDGenerator* id_generator;
+    // Card Registry Key for mapping card names to Cards.
+    std::unique_ptr<IDGenerator> registry_key_generator;
 };

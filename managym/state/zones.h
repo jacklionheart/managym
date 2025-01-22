@@ -1,6 +1,7 @@
 #pragma once
 
 #include "battlefield.h"
+#include "managym/state/game_object.h"
 #include "stack.h"
 #include "zone.h"
 
@@ -19,16 +20,16 @@ enum struct ZoneType { LIBRARY, HAND, BATTLEFIELD, GRAVEYARD, STACK, EXILE, COMM
 // logging, etc.
 class Zones {
 public:
-    Zones(std::vector<Player*>& players);
+    Zones(std::vector<Player*>& players, IDGenerator* id_generator);
 
     // Reads
 
     // Check if a zone contains a specific card.
-    bool contains(const Card* card, ZoneType zoneType, Player* player) const;
+    bool contains(const Card* card, ZoneType zoneType, const Player* player) const;
     // Get the top card of a zone for a single player.
-    Card* top(ZoneType zoneType, Player* player) const;
+    Card* top(ZoneType zoneType, const Player* player) const;
     // Get the size of a zone for a single player.
-    size_t size(ZoneType zoneType, Player* player) const;
+    size_t size(ZoneType zoneType, const Player* player) const;
     // Get the total size of a zone including all players.
     size_t totalSize(ZoneType zoneType) const;
 
@@ -77,6 +78,8 @@ protected:
     Zone* getZone(ZoneType zoneType) const;
 
     // Data
+
+    // 7 Zones
     std::unique_ptr<Library> library;
     std::unique_ptr<Graveyard> graveyard;
     std::unique_ptr<Hand> hand;
@@ -84,7 +87,7 @@ protected:
     std::unique_ptr<Stack> stack;
     std::unique_ptr<Exile> exile;
     std::unique_ptr<Command> command;
-
     // Card --> Current Zone (null if none or not known).
     std::map<Card*, Zone*> card_to_zone;
+    IDGenerator* id_generator;
 };

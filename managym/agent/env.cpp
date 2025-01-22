@@ -2,34 +2,65 @@
 
 #include "managym/flow/game.h"
 
-Env::Env() : game(nullptr) {}
+#include <stdexcept>
 
-std::pair<Observation*, ActionSpace*> Env::reset(const std::vector<PlayerConfig>& player_configs) {
-    // If game hasn't been initialized, create a new game
-    if (!game) {
-        game = std::make_unique<Game>(player_configs, true);
-    } else {
-        game.reset(new Game(player_configs, true));
-    }
+Env::Env(bool skip_trivial) : game(nullptr), skip_trivial(skip_trivial) {}
 
-    return {game->observation(), game->actionSpace()};
+std::pair<Observation*, std::map<std::string, std::string>>
+Env::reset(const std::vector<PlayerConfig>& player_configs) {
+    // Destroy any old game
+    game.reset(new Game(player_configs, /*headless=*/true, skip_trivial));
+
+    // Build initial observation
+    Observation* obs = game->observation(); // game creates a fresh observation
+
+    // For now, we’ll leave info empty
+    std::map<std::string, std::string> info;
+    return {obs, info};
 }
 
-std::tuple<Observation*, ActionSpace*, bool> Env::step(int action) {
-    // Ensure game is initialized
+std::tuple<Observation*, double, bool, bool, std::map<std::string, std::string>>
+Env::step(int action, bool skip_trivial) {
     if (!game) {
-        throw std::runtime_error("Game must be initialized before stepping");
+        throw std::runtime_error("Env::step called before reset/game init.");
+    }
+    if (game->isGameOver()) {
+        throw std::runtime_error("Env::step called after game is over.");
     }
 
-    // Validate action space exists
-    ActionSpace* action_space = game->current_action_space.get();
-    if (!action_space) {
-        throw std::runtime_error("No active action space");
+    Player* agent = game->actionSpace()->player;
+
+    bool done = game->step(action); // returns true if game is over
+    Observation* obs = game->observation();
+
+    // Default reward logic:
+    //  -  0.0 if the game is still ongoing
+    //  - +1.0 if the *active* player is the winner
+    //  - -1.0 if the *other* player is the winner
+    double reward = 0.0;
+    bool terminated = false;
+    bool truncated = false;
+
+    std::map<std::string, std::string> info;
+
+    if (done) {
+        terminated = true;
+        // Identify who won
+        int widx = game->winnerIndex(); // -1 if no winner identified
+        if (widx >= 0) {
+            Player* winner = game->players[widx].get();
+            if (winner == agent) {
+                reward = 1.0;
+            } else {
+                reward = -1.0;
+            }
+            info["winner_name"] = winner->name;
+        } else {
+            // e.g. a draw
+            reward = 0.0;
+            info["winner_name"] = "draw";
+        }
     }
 
-    // Execute action
-    bool done = game->step(action);
-
-    // Return observation, action space, and done flag
-    return {game->observation(), game->actionSpace(), done};
+    return std::make_tuple(obs, reward, terminated, truncated, info);
 }

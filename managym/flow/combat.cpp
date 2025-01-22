@@ -37,7 +37,7 @@ std::unique_ptr<ActionSpace> DeclareAttackersStep::makeActionSpace(Permanent* at
     actions.emplace_back(new DeclareAttackerAction(attacker, true, active_player, this));
     actions.emplace_back(new DeclareAttackerAction(attacker, false, active_player, this));
 
-    return std::make_unique<ActionSpace>(ActionType::DeclareAttacker, std::move(actions),
+    return std::make_unique<ActionSpace>(ActionSpaceType::DECLARE_ATTACKER, std::move(actions),
                                          active_player, game());
 }
 
@@ -68,8 +68,8 @@ std::unique_ptr<ActionSpace> DeclareBlockersStep::makeActionSpace(Permanent* blo
     }
     actions.emplace_back(new DeclareBlockerAction(blocker, nullptr, blocking_player, this));
 
-    return std::make_unique<ActionSpace>(ActionType::DeclareBlocker, std::move(actions),
-                                             blocking_player, game());
+    return std::make_unique<ActionSpace>(ActionSpaceType::DECLARE_BLOCKER, std::move(actions),
+                                         blocking_player, game());
 }
 
 std::unique_ptr<ActionSpace> DeclareBlockersStep::performTurnBasedActions() {

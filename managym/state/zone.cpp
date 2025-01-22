@@ -5,11 +5,10 @@
 
 #include <algorithm> // For std::shuffle
 #include <cassert>
-#include <format>
 #include <random> // For random number generators
 
 Zone::Zone(Zones* zones, std::vector<Player*>& players) : zones(zones) {
-    for (Player* player : players) {
+    for (const Player* player : players) {
         cards[player] = std::vector<Card*>();
     }
 }
@@ -26,22 +25,22 @@ void Zone::exit(Card* card) {
 
 // Reads
 
-bool Zone::contains(const Card* card, Player* player) const {
+bool Zone::contains(const Card* card, const Player* player) const {
     const auto& playerCards = cards.at(player);
     return std::any_of(playerCards.begin(), playerCards.end(),
                        [&card](const Card* c) { return c == card; });
 }
 
-void Zone::shuffle(Player* player) {
+void Zone::shuffle(const Player* player) {
     std::shuffle(cards[player].begin(), cards[player].end(), std::mt19937(std::random_device()()));
 }
 
-Card* Zone::top(Player* player) {
+Card* Zone::top(const Player* player) {
     std::vector<Card*>& player_cards = cards.at(player);
     return player_cards.back();
 }
 
-size_t Zone::size(Player* player) const {
+size_t Zone::size(const Player* player) const {
     std::vector<Card*> player_cards = cards.at(player);
     return player_cards.size();
 }
@@ -56,7 +55,7 @@ size_t Zone::totalSize() const {
 
 // Iteration
 
-void Zone::forEach(const std::function<void(Card*)>& func, Player* player) {
+void Zone::forEach(const std::function<void(Card*)>& func, const Player* player) {
     std::vector<Card*> player_cards = cards.at(player);
     for (Card* card : player_cards) {
         func(card);

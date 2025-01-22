@@ -55,19 +55,21 @@ bool CardTypes::isEnchantment() const { return types.contains(CardType::ENCHANTM
 
 bool CardTypes::isArtifact() const { return types.contains(CardType::ARTIFACT); }
 
-bool CardTypes::isTribal() const { return types.contains(CardType::KINDRED); }
+bool CardTypes::isKindred() const { return types.contains(CardType::KINDRED); }
 
 bool CardTypes::isBattle() const { return types.contains(CardType::BATTLE); }
 
 // Card
 
+// Only to be used by cardset to define card implementations.
 Card::Card(std::string name, std::optional<ManaCost> mana_cost, CardTypes types,
            const std::vector<std::string>& supertypes, const std::vector<std::string>& subtypes,
            const std::vector<ManaAbility>& mana_abilities, std::string text_box,
            std::optional<int> power, std::optional<int> toughness)
-    : name(std::move(name)), mana_cost(mana_cost), types(std::move(types)), supertypes(supertypes),
-      subtypes(subtypes), mana_abilities(mana_abilities), text_box(std::move(text_box)),
-      power(power), toughness(toughness), owner(nullptr) {
+    : GameObject(0), registry_key(0), name(std::move(name)), mana_cost(mana_cost),
+      types(std::move(types)), supertypes(supertypes), subtypes(subtypes),
+      mana_abilities(mana_abilities), text_box(std::move(text_box)), power(power),
+      toughness(toughness), owner(nullptr) {
 
     if (mana_cost.has_value()) {
         colors = mana_cost->colors();
@@ -76,12 +78,12 @@ Card::Card(std::string name, std::optional<ManaCost> mana_cost, CardTypes types,
     }
 }
 
-Card::Card(const Card& other)
-    : id(other.id), name(other.name), mana_cost(other.mana_cost), colors(other.colors),
-      types(other.types), supertypes(other.supertypes), subtypes(other.subtypes),
-      mana_abilities(other.mana_abilities), text_box(other.text_box), power(other.power),
-      toughness(other.toughness), owner(nullptr) {}
+// Used by the card registry to instantiate a card from the registry.
+Card::Card(ObjectId id, const Card& other)
+    : GameObject(id), registry_key(other.registry_key), name(other.name),
+      mana_cost(other.mana_cost), colors(other.colors), types(other.types),
+      supertypes(other.supertypes), subtypes(other.subtypes), mana_abilities(other.mana_abilities),
+      text_box(other.text_box), power(other.power), toughness(other.toughness), owner(nullptr) {}
 
 // Reads
-
 std::string Card::toString() const { return "{name: " + name + "}"; }

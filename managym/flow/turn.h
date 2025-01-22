@@ -15,11 +15,11 @@ class Game;
 
 // Represents different phases of a turn
 enum struct PhaseType {
-    BEGINNING,
-    PRECOMBAT_MAIN,
-    COMBAT,
-    POSTCOMBAT_MAIN,
-    ENDING,
+    BEGINNING = 0,
+    PRECOMBAT_MAIN = 1,
+    COMBAT = 2,
+    POSTCOMBAT_MAIN = 3,
+    ENDING = 4,
 };
 
 inline std::string toString(PhaseType phase) {
@@ -40,24 +40,22 @@ inline std::string toString(PhaseType phase) {
 }
 // Represents specific steps within each phase
 enum struct StepType {
-    // Beginning Phase Steps
-    BEGINNING_UNTAP,
-    BEGINNING_UPKEEP,
-    BEGINNING_DRAW,
+    BEGINNING_UNTAP = 0,
+    BEGINNING_UPKEEP = 1,
+    BEGINNING_DRAW = 2,
 
-    // Main Phase Steps
-    MAIN_STEP,
+    PRECOMBAT_MAIN_STEP = 3,
 
-    // Combat Phase Steps
-    COMBAT_BEGIN,
-    COMBAT_DECLARE_ATTACKERS,
-    COMBAT_DECLARE_BLOCKERS,
-    COMBAT_DAMAGE,
-    COMBAT_END,
+    COMBAT_BEGIN = 4,
+    COMBAT_DECLARE_ATTACKERS = 5,
+    COMBAT_DECLARE_BLOCKERS = 6,
+    COMBAT_DAMAGE = 7,
+    COMBAT_END = 8,
 
-    // Ending Phase Steps
-    ENDING_END,
-    ENDING_CLEANUP
+    POSTCOMBAT_MAIN_STEP = 9,
+    
+    ENDING_END = 10,
+    ENDING_CLEANUP = 11
 };
 
 inline std::string toString(StepType step) {
@@ -68,8 +66,8 @@ inline std::string toString(StepType step) {
         return "BEGINNING_UPKEEP";
     case StepType::BEGINNING_DRAW:
         return "BEGINNING_DRAW";
-    case StepType::MAIN_STEP:
-        return "MAIN_STEP";
+    case StepType::PRECOMBAT_MAIN_STEP:
+        return "PRECOMBAT_MAIN_STEP";
     case StepType::COMBAT_BEGIN:
         return "COMBAT_BEGIN";
     case StepType::COMBAT_DECLARE_ATTACKERS:
@@ -80,6 +78,8 @@ inline std::string toString(StepType step) {
         return "COMBAT_DAMAGE";
     case StepType::COMBAT_END:
         return "COMBAT_END";
+    case StepType::POSTCOMBAT_MAIN_STEP:
+        return "POSTCOMBAT_MAIN_STEP";
     case StepType::ENDING_END:
         return "ENDING_END";
     case StepType::ENDING_CLEANUP:

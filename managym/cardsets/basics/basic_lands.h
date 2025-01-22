@@ -8,11 +8,11 @@ class CardRegistry;
 namespace managym::cardsets {
 
 // Basic lands
-Card basicPlains();
-Card basicIsland();
-Card basicMountain();
-Card basicForest();
-Card basicSwamp();
+Card basicPlains(ObjectId registry_key);
+Card basicIsland(ObjectId registry_key);
+Card basicMountain(ObjectId registry_key);
+Card basicForest(ObjectId registry_key);
+Card basicSwamp(ObjectId registry_key);
 
 // Helper function to create basic land cards
 Card createBasicLandCard(const std::string& name, Color color);

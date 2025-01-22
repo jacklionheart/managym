@@ -1,8 +1,8 @@
 #pragma once
 
-#include "managym/agent/agent.h"
 #include "managym/cardsets/card_registry.h"
 #include "managym/state/card.h"
+#include "managym/state/game_object.h"
 #include "managym/state/mana.h"
 
 #include <map>
@@ -19,13 +19,12 @@ struct PlayerConfig {
 };
 
 // Represents a player in the game, managing their resources and game state
-class Player {
+class Player : public GameObject {
 public:
-    Player(const PlayerConfig& config, CardRegistry* registry);
+    Player(const ObjectId& id, const PlayerConfig& config, CardRegistry* registry);
 
     // Data
     std::unique_ptr<Deck> deck;
-    std::unique_ptr<Agent> agent;
     std::string name;
     int life = 20;
     bool alive = true;

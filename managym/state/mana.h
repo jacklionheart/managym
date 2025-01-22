@@ -4,8 +4,16 @@
 #include <set>
 #include <string>
 
-// Represents the five colors of mana plus colorless
-enum struct Color { COLORLESS, WHITE, BLUE, BLACK, RED, GREEN };
+// Represents the five colors of mana plus colorless and generic
+enum struct Color {
+    WHITE = 0,
+    BLUE = 1,
+    BLACK = 2,
+    RED = 3,
+    GREEN = 4,
+    COLORLESS = 5,
+    GENERIC = 6
+};
 
 // Convert a color to its standard one-letter representation
 inline std::string toString(Color color) {
@@ -32,19 +40,20 @@ using Colors = std::set<Color>;
 
 // Represents a mana cost that must be paid to cast a spell or activate an ability
 struct ManaCost {
-    // Data
-    std::map<Color, int> cost;
-    int generic;
-
     ManaCost();
 
-    // Static Methods
-    static ManaCost parse(const std::string& mana_cost_str);
+    // Data (matching Python observation spec)
+    std::array<int, 6> cost; // [W, U, B, R, G, C]
+    int mana_value = 0;
 
     // Reads
-    std::string toString() const;
     Colors colors() const;
-    int manaValue() const;
+    
+    // Static factory
+    static ManaCost parse(const std::string& mana_str);
+
+    // Methods
+    std::string toString() const;
 };
 
 // Represents actual mana in a player's mana pool

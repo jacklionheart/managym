@@ -24,6 +24,6 @@ std::string ActionSpace::toString() const {
 
     std::string name = player ? player->name : "None";
 
-    return fmt::format("ActionSpace(type={}, player={}, actions={})", ::toString(action_type), name,
+    return fmt::format("ActionSpace(type={}, player={}, actions={})", ::toString(type), name,
                        actions_str);
 }

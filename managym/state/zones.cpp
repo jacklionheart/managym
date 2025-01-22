@@ -2,11 +2,11 @@
 #include "zones.h"
 
 #include "managym/infra/log.h"
-Zones::Zones(std::vector<Player*>& players)
+Zones::Zones(std::vector<Player*>& players, IDGenerator* id_generator)
     : library(std::make_unique<Library>(this, players)),
       graveyard(std::make_unique<Graveyard>(this, players)),
       hand(std::make_unique<Hand>(this, players)),
-      battlefield(std::make_unique<Battlefield>(this, players)),
+      battlefield(std::make_unique<Battlefield>(this, players, id_generator)),
       stack(std::make_unique<Stack>(this, players)), exile(std::make_unique<Exile>(this, players)),
       command(std::make_unique<Command>(this, players)) {}
 
@@ -40,7 +40,7 @@ Zone* Zones::getZone(ZoneType zoneType) const {
     throw std::runtime_error("Unknown ZoneType in getZone()");
 }
 
-bool Zones::contains(const Card* card, ZoneType zone, Player* player) const {
+bool Zones::contains(const Card* card, ZoneType zone, const Player* player) const {
     if (!card) {
         return false;
     }
@@ -48,12 +48,12 @@ bool Zones::contains(const Card* card, ZoneType zone, Player* player) const {
     return zoneObj->contains(card, player);
 }
 
-Card* Zones::top(ZoneType zoneType, Player* player) const {
+Card* Zones::top(ZoneType zoneType, const Player* player) const {
     Zone* zoneObj = getZone(zoneType);
     return zoneObj->top(player);
 }
 
-size_t Zones::size(ZoneType zoneType, Player* player) const {
+size_t Zones::size(ZoneType zoneType, const Player* player) const {
     Zone* zoneObj = getZone(zoneType);
     return zoneObj->size(player);
 }

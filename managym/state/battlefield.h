@@ -1,6 +1,7 @@
 #pragma once
 
 #include "managym/state/card.h"
+#include "managym/state/game_object.h"
 #include "managym/state/mana.h"
 #include "managym/state/player.h"
 #include "managym/state/zone.h"
@@ -10,7 +11,9 @@
 #include <vector>
 
 // A permanent on the battlefield with additional game state
-struct Permanent {
+struct Permanent : public GameObject {
+    Permanent(ObjectId id, Card* card);
+
     // Data
     Card* card;
     Player* controller;
@@ -18,9 +21,6 @@ struct Permanent {
     bool summoning_sick = false;
     int damage = 0;
     bool attacking = false;
-
-    // Create a new permanent from a card
-    Permanent(Card* card);
 
     // Reads
     // Check if this permanent can be tapped
@@ -54,10 +54,11 @@ struct Permanent {
 // Zone representing the main game area where permanents exist
 class Battlefield : public Zone {
 public:
-    Battlefield(Zones* zones, std::vector<Player*>& players);
+    Battlefield(Zones* zones, std::vector<Player*>& players, IDGenerator* id_generator);
 
     // Data
-    std::map<Player*, std::vector<std::unique_ptr<Permanent>>> permanents;
+    std::map<const Player*, std::vector<std::unique_ptr<Permanent>>> permanents;
+    IDGenerator* id_generator;
 
     // Reads
 

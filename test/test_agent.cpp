@@ -27,27 +27,27 @@ protected:
 TEST_F(TestAgent, PlayLandMovesCardToBattlefield) {
     ASSERT_TRUE(game != nullptr);
 
-    // Find a land in red_player's hand
-    Card* landCard = nullptr;
+    // Find a land in green_player's hand
+    Card* land_card = nullptr;
     for (auto* c : game->zones->constHand()->cards.at(green_player)) {
         if (c->types.isLand()) {
-            landCard = c;
+            land_card = c;
             break;
         }
     }
-    ASSERT_NE(landCard, nullptr) << "No land found in red_player's hand.";
+    ASSERT_NE(land_card, nullptr) << "No land found in green_player's hand.";
 
     // Execute the action
     managym::log::info(Category::TEST, "Advancing to PRECOMBAT_MAIN");
     advanceToPhase(game.get(), PhaseType::PRECOMBAT_MAIN);
     managym::log::info(Category::TEST, "Playing land");
-    PlayLand playLand(landCard, green_player, game.get());
+    PlayLand playLand(land_card, green_player, game.get());
     playLand.execute();
 
     // Check it left the hand
-    EXPECT_FALSE(game->zones->contains(landCard, ZoneType::HAND, green_player));
+    EXPECT_FALSE(game->zones->contains(land_card, ZoneType::HAND, green_player));
     // Check it entered the battlefield
-    EXPECT_TRUE(game->zones->contains(landCard, ZoneType::BATTLEFIELD, green_player));
+    EXPECT_TRUE(game->zones->contains(land_card, ZoneType::BATTLEFIELD, green_player));
     // Check land play count incremented
     EXPECT_EQ(game->turn_system->current_turn->lands_played, 1);
 }
@@ -56,19 +56,19 @@ TEST_F(TestAgent, CastSpellGoesOnStack) {
     ASSERT_TRUE(game != nullptr);
 
     // Find a castable spell and required lands
-    Card* spellCard = nullptr;
+    Card* spell_card = nullptr;
     std::vector<Card*> lands;
     auto hand = game->zones->constHand()->cards.at(red_player);
 
     for (Card* c : hand) {
         if (c->types.isCastable()) {
-            spellCard = c;
+            spell_card = c;
         } else if (c->types.isLand()) {
             lands.push_back(c);
         }
     }
 
-    if (!spellCard || lands.empty()) {
+    if (!spell_card || lands.empty()) {
         GTEST_SKIP() << "Required cards not found in hand. Skipping.";
     }
 
@@ -80,21 +80,26 @@ TEST_F(TestAgent, CastSpellGoesOnStack) {
     ASSERT_TRUE(advanceToPhase(game.get(), PhaseType::PRECOMBAT_MAIN));
 
     // Now try to cast the spell
-    CastSpell castAction(spellCard, red_player, game.get());
+    CastSpell castAction(spell_card, red_player, game.get());
     castAction.execute();
 
     // Verify the spell is on stack
-    EXPECT_TRUE(game->zones->contains(spellCard, ZoneType::STACK, red_player));
+    EXPECT_TRUE(game->zones->contains(spell_card, ZoneType::STACK, red_player));
 }
-// Helper to verify common observation properties
-void verifyBasicObservation(Observation* obs) {
-    // Verify players
-    ASSERT_EQ(obs->player_states.size(), 2);
-    ASSERT_EQ(obs->player_states[0].life_total, 20);
-    ASSERT_EQ(obs->player_states[1].life_total, 20);
 
+void verifyBasicObservation(const Observation& obs) {
     // Verify game state
-    ASSERT_FALSE(obs->is_game_over);
+    ASSERT_FALSE(obs.game_over);
+    ASSERT_FALSE(obs.won);
+
+    // Verify we have two players
+    const auto& players = obs.players;
+    ASSERT_EQ(players.size(), 2u);
+
+    // Check both players are at starting life total
+    for (const auto& [pid, pdata] : players) {
+        EXPECT_EQ(pdata.life, 20) << "Player " << pid << " has wrong life total";
+    }
 }
 
 TEST_F(TestAgent, ObservationForPriorityAction) {
@@ -103,15 +108,13 @@ TEST_F(TestAgent, ObservationForPriorityAction) {
 
     ActionSpace* action_space = game->current_action_space.get();
     ASSERT_NE(action_space, nullptr);
-    ASSERT_EQ(action_space->action_type, ActionType::Priority);
+    ASSERT_EQ(action_space->type, ActionSpaceType::PRIORITY);
 
     Observation obs(game.get());
+    verifyBasicObservation(obs);
 
-    // Basic observation verification
-    verifyBasicObservation(game->observation());
-
-    // Priority-specific verification
-    ASSERT_EQ(game->observation()->action_type, ActionType::Priority);
+    // Verify action space matches reality 
+    ASSERT_EQ(obs.action_space.action_space_type, action_space->type);
 }
 
 TEST_F(TestAgent, ObservationForDeclareAttackers) {
@@ -127,11 +130,17 @@ TEST_F(TestAgent, ObservationForDeclareAttackers) {
 
     ActionSpace* action_space = game->current_action_space.get();
     ASSERT_NE(action_space, nullptr);
-    ASSERT_EQ(action_space->action_type, ActionType::DeclareAttacker);
+    ASSERT_EQ(action_space->type, ActionSpaceType::DECLARE_ATTACKER);
 
     Observation obs(game.get());
-    verifyBasicObservation(&obs);
-    ASSERT_EQ(obs.action_type, ActionType::DeclareAttacker);
+    verifyBasicObservation(obs);
+
+    // Verify we have the right phase and step 
+    ASSERT_EQ(obs.turn.phase, PhaseType::COMBAT);
+    ASSERT_EQ(obs.turn.step, StepType::COMBAT_DECLARE_ATTACKERS);
+
+    // Verify action space match reality
+    ASSERT_EQ(obs.action_space.action_space_type, ActionSpaceType::DECLARE_ATTACKER);
 }
 
 TEST_F(TestAgent, ObservationForDeclareBlockers) {
@@ -146,10 +155,9 @@ TEST_F(TestAgent, ObservationForDeclareBlockers) {
     // Get to declare attackers and declare one attacker
     ASSERT_TRUE(
         advanceToPhaseStep(game.get(), PhaseType::COMBAT, StepType::COMBAT_DECLARE_ATTACKERS));
-    
     ActionSpace* attack_space = game->current_action_space.get();
     ASSERT_NE(attack_space, nullptr);
-    ASSERT_EQ(attack_space->action_type, ActionType::DeclareAttacker);
+    ASSERT_EQ(attack_space->type, ActionSpaceType::DECLARE_ATTACKER);
 
     // Advance to declare blockers
     ASSERT_TRUE(
@@ -158,9 +166,15 @@ TEST_F(TestAgent, ObservationForDeclareBlockers) {
     ASSERT_TRUE(game->zones->constBattlefield()->attackers(red_player).size() >= 1);
     ActionSpace* action_space = game->current_action_space.get();
     ASSERT_NE(action_space, nullptr);
-    ASSERT_EQ(action_space->action_type, ActionType::DeclareBlocker);
+    ASSERT_EQ(action_space->type, ActionSpaceType::DECLARE_BLOCKER);
 
     Observation obs(game.get());
-    verifyBasicObservation(&obs);
-    ASSERT_EQ(obs.action_type, ActionType::DeclareBlocker);
+    verifyBasicObservation(obs);
+
+    // Verify we have the right phase and step
+    ASSERT_EQ(obs.turn.phase, PhaseType::COMBAT);
+    ASSERT_EQ(obs.turn.step, StepType::COMBAT_DECLARE_BLOCKERS);
+
+    // Verify action space matches reality
+    ASSERT_EQ(obs.action_space.action_space_type, ActionSpaceType::DECLARE_BLOCKER);
 }

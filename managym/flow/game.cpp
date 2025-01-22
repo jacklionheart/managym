@@ -8,10 +8,13 @@
 #include <cassert>
 #include <stdexcept>
 
-Game::Game(std::vector<PlayerConfig> player_configs, bool headless)
-    : turn_system(std::make_unique<TurnSystem>(this)),
+Game::Game(std::vector<PlayerConfig> player_configs, bool headless, bool skip_trivial)
+    : skip_trivial(skip_trivial), turn_system(std::make_unique<TurnSystem>(this)),
       priority_system(std::make_unique<PrioritySystem>(this)),
-      card_registry(std::make_unique<CardRegistry>()) {
+      id_generator(std::make_unique<IDGenerator>()) {
+
+    card_registry = std::make_unique<CardRegistry>(id_generator.get());
+
     int num_players = player_configs.size();
     if (num_players != 2) {
         throw std::invalid_argument("Game must start with 2 players.");
@@ -19,11 +22,12 @@ Game::Game(std::vector<PlayerConfig> player_configs, bool headless)
 
     // Create players first
     for (PlayerConfig& player_config : player_configs) {
-        players.emplace_back(std::make_unique<Player>(player_config, card_registry.get()));
+        players.emplace_back(
+            std::make_unique<Player>(id_generator->next(), player_config, card_registry.get()));
     }
 
     std::vector<Player*> weak_players = {players[0].get(), players[1].get()};
-    zones = std::make_unique<Zones>(weak_players);
+    zones = std::make_unique<Zones>(weak_players, id_generator.get());
 
     // Initialize libraries and draw starting hands
     for (std::unique_ptr<Player>& player_uptr : players) {
@@ -47,16 +51,23 @@ Game::Game(std::vector<PlayerConfig> player_configs, bool headless)
     }
 
     if (!headless) {
-        // display = std::make_unique<GameDisplay>();
+        display = std::make_unique<GameDisplay>();
     }
 
     // Start the game
     tick();
+    while (skip_trivial && actionSpaceTrivial()) {
+        step(0);
+    }
 }
 
 // Reads
 
 ActionSpace* Game::actionSpace() const { return current_action_space.get(); }
+
+bool Game::actionSpaceTrivial() const {
+    return !current_action_space || current_action_space->actions.size() <= 1;
+}
 
 Observation* Game::observation() const { return current_observation.get(); }
 
@@ -114,7 +125,7 @@ void Game::play() {
     }
 }
 
-bool Game::step(int action) {
+bool Game::_step(int action) {
     // Validate current action space exists
     if (!current_action_space) {
         throw std::logic_error("No active action space");
@@ -122,12 +133,12 @@ bool Game::step(int action) {
 
     // Check if the action is within the valid range
     if (action < 0 || action >= current_action_space->actions.size()) {
-        throw ManagymActionError(fmt::format("Action index {} out of bound: {}.", action,
-                                             current_action_space->actions.size()));
+        throw AgentError(fmt::format("Action index {} out of bound: {}.", action,
+                                     current_action_space->actions.size()));
     }
 
     if (isGameOver()) {
-        throw ManagymActionError("Game is over");
+        throw AgentError("Game is over");
     }
 
     // Execute action and clear current action space
@@ -142,16 +153,26 @@ bool Game::step(int action) {
     return tick();
 }
 
+bool Game::step(int action) {
+    bool game_over = _step(action);
+
+    while (skip_trivial && actionSpaceTrivial()) {
+        game_over = _step(0);
+    }
+
+    return game_over;
+}
+
 bool Game::tick() {
     // Keep ticking until we have an action space or game ends
     while (!current_action_space) {
         // Handle display updates
-        // if (display) {
-        //     display->processEvents();
-        //     if (display->isOpen()) {
-        //         display->render(current_observation.get());
-        //     }
-        // }
+        if (display) {
+            display->processEvents();
+            if (display->isOpen()) {
+                display->render(current_observation.get());
+            }
+        }
 
         // Get next action space
         current_action_space = turn_system->tick();

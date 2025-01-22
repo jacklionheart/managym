@@ -50,8 +50,8 @@ std::unique_ptr<ActionSpace> PrioritySystem::makeActionSpace(Player* player) {
 
     managym::log::debug(Category::PRIORITY, "Generating actions for {}", current_player->name);
     std::vector<std::unique_ptr<Action>> actions = availablePriorityActions(current_player);
-    return std::make_unique<ActionSpace>(ActionType::Priority, std::move(actions), current_player,
-                                         game);
+    return std::make_unique<ActionSpace>(ActionSpaceType::PRIORITY, std::move(actions),
+                                         current_player, game);
 }
 
 void PrioritySystem::passPriority() {
