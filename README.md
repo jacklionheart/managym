@@ -1,28 +1,43 @@
+
+
+
 # managym   
 
 managym is an reinforcement learning environment for the game of Magic: The Gathering.
 
 It is built to be used with [manabot](https://github.com/jacklionheart/manabot).
 
-# Build
+# Build & Install
 
-from root directory:
-```
-rm -rf build
-mkdir build
-cd build
-cmake ..
-make
+```bash
+# Install dependencies (macOS) 
+brew install sfml@3.0 fmt spdlog gtest cmake ninja
+
+# Install in dev mode
+pip install -e .
 ```
 
 See CMakeLists.txt for more details.
 
-# Test
+## Tests
 
-from `build` directory:
+```bash
+# Run all tests
+mkdir -p build && cd build
+cmake ..
+make run_tests
+
+# Run specific C++ tests 
+cd build
+./managym_test --gtest_filter=TestRegex.* --log=priority,turn,test 
 ```
-make test
-./managym_test --gtest_filter=TestRegex.* --log=priority,turn,test
+
+### Test Options
+
+- `--gtest_filter=<pattern>`: Run tests matching pattern  
+- `--gtest_list_tests`: List available tests
+- `--log=<cat1,cat2>`: Enable logging categories
+  - priority, turn, state, rules, combat, agent, test
 ```
 
 # Codebase Areas

@@ -7,6 +7,7 @@
     "editor.stickyTabStops": true,
     "files.autoSave": "afterDelay",
     "python.analysis.typeCheckingMode": "standard",
+    "python.defaultInterpreterPath": "/Users/jack/micromamba/envs/manabot/bin/python",
     "explorer.excludeGitIgnore": true,
     "json.schemas": [],
     "files.associations": {

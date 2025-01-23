@@ -1,0 +1,28 @@
+[build-system]
+requires = [
+"setuptools>=61",
+"scikit-build",
+"scikit-build-core",
+"pybind11",
+"cmake>=3.21",
+"ninja"
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "managym"
+version = "0.1.0"
+description = "A Magic: The Gathering environment for reinforcement learning"
+authors = [
+{name = "Jack Heart", email = "jackheart@loopflow.studio"}
+]
+keywords = ["mtg", "magic", "reinforcement-learning", "gym-like"]
+requires-python = ">=3.7"
+
+[tool.setuptools]
+packages = ["managym"]
+package-dir = {managym = "managym"}
+
+[tool.setuptools.package-data]
+managym = ["/*.so", "/.dylib", "**/.dll"]
+

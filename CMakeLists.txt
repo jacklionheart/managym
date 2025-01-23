@@ -1,27 +1,28 @@
+# Basic setup
 cmake_minimum_required(VERSION 3.14)
 project(managym VERSION 1.0 LANGUAGES CXX)
 
 # Force at least C++20
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# Export compile_commands.json (helpful for clangd, etc.)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Debug info for finding Python
+# macOS rpath setup 
+if(APPLE)
+    set(CMAKE_MACOSX_RPATH ON)
+    set(CMAKE_INSTALL_RPATH "@loader_path")
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+endif()
+
+# Python setup
 set(CMAKE_FIND_DEBUG_MODE ON)
 set(Python_ROOT_DIR "/Users/jack/micromamba/envs/manabot")
 set(Python_EXECUTABLE "/Users/jack/micromamba/envs/manabot/bin/python3")
-# Usually the correct choice is 'LOCATION' for an exact path:
 set(Python_FIND_STRATEGY LOCATION)
 
-# Find Python (only the interpreter & dev headers)
+# Find dependencies
 find_package(Python 3.12 EXACT COMPONENTS Interpreter Development REQUIRED)
-
-# IMPORTANT: ensure pybind11 is installed in the same conda environment.
-# e.g. conda install -c conda-forge pybind11
 find_package(pybind11 REQUIRED)
-
 find_package(spdlog REQUIRED)
 find_package(SFML 3.0 COMPONENTS Window Graphics REQUIRED)
 find_package(GTest REQUIRED)
@@ -31,94 +32,65 @@ message(STATUS "Python executable: ${Python_EXECUTABLE}")
 message(STATUS "Python includes:   ${Python_INCLUDE_DIRS}")
 message(STATUS "Pybind11 includes: ${pybind11_INCLUDE_DIRS}")
 
-# On macOS, you do *not* want to link libpython directly.
-# Instead, we pass "-undefined dynamic_lookup" so the extension
-# finds CPython symbols in the already-running Python process.
 if(APPLE)
-    set(CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS
-       "${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS} -undefined dynamic_lookup")
+    set(CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS "${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS} -undefined dynamic_lookup")
 endif()
-
-# If you want, you can explicitly set them for the extension only:
-#set_target_properties(managym_py PROPERTIES
-#    MACOSX_RPATH ON
-#    LINK_FLAGS "-undefined dynamic_lookup"
-#)
 
 ########################################
 # managym_lib
 ########################################
-# The C++ sources that do NOT use pybind or Python
-file(GLOB_RECURSE SOURCES
-    "${CMAKE_SOURCE_DIR}/managym/**/*.cpp"
-)
-
-# Remove the pybind code from these sources
+file(GLOB_RECURSE SOURCES "${CMAKE_SOURCE_DIR}/managym/**/*.cpp")
 list(REMOVE_ITEM SOURCES "${CMAKE_SOURCE_DIR}/managym/agent/pybind.cpp")
 
 add_library(managym_lib SHARED ${SOURCES})
-target_link_libraries(managym_lib
-    PUBLIC
-        spdlog::spdlog
-        fmt::fmt
-        SFML::Graphics
-        SFML::Window
+
+if(APPLE)
+    set_target_properties(managym_lib PROPERTIES 
+        INSTALL_RPATH "@loader_path"
+        BUILD_RPATH "@loader_path"
+    )
+endif()
+
+target_link_libraries(managym_lib PUBLIC
+    spdlog::spdlog
+    fmt::fmt
+    SFML::Graphics
+    SFML::Window
 )
 
-# This library only uses standard C++ includes
-# so no direct Python includes or libraries:
-target_include_directories(managym_lib PUBLIC
-    ${CMAKE_SOURCE_DIR}
-)
+target_include_directories(managym_lib PUBLIC ${CMAKE_SOURCE_DIR})
 
 ########################################
-# managym_py extension
+# managym python module
 ########################################
-pybind11_add_module(managym_py MODULE
-    managym/agent/pybind.cpp
-)
+pybind11_add_module(_managym MODULE managym/agent/pybind.cpp)
 
-# Link to your game logic library
-target_link_libraries(managym_py PRIVATE managym_lib)
+if(APPLE)
+    set_target_properties(_managym PROPERTIES
+        INSTALL_RPATH "@loader_path"
+        BUILD_RPATH "@loader_path"
+    )
+endif()
 
-# We DO need the headers from Python and pybind11 to build, but no direct link to python:
-target_include_directories(managym_py PRIVATE
+target_link_libraries(_managym PRIVATE managym_lib)
+target_include_directories(_managym PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${Python_INCLUDE_DIRS}
     ${pybind11_INCLUDE_DIRS}
 )
 
-########################################
-# Copy & run Python tests
-########################################
-file(GLOB PYTHON_TEST_FILES "${CMAKE_SOURCE_DIR}/test/*.py")
-file(COPY ${PYTHON_TEST_FILES} DESTINATION ${CMAKE_BINARY_DIR}/tests)
+# Install targets
+install(TARGETS managym_lib _managym
+    LIBRARY DESTINATION managym
+    RUNTIME DESTINATION managym
+    ARCHIVE DESTINATION managym)
 
-add_custom_target(pytest
-    COMMAND ${CMAKE_COMMAND} -E env
-            "PYTHONPATH=${CMAKE_BINARY_DIR}"   # So Python sees our local managym_py
-            ${Python_EXECUTABLE} -m pytest
-            ${CMAKE_BINARY_DIR}/tests
-            -v
-    DEPENDS managym_py
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    COMMENT "Running Python tests"
-)
-
+########################################
+# Testing
+########################################
 enable_testing()
-add_test(NAME python_tests
-         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target pytest
-         WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 
-########################################
-# CLI executable (C++ only)
-########################################
-add_executable(managym managym/main.cpp)
-target_link_libraries(managym PRIVATE managym_lib)
-
-########################################
-# C++ tests with GoogleTest
-########################################
+# C++ Tests
 file(GLOB_RECURSE TEST_SOURCES "${CMAKE_SOURCE_DIR}/test/*.cpp")
 add_executable(managym_test ${TEST_SOURCES})
 target_link_libraries(managym_test PRIVATE
@@ -126,13 +98,23 @@ target_link_libraries(managym_test PRIVATE
     GTest::gtest
     GTest::gtest_main
 )
-target_include_directories(managym_test PRIVATE
-    ${CMAKE_SOURCE_DIR}
-)
-add_test(NAME allTests COMMAND managym_test)
+target_include_directories(managym_test PRIVATE ${CMAKE_SOURCE_DIR})
+add_test(NAME cpp_tests COMMAND managym_test)
 
-# Optional convenience target to run the main program
-add_custom_target(run
-    COMMAND ${CMAKE_BINARY_DIR}/managym
-    DEPENDS managym
+# Python Tests 
+add_test(NAME python_tests 
+    COMMAND ${Python_EXECUTABLE} -m pytest ${CMAKE_SOURCE_DIR}/test
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+
+# Combined test target
+add_custom_target(run_tests
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    DEPENDS managym_test _managym
+)
+
+########################################
+# CLI executable
+########################################
+add_executable(managym_cli managym/main.cpp)
+target_link_libraries(managym_cli PRIVATE managym_lib)

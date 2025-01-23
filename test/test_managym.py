@@ -1,5 +1,5 @@
 import pytest
-import managym_py
+import managym
 
 @pytest.fixture
 def basic_deck_configs():
@@ -13,16 +13,16 @@ def basic_deck_configs():
 class TestManagym:
     def test_init(self):
         """Smoke test environment initialization."""
-        env = managym_py.Env()
+        env = managym.Env()
         assert env is not None
 
     def test_reset_returns_valid_state(self, basic_deck_configs):
         """Test reset() returns valid initial Observation with correct fields."""
         player_configs = [
-            managym_py.PlayerConfig("Red Mage", basic_deck_configs[0]),
-            managym_py.PlayerConfig("Green Mage", basic_deck_configs[1])
+            managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
+            managym.PlayerConfig("Green Mage", basic_deck_configs[1])
         ]
-        env = managym_py.Env()
+        env = managym.Env()
         obs, info = env.reset(player_configs)
 
         assert obs is not None
@@ -41,10 +41,10 @@ class TestManagym:
     def test_valid_game_loop(self, basic_deck_configs):
         """Test a full game loop by repeatedly taking the first action."""
         player_configs = [
-            managym_py.PlayerConfig("Red Mage", basic_deck_configs[0]),
-            managym_py.PlayerConfig("Green Mage", basic_deck_configs[1])
+            managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
+            managym.PlayerConfig("Green Mage", basic_deck_configs[1])
         ]
-        env = managym_py.Env()
+        env = managym.Env()
         obs, info = env.reset(player_configs)
 
         max_steps = 2000
@@ -65,10 +65,10 @@ class TestManagym:
     def test_invalid_action_handling(self, basic_deck_configs):
         """Test that out-of-range action indices raise an error."""
         player_configs = [
-            managym_py.PlayerConfig("Red Mage", basic_deck_configs[0]),
-            managym_py.PlayerConfig("Green Mage", basic_deck_configs[1])
+            managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
+            managym.PlayerConfig("Green Mage", basic_deck_configs[1])
         ]
-        env = managym_py.Env()
+        env = managym.Env()
         obs, _ = env.reset(player_configs)
 
         num_actions = len(obs.action_space.actions)
@@ -82,15 +82,15 @@ class TestManagym:
     def test_multiple_resets(self, basic_deck_configs):
         """Test multiple resets with different configurations."""
         player_configs1 = [
-            managym_py.PlayerConfig("Red Mage", basic_deck_configs[0]),
-            managym_py.PlayerConfig("Green Mage", basic_deck_configs[1])
+            managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
+            managym.PlayerConfig("Green Mage", basic_deck_configs[1])
         ]
         player_configs2 = [
-            managym_py.PlayerConfig("Blue Mage", {"Island": 20}),
-            managym_py.PlayerConfig("Black Mage", {"Swamp": 20})
+            managym.PlayerConfig("Blue Mage", {"Island": 20}),
+            managym.PlayerConfig("Black Mage", {"Swamp": 20})
         ]
 
-        env = managym_py.Env()
+        env = managym.Env()
 
         obs1, info1 = env.reset(player_configs1)
         assert obs1.validate()
@@ -105,10 +105,10 @@ class TestManagym:
     def test_observation_validation(self, basic_deck_configs):
         """Verifies observation validation and game over conditions."""
         player_configs = [
-            managym_py.PlayerConfig("Red Mage", basic_deck_configs[0]),
-            managym_py.PlayerConfig("Green Mage", basic_deck_configs[1])
+            managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
+            managym.PlayerConfig("Green Mage", basic_deck_configs[1])
         ]
-        env = managym_py.Env()
+        env = managym.Env()
         obs, _ = env.reset(player_configs)
         assert obs.validate()
 
@@ -125,10 +125,10 @@ class TestManagym:
     def test_reward_on_victory(self, basic_deck_configs):
         """Test reward values at game end."""
         player_configs = [
-            managym_py.PlayerConfig("Red Mage", basic_deck_configs[0]),
-            managym_py.PlayerConfig("Green Mage", basic_deck_configs[1])
+            managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
+            managym.PlayerConfig("Green Mage", basic_deck_configs[1])
         ]
-        env = managym_py.Env()
+        env = managym.Env()
         obs, _ = env.reset(player_configs)
 
         done = False
@@ -145,10 +145,10 @@ class TestManagym:
     def test_play_land_and_cast_spell(self, basic_deck_configs):
         """Test playing a land and casting a spell."""
         player_configs = [
-            managym_py.PlayerConfig("Red Mage", basic_deck_configs[0]),
-            managym_py.PlayerConfig("Green Mage", basic_deck_configs[1])
+            managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
+            managym.PlayerConfig("Green Mage", basic_deck_configs[1])
         ]
-        env = managym_py.Env()
+        env = managym.Env()
         obs, _ = env.reset(player_configs)
 
         def find_action(obs, action_type):
@@ -158,15 +158,15 @@ class TestManagym:
                 None
             )
 
-        land_idx = find_action(obs, managym_py.ActionType.PRIORITY_PLAY_LAND)
+        land_idx = find_action(obs, managym.ActionType.PRIORITY_PLAY_LAND)
         if land_idx is not None:
             obs, _, _, _, _ = env.step(land_idx)
             agent_player_id = obs.turn.agent_player_id
             agent_player_data = obs.players[agent_player_id]
-            bf_count = agent_player_data.zone_counts[managym_py.ZoneType.BATTLEFIELD]
+            bf_count = agent_player_data.zone_counts[managym.ZoneType.BATTLEFIELD]
             assert bf_count >= 1
 
-        cast_idx = find_action(obs, managym_py.ActionType.PRIORITY_CAST_SPELL)
+        cast_idx = find_action(obs, managym.ActionType.PRIORITY_CAST_SPELL)
         if cast_idx is not None:
             obs, _, _, _, _ = env.step(cast_idx)
             assert obs.validate()
@@ -174,16 +174,16 @@ class TestManagym:
     def test_throw_action_error(self):
         """Test exception handling."""
         with pytest.raises(Exception) as excinfo:
-            managym_py.throw_action_error()
+            managym.throw_action_error()
         assert "Test in python bindings" in str(excinfo.value)
 
     def test_skip_trivial_false(self, basic_deck_configs):
         """Test non-skipping of trivial actions."""
         player_configs = [
-            managym_py.PlayerConfig("Red Mage", basic_deck_configs[0]),
-            managym_py.PlayerConfig("Green Mage", basic_deck_configs[1])
+            managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
+            managym.PlayerConfig("Green Mage", basic_deck_configs[1])
         ]
-        env = managym_py.Env(skip_trivial=False)
+        env = managym.Env(skip_trivial=False)
         obs, _ = env.reset(player_configs)
 
         terminated = False

@@ -208,7 +208,7 @@ static void registerExceptions(py::module& m) {
     py::exception<AgentError> exc(m, "AgentError");
 }
 
-PYBIND11_MODULE(managym_py, m) {
+PYBIND11_MODULE(_managym, m) {
     m.doc() = "Python bindings for managym. See: https://github.com/jacklionheart/managym";
 
     registerExceptions(m);
