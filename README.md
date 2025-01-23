@@ -9,11 +9,9 @@ It is built to be used with [manabot](https://github.com/jacklionheart/manabot).
 
 # Build & Install
 
-```bash
-# Install dependencies (macOS) 
-brew install sfml@3.0 fmt spdlog gtest cmake ninja
-
+```zsh
 # Install in dev mode
+# TODO: Dependency management
 pip install -e .
 ```
 
@@ -21,7 +19,7 @@ See CMakeLists.txt for more details.
 
 ## Tests
 
-```bash
+```zsh
 # Run all tests
 mkdir -p build && cd build
 cmake ..
@@ -34,6 +32,7 @@ cd build
 
 ### Test Options
 
+```
 - `--gtest_filter=<pattern>`: Run tests matching pattern  
 - `--gtest_list_tests`: List available tests
 - `--log=<cat1,cat2>`: Enable logging categories
