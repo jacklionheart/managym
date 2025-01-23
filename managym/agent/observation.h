@@ -67,7 +67,7 @@ struct CardData {
     int registry_key;
     int power;
     int toughness;
-    CardTypeData card_type;
+    CardTypeData card_types;
     ManaCost mana_cost;
 };
 

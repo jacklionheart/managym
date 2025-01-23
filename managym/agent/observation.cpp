@@ -175,17 +175,18 @@ void Observation::addCard(const Card* card, ZoneType zone) {
     }
     cdata.mana_cost = mc;
 
-    cdata.card_type.is_castable = card->types.isCastable();
-    cdata.card_type.is_permanent = card->types.isPermanent();
-    cdata.card_type.is_non_land_permanent = card->types.isNonLandPermanent();
-    cdata.card_type.is_non_creature_permanent = card->types.isNonCreaturePermanent();
-    cdata.card_type.is_spell = card->types.isSpell();
-    cdata.card_type.is_creature = card->types.isCreature();
-    cdata.card_type.is_land = card->types.isLand();
-    cdata.card_type.is_planeswalker = card->types.isPlaneswalker();
-    cdata.card_type.is_enchantment = card->types.isEnchantment();
-    cdata.card_type.is_artifact = card->types.isArtifact();
-    cdata.card_type.is_kindred = card->types.isKindred();
+    cdata.card_types.is_castable = card->types.isCastable();
+    cdata.card_types.is_permanent = card->types.isPermanent();
+    cdata.card_types.is_non_land_permanent = card->types.isNonLandPermanent();
+    cdata.card_types.is_non_creature_permanent = card->types.isNonCreaturePermanent();
+    cdata.card_types.is_spell = card->types.isSpell();
+    cdata.card_types.is_creature = card->types.isCreature();
+    cdata.card_types.is_land = card->types.isLand();
+    cdata.card_types.is_planeswalker = card->types.isPlaneswalker();
+    cdata.card_types.is_enchantment = card->types.isEnchantment();
+    cdata.card_types.is_artifact = card->types.isArtifact();
+    cdata.card_types.is_kindred = card->types.isKindred();
+    cdata.card_types.is_battle = card->types.isBattle();
 
     cards[cdata.id] = cdata;
 }
