@@ -1,4 +1,5 @@
 #include "managym/agent/action.h"
+#include "managym/agent/env.h"
 #include "managym/agent/observation.h"
 #include "managym/infra/log.h"
 #include "test/managym_test.h"
@@ -113,7 +114,7 @@ TEST_F(TestAgent, ObservationForPriorityAction) {
     Observation obs(game.get());
     verifyBasicObservation(obs);
 
-    // Verify action space matches reality 
+    // Verify action space matches reality
     ASSERT_EQ(obs.action_space.action_space_type, action_space->type);
 }
 
@@ -135,7 +136,7 @@ TEST_F(TestAgent, ObservationForDeclareAttackers) {
     Observation obs(game.get());
     verifyBasicObservation(obs);
 
-    // Verify we have the right phase and step 
+    // Verify we have the right phase and step
     ASSERT_EQ(obs.turn.phase, PhaseType::COMBAT);
     ASSERT_EQ(obs.turn.step, StepType::COMBAT_DECLARE_ATTACKERS);
 
@@ -177,4 +178,43 @@ TEST_F(TestAgent, ObservationForDeclareBlockers) {
 
     // Verify action space matches reality
     ASSERT_EQ(obs.action_space.action_space_type, ActionSpaceType::DECLARE_BLOCKER);
+}
+
+TEST_F(TestAgent, TestFullGameLoop) {
+    std::map<std::string, int> redDeck{{"Grey Ogre", 8}, {"Mountain", 12}};
+    std::map<std::string, int> greenDeck{{"Forest", 12}, {"Llanowar Elves", 8}};
+
+    std::vector<PlayerConfig> playerConfigs;
+    playerConfigs.emplace_back("Red Mage", redDeck);
+    playerConfigs.emplace_back("Green Mage", greenDeck);
+
+    Env env(/*skip_trivial=*/false);
+
+    Observation* obs = nullptr;
+    std::map<std::string, std::string> info;
+    std::tie(obs, info) = env.reset(playerConfigs);
+
+    ASSERT_NE(obs, nullptr) << "Initial Observation is null!";
+
+    const int maxSteps = 2000;
+    int steps = 0;
+    bool terminated = false;
+    bool truncated = false;
+    double reward = 0.0;
+
+    while (!terminated && !truncated && steps < maxSteps) {
+        // The signature in C++ is:
+        // step(int action, bool skip_trivial=false) -> (Observation*, double, bool, bool,
+        // map<string,string>)
+        Observation* newObs = nullptr;
+        std::map<std::string, std::string> newInfo;
+        std::tie(newObs, reward, terminated, truncated, newInfo) = env.step(0);
+
+        obs = newObs; // update pointer
+        steps++;
+    }
+    // If we get here with no exception, check normal end conditions
+    EXPECT_TRUE(terminated) << "Game did not terminate before maxSteps, so no IndexError happened.";
+    EXPECT_LT(steps, maxSteps) << "Exceeded max steps but no exception thrown.";
+    // You can add more asserts as needed
 }

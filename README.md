@@ -1,23 +1,40 @@
+# managym
 
+managym is a reinforcement learning environment for Magic: The Gathering, built to be used with [manabot](https://github.com/jacklionheart/manabot).
 
+managym is written in C++ but uses pybind11 to create a python library `managym`.
 
-# managym   
+```
+python
+import managym
+env = managym.Env()
+...
+```
 
-managym is an reinforcement learning environment for the game of Magic: The Gathering.
-
-It is built to be used with [manabot](https://github.com/jacklionheart/manabot).
-
-# Build & Install
+## Installation
 
 ```zsh
 # Install in dev mode
-# TODO: Dependency management
 pip install -e .
 ```
 
-See CMakeLists.txt for more details.
+## Architecture 
 
-## Tests
+The codebase is organized into the following key areas:
+
+1. `managym/agent/`: Core API for RL agents to interact with the game. Defines observation and action spaces. The pybind11 interface used by manabot lives in `managym/agent/pybind.cpp`.
+
+2. `managym/flow/`: Game state progression including the turn system, priority system, and combat phases. Handles core game loop and rule enforcement.
+
+3. `managym/state/`: Game state tracking and data structures. Manages cards, players, permanents, and the zones system.
+
+4. `managym/cardsets/`: Card implementations and registry. Currently focused on basic lands and simple creatures. 
+
+5. `managym/infra/`: Core infrastructure, currently just logging.
+
+Dependencies flow downward: agent → flow → state → infra. (cardsets is a bit messy right now)
+
+## Testing
 
 ```zsh
 # Run all tests
@@ -25,89 +42,96 @@ mkdir -p build && cd build
 cmake ..
 make run_tests
 
-# Run specific C++ tests 
-cd build
-./managym_test --gtest_filter=TestRegex.* --log=priority,turn,test 
+# Run specific tests
+./managym_test --gtest_filter=TestRegex.* --log=priority,turn,test
 ```
 
-### Test Options
-
-```
-- `--gtest_filter=<pattern>`: Run tests matching pattern  
-- `--gtest_list_tests`: List available tests
+Test options:
+- `--gtest_filter=<pattern>`: Run tests matching pattern
+- `--gtest_list_tests`: List available tests  
 - `--log=<cat1,cat2>`: Enable logging categories
   - priority, turn, state, rules, combat, agent, test
+
+## Style Guide
+
+### Code Organization
+
+cpp files should follow this template:
+
+```cpp
+// filename.h/.cpp
+// One-line purpose of file
+//
+// ------------------------------------------------------------------------------------------------
+// EDITING INSTRUCTIONS:
+// Instructions for collaborators (both human and LLM) on how to approach editing.
+// Keep these focused and impactful.
+// ------------------------------------------------------------------------------------------------ 
+
+// Corresponding header to this .cpp filen
+#include "me.h"
+
+// Headers in same directory
+#include "sibling.h"
+
+// Any other managym headers  
+#include "managym/other.h"
+
+// 3rd Party 
+#include <3rdparty.h>
+
+// Built-ins
+#include <std>
 ```
 
-# Codebase Areas
+Header files should have comments on each public method, but most data fields should be self-explantory.
 
-API:
-- `managym/agent`: Defines how agents (like manabot) can interact with the game.
-The literal Python API used by manabot is defined in `managym/agent/pybind.cpp`.
+### Objects
 
-Core game logic:
-- `managym/state/`: Game state tracking and mutations.
-- `managym/flow/`: Executes the flow of game, including the core game loop, turn structure, and combat.
+Objects should be declared as `struct` unless access control is needed. Each object has exactly one owner, which stores it in a `std::unique_ptr<T>`. Other references are raw pointers (`T*`). This ensures:
+- Clear and reliable memory management 
+- Consistent access patterns throughout the codebase
+- Compile-time errors for accidental copies
 
-Additional areas:
-- `managym/ui/`: Some basic code for rendering the game. Mostly for debugging.
-- `managym/infra/`: Currently just logging.
-- `managym/cardsets`: Implementations of individual Magic cards that can be used in the game. 
+Simple subobjects which are not referenced by other objects should be stored directly as member variables.
 
-# Style Guide
+### Error Handling
 
-Use the [LLVM Coding Standards](https://llvm.org/docs/CodingStandards) as a suggestion for anything unspecified here html.
+Exceptions serve two distinct purposes:
+1. `AgentError`: Thrown for invalid API usage or bad parameters. These represent user errors and should be handled gracefully.
+2. Other exceptions: Thrown for internal errors, invariant violations, or unrecoverable states. These represent bugs in managym.
 
-## Formatting
+### Documentation 
 
-Objects are `CamelCase`. Member variables are `snake_case`. Methods are `camelCase`. Files are `snake_case`. 
-Pointers are `Object* ptr`, not `Object *ptr`. 
+Comments use // rather than /* */. Each file should have a one-line summary and optional editing instructions at the top.
 
-Indentations are 4 spaces. 
+When a comment starts with MR405.1 that references section 405.1 of the Magic Rules. A searchable version can be found at [yawgatog](https://yawgatog.com/resources/magic-rules/).
 
-Includes should be sorted in group order, with spaces between the groups:
+Public APIs should have clear, concise explanations focused on behavior and edge cases. Organizational comments are welcome but most code should speak for itself.
 
-- Corresponding header: #include "me.h"
-- Headers in same directory: #include "sibling.h"
-- Any other managym headers: #include "managym/other.h"
-- 3rd Party: #include <3rdparty.h>
-- Built-ins: #include <spdlog/spdlog.h>
+### DO NOT USE
 
-Prefer alphabetical within each indentation groups.
-
-## Objects
-
-Each object has one owner, which stores it in a std::unique_ptr<T>. Other references are simple T* pointers. We do not use std::shared_ptr or std::weak_ptr. Objects should be declared as `struct` unless access control is used. Classes in headers may be forward-declared to avoid unnecessary imports.
-
-Simple subobjects which are not referenced by other objects are stored directly as member variables.
-
-## Comments
-
-Comments use // rather than /* */.
-
-When a comment starts with MR405.1 that is a reference to the section 405.1 of the Magic Rules. A searchable version of the Magic Rules can be found at [yawgatog](https://yawgatog.com/resources/magic-rules/). 
-
-Public APIs should have concise explanations with an emphasis on clarity rather than exhaustiveness. These comments should live in the cpp file.
-
-In both header and cpp files, include sectional headers for e.g. the following major areas, with further subdivision as appropriate, in the following order:
-
-// Data
-// Reads
-// Writes
-
-The first line in a struct or class should be its constructor.
-
-General overviews should appear as class comments. Header comments should be 1-line summaries of each methods. Most code should speak for itself, but organizational comments are welcome.
-
-## C++
-
-Generally, this codebase aspires to use as little of C++ as possible. AVOID:
-
-- Multiple inheritance
-- Operator overloading (beyond ==)
+LITERARLLY NEVER DO ANY OF THIS:
+- std::shared_ptr
 - Templates and metaprogramming
 - Macros
 - Manual memory management / reference counting
 - dynamic_cast
-- std::shared_ptr
-- `auto` typing
+- Multiple inheritance
+
+STRONGLY AVOID USING:
+- auto typing
+- Implementiation of methods in header files
+- Operator overloading (beyond ==)  
+
+### Instructions for LLM Codegen
+
+When working with this codebase, LLMs should:
+- Avoid comments that are transient/denote changes. Imagine the code will be directly copied into the codebase for eternity.
+- Pay special attention to file headers and README content for context
+- Propose small, iterative changes
+- End responses with:
+  1. Full implementations of changed files that can be copied into the codebase 
+  2. Questions that could clarify intent
+  3. Notes on what was intentionally left out
+  

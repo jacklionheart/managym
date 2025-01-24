@@ -171,10 +171,10 @@ void TurnSystem::startNextTurn() {
     global_turn_count++;
 }
 
-std::vector<Player*> TurnSystem::priorityOrder() {
-    std::vector<Player*> order;
+std::vector<Player*> TurnSystem::playersStartingWithActive() {
+    
     int num_players = game->players.size();
-
+    std::vector<Player*> order;
     for (int i = 0; i < num_players; i++) {
         order.push_back(game->players[(active_player_index + i) % num_players].get());
     }

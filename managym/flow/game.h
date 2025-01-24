@@ -50,6 +50,8 @@ public:
     ActionSpace* actionSpace() const;
     Observation* observation() const;
 
+    // Get agent player (i.e. player currently making decisions. If no agent, return first player)
+    Player* agentPlayer() const;
     // Get currently active player
     Player* activePlayer() const;
     // Get non-active player
@@ -58,8 +60,10 @@ public:
     bool actionSpaceTrivial() const;
     // Get index of currently active player
     int activePlayerIndex() const;
+    // Get players, starting with the agent player (or the first player if no agent)
+    std::vector<Player*> playersStartingWithAgent() const;
     // Get player order for priority
-    std::vector<Player*> priorityOrder() const;
+    std::vector<Player*> playersStartingWithActive() const;
     // Check if player is active player
     bool isActivePlayer(Player* player) const;
     // Check if player can play a land

@@ -13,7 +13,7 @@ void PrioritySystem::reset() {
 }
 
 bool PrioritySystem::isComplete() const {
-    std::vector<Player*> players = game->priorityOrder();
+    std::vector<Player*> players = game->playersStartingWithActive();
     return pass_count >= players.size() && game->zones->constStack()->objects.empty();
 }
 
@@ -25,7 +25,7 @@ std::unique_ptr<ActionSpace> PrioritySystem::tick() {
         sba_done = true;
     }
 
-    std::vector<Player*> players = game->priorityOrder();
+    std::vector<Player*> players = game->playersStartingWithActive();
     if (pass_count < players.size()) {
         return makeActionSpace(players[pass_count]);
     }
@@ -45,7 +45,7 @@ std::unique_ptr<ActionSpace> PrioritySystem::tick() {
 }
 
 std::unique_ptr<ActionSpace> PrioritySystem::makeActionSpace(Player* player) {
-    std::vector<Player*> players = game->priorityOrder();
+    std::vector<Player*> players = game->playersStartingWithActive();
     Player* current_player = players[pass_count];
 
     managym::log::debug(Category::PRIORITY, "Generating actions for {}", current_player->name);
@@ -93,7 +93,7 @@ std::vector<std::unique_ptr<Action>> PrioritySystem::availablePriorityActions(Pl
 }
 
 void PrioritySystem::performStateBasedActions() {
-    std::vector<Player*> players = game->priorityOrder();
+    std::vector<Player*> players = game->playersStartingWithActive();
 
     // MR04.5a If a player has 0 or less life, that player loses the game.
     for (Player* player : players) {

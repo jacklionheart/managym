@@ -5,6 +5,7 @@
 
 #include <fmt/core.h>
 
+#include <algorithm>
 #include <cassert>
 #include <stdexcept>
 
@@ -71,13 +72,43 @@ bool Game::actionSpaceTrivial() const {
 
 Observation* Game::observation() const { return current_observation.get(); }
 
+Player* Game::agentPlayer() const {
+    if (current_action_space && current_action_space->player) {
+        return current_action_space->player;
+    }
+    return players[0].get();
+}
+
 Player* Game::activePlayer() const { return turn_system->activePlayer(); }
 
 Player* Game::nonActivePlayer() const { return turn_system->nonActivePlayer(); }
 
-std::vector<Player*> Game::priorityOrder() const { return turn_system->priorityOrder(); }
+std::vector<Player*> Game::playersStartingWithActive() const {
+    return turn_system->playersStartingWithActive();
+}
 
 int Game::activePlayerIndex() const { return turn_system->active_player_index; }
+
+// Get players, starting with the agent player (or the first player if no agent)
+std::vector<Player*> Game::playersStartingWithAgent() const {
+    Player* first = players[0].get();
+    if (current_action_space && current_action_space->player) {
+        first = current_action_space->player;
+    }
+
+    // Find the index of the agent player
+    auto it = std::find_if(players.begin(), players.end(),
+                           [first](const std::unique_ptr<Player>& p) { return p.get() == first; });
+    int index = (it != players.end()) ? std::distance(players.begin(), it) : 0;
+
+    int num_players = players.size();
+    std::vector<Player*> order;
+    for (int i = 0; i < num_players; i++) {
+        order.push_back(players[(index + i) % num_players].get());
+    }
+
+    return order;
+}
 
 bool Game::isActivePlayer(Player* player) const { return player == turn_system->activePlayer(); }
 

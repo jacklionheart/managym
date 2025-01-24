@@ -1,3 +1,6 @@
+// observation.cpp
+// Data structures that cross the C++/Python boundary.
+
 #include "observation.h"
 
 #include "managym/flow/game.h"
@@ -58,8 +61,8 @@ void Observation::populateTurn(const Game* game) {
         turn_data.active_player_id = -1;
     }
 
-    if (game->current_action_space != nullptr && game->current_action_space->player != nullptr) {
-        turn_data.agent_player_id = static_cast<int>(game->current_action_space->player->id);
+    if (game->agentPlayer() != nullptr) {
+        turn_data.agent_player_id = static_cast<int>(game->agentPlayer()->id);
     } else {
         turn_data.agent_player_id = -1;
     }
@@ -91,29 +94,23 @@ void Observation::populateActionSpace(const Game* game) {
 void Observation::populatePlayers(const Game* game) {
     // The game typically has a vector of unique_ptr<Player>.
     // We'll gather them into a map<int, PlayerData>, keyed by player->id
-    for (int i = 0; i < static_cast<int>(game->players.size()); i++) {
-        const Player* p = game->players[i].get();
-        if (p == nullptr) {
-            continue;
-        }
-
+    for (const Player* player : game->playersStartingWithAgent()) {
         PlayerData pdat;
-        pdat.id = static_cast<int>(p->id);
-        pdat.player_index = i;
-        pdat.is_active = (p == game->activePlayer());
-        if (game->current_action_space != nullptr && game->current_action_space->player == p) {
+        pdat.id = static_cast<int>(player->id);
+        pdat.is_active = (player == game->activePlayer());
+        if (game->current_action_space != nullptr && game->current_action_space->player == player) {
             pdat.is_agent = true;
         } else {
             pdat.is_agent = false;
         }
-        pdat.life = p->life;
+        pdat.life = player->life;
 
         // Populate zone_counts
         // Suppose the Game or Zones system has a way to count how many
         // objects or cards are in each zone for p.
         // We'll do something like:
         for (int z = 0; z < 7; z++) {
-            pdat.zone_counts[z] = game->zones->size(static_cast<ZoneType>(z), p);
+            pdat.zone_counts[z] = game->zones->size(static_cast<ZoneType>(z), player);
         }
 
         players[pdat.id] = pdat;
@@ -122,24 +119,24 @@ void Observation::populatePlayers(const Game* game) {
 
 // Populate all object types
 void Observation::populateAllObjects(const Game* game) {
-    const Player* active_player = game->activePlayer();
-    const Player* opponent = game->nonActivePlayer();
+    const Player* agent_player = game->agentPlayer();
 
+    assert(agent_player != nullptr);
     // 1) HAND: visible only to the owner (observer)
     const Hand* hand = game->zones->constHand();
-    for (const Card* card : hand->cards.at(active_player)) {
+    for (const Card* card : hand->cards.at(agent_player)) {
         addCard(card, ZoneType::HAND);
     }
 
     // 2) BATTLEFIELD: gather for all players
     const Battlefield* bf = game->zones->constBattlefield();
-    for (const std::unique_ptr<Permanent>& perm : bf->permanents.at(active_player)) {
+    for (const std::unique_ptr<Permanent>& perm : bf->permanents.at(agent_player)) {
         addPermanent(perm.get());
     }
 
     // 3) GRAVEYARD: gather for all players
     const Graveyard* gy = game->zones->constGraveyard();
-    for (const Player* player : game->priorityOrder()) {
+    for (const Player* player : game->playersStartingWithAgent()) {
         for (const Card* card : gy->cards.at(player)) {
             addCard(card, ZoneType::GRAVEYARD);
         }
@@ -147,7 +144,7 @@ void Observation::populateAllObjects(const Game* game) {
 
     // 4) EXILE: gather for all players
     const Exile* ex = game->zones->constExile();
-    for (const Player* player : game->priorityOrder()) {
+    for (const Player* player : game->playersStartingWithAgent()) {
         for (const Card* card : ex->cards.at(player)) {
             addCard(card, ZoneType::EXILE);
         }

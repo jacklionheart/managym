@@ -53,7 +53,7 @@ enum struct StepType {
     COMBAT_END = 8,
 
     POSTCOMBAT_MAIN_STEP = 9,
-    
+
     ENDING_END = 10,
     ENDING_CLEANUP = 11
 };
@@ -113,7 +113,7 @@ public:
     // Check if game is in a specific step
     bool isInStep(StepType step) const;
     // Get controlling player's order for priority
-    std::vector<Player*> priorityOrder();
+    std::vector<Player*> playersStartingWithActive();
     // Get current active player
     Player* activePlayer();
     // Get non-active player
@@ -209,7 +209,7 @@ struct Turn {
 
     // Get current phase
     Phase* currentPhase() { return phases[current_phase_index].get(); }
-    
+
     // Writes
 
     // Advance turn state
