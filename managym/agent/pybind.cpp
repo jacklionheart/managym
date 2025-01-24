@@ -1,7 +1,6 @@
 #include "managym/agent/action.h"
 #include "managym/agent/env.h"
 #include "managym/agent/observation.h"
-
 #include "managym/flow/game.h"
 
 #include <pybind11/chrono.h>
@@ -153,7 +152,9 @@ static void registerDataClasses(py::module& m) {
                 Args:
                     name (str): The player's name
                     decklist (dict): card_name -> quantity
-             )docstring");
+             )docstring")
+        .def_readwrite("name", &PlayerConfig::name)
+        .def_readwrite("decklist", &PlayerConfig::decklist);
 
     // ----------------- Player -----------------
     py::class_<PlayerData>(m, "Player", R"docstring(

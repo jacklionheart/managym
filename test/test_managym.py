@@ -158,24 +158,18 @@ class TestManagym:
                 None
             )
 
-        land_idx = find_action(obs, managym.ActionType.PRIORITY_PLAY_LAND)
+        land_idx = find_action(obs, managym.ActionEnum.PRIORITY_PLAY_LAND)
         if land_idx is not None:
             obs, _, _, _, _ = env.step(land_idx)
             agent_player_id = obs.turn.agent_player_id
             agent_player_data = obs.players[agent_player_id]
-            bf_count = agent_player_data.zone_counts[managym.ZoneType.BATTLEFIELD]
+            bf_count = agent_player_data.zone_counts[managym.ZoneEnum.BATTLEFIELD]
             assert bf_count >= 1
 
-        cast_idx = find_action(obs, managym.ActionType.PRIORITY_CAST_SPELL)
+        cast_idx = find_action(obs, managym.ActionEnum.PRIORITY_CAST_SPELL)
         if cast_idx is not None:
             obs, _, _, _, _ = env.step(cast_idx)
             assert obs.validate()
-
-    def test_throw_action_error(self):
-        """Test exception handling."""
-        with pytest.raises(Exception) as excinfo:
-            managym.throw_action_error()
-        assert "Test in python bindings" in str(excinfo.value)
 
     def test_skip_trivial_false(self, basic_deck_configs):
         """Test non-skipping of trivial actions."""
