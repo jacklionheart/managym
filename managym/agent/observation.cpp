@@ -72,11 +72,7 @@ void Observation::populateTurn(const Game* game) {
 
 // Populate the action space
 void Observation::populateActionSpace(const Game* game) {
-    if (game->current_action_space == nullptr) {
-        // If there's no action space, mark it as GAME_OVER or similar
-        action_space.action_space_type = ActionSpaceType::GAME_OVER;
-        return;
-    }
+
 
     action_space.action_space_type = game->current_action_space->type;
 
@@ -291,14 +287,6 @@ std::string Observation::toJSON() const {
     }
     out << "    ],\n";
 
-    // focus
-    out << R"(    "focus": [)";
-    for (size_t i = 0; i < action_space.focus.size(); i++) {
-        out << action_space.focus[i];
-        if (i + 1 < action_space.focus.size()) {
-            out << ",";
-        }
-    }
     out << "]\n  },\n";
 
     // Helper lambda to serialize a map<int, T>

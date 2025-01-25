@@ -25,7 +25,7 @@ Env::step(int action, bool skip_trivial) {
         throw std::runtime_error("Env::step called before reset/game init.");
     }
     if (game->isGameOver()) {
-        throw std::runtime_error("Env::step called after game is over.");
+        throw AgentError("env.step called after game is over.");
     }
 
     Player* agent = game->actionSpace()->player;

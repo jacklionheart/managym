@@ -38,7 +38,7 @@ std::unique_ptr<ActionSpace> DeclareAttackersStep::makeActionSpace(Permanent* at
     actions.emplace_back(new DeclareAttackerAction(attacker, false, active_player, this));
 
     return std::make_unique<ActionSpace>(ActionSpaceType::DECLARE_ATTACKER, std::move(actions),
-                                         active_player, game());
+                                         active_player);
 }
 
 std::unique_ptr<ActionSpace> DeclareAttackersStep::performTurnBasedActions() {
@@ -69,7 +69,7 @@ std::unique_ptr<ActionSpace> DeclareBlockersStep::makeActionSpace(Permanent* blo
     actions.emplace_back(new DeclareBlockerAction(blocker, nullptr, blocking_player, this));
 
     return std::make_unique<ActionSpace>(ActionSpaceType::DECLARE_BLOCKER, std::move(actions),
-                                         blocking_player, game());
+                                         blocking_player);
 }
 
 std::unique_ptr<ActionSpace> DeclareBlockersStep::performTurnBasedActions() {
@@ -111,8 +111,9 @@ std::unique_ptr<ActionSpace> CombatDamageStep::performTurnBasedActions() {
         }
         if (blockers.empty()) {
             game->nonActivePlayer()->takeDamage(attacker->card->power.value_or(0));
-            managym::log::info(Category::COMBAT, "{} takes {} damage",
-                               game->nonActivePlayer()->name, attacker->card->power.value_or(0));
+            managym::log::info(Category::COMBAT, "{} takes {} damage, current life: {}",
+                               game->nonActivePlayer()->name, attacker->card->power.value_or(0),
+                               game->nonActivePlayer()->life);
         }
     }
     turn_based_actions_complete = true;

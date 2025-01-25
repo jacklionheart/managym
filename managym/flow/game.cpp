@@ -162,6 +162,14 @@ bool Game::_step(int action) {
         throw std::logic_error("No active action space");
     }
 
+    if (isGameOver()) {
+        throw AgentError("Game is over");
+    }
+
+    if (current_action_space->actions.empty()) {
+        throw std::logic_error("No actions available");
+    }
+
     // Check if the action is within the valid range
     if (action < 0 || action >= current_action_space->actions.size()) {
         throw AgentError(fmt::format("Action index {} out of bound: {}.", action,
@@ -187,7 +195,7 @@ bool Game::_step(int action) {
 bool Game::step(int action) {
     bool game_over = _step(action);
 
-    while (skip_trivial && actionSpaceTrivial()) {
+    while (!game_over && skip_trivial && actionSpaceTrivial()) {
         game_over = _step(0);
     }
 

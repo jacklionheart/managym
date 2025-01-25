@@ -29,10 +29,7 @@ TEST_F(TestFlow, CorrectPlayerStartsWithPriority) {
     ASSERT_TRUE(advanceToPhaseStep(game.get(), PhaseType::PRECOMBAT_MAIN));
     ActionSpace* space = game->current_action_space.get();
 
-    // If the ActionSpace is for priority, the player should match 'active'
-    if (space && !space->actionSelected()) {
-        EXPECT_EQ(space->player, active);
-    }
+    ASSERT_EQ(space->player, active);
 }
 
 TEST_F(TestFlow, ReachingCombatSteps) {
@@ -77,4 +74,169 @@ TEST_F(TestFlow, PriorityPassingTest) {
 
     EXPECT_EQ(phase, PhaseType::BEGINNING);
     EXPECT_EQ(step, StepType::BEGINNING_DRAW);
+}
+
+TEST_F(TestFlow, ActionSpaceValidity) {
+    // Create player configurations that exactly match the Python default Match:
+    // hero (gaea): Mountain x12, Forest x12, Llanowar Elves x18, Grey Ogre x18
+    // villain (urza): Mountain x12, Forest x12, Llanowar Elves x18, Grey Ogre x18
+    PlayerConfig gaea_config(
+        "gaea", {{"Mountain", 12}, {"Forest", 12}, {"Llanowar Elves", 18}, {"Grey Ogre", 18}});
+
+    PlayerConfig urza_config(
+        "urza", {{"Mountain", 12}, {"Forest", 12}, {"Llanowar Elves", 18}, {"Grey Ogre", 18}});
+
+    // Create game with these configs, matching Python's Env setup
+    auto game =
+        std::make_unique<Game>(std::vector<PlayerConfig>{gaea_config, urza_config},
+                               /*headless=*/true,
+                               /*skip_trivial=*/true // Match Python Env's skip_trivial=True default
+        );
+    ASSERT_TRUE(game != nullptr);
+
+    // Track progression through the game
+    int steps_taken = 0;
+    const int max_steps = 10000; // Match Python's max_steps
+    bool game_over = false;
+
+    // Helper to validate action space
+    auto validate_action_space = [](ActionSpace* space, int step_num) {
+        // Action space should never be null during normal gameplay
+        ASSERT_NE(space, nullptr) << "Null action space at step " << step_num;
+
+        // There should always be at least one action available
+        ASSERT_GT(space->actions.size(), 0) << "Empty action space at step " << step_num
+                                            << "\nAction space type: " << toString(space->type)
+                                            << "\nFull action space: " << space->toString();
+
+        // Player should be assigned
+        ASSERT_NE(space->player, nullptr) << "Action space has no player at step " << step_num;
+
+        // Each action should be properly initialized
+        for (size_t i = 0; i < space->actions.size(); i++) {
+            const auto& action = space->actions[i];
+            ASSERT_NE(action, nullptr) << "Null action at index " << i << " at step " << step_num;
+            ASSERT_EQ(action->player, space->player)
+                << "Action player mismatch at index " << i << " at step " << step_num;
+        }
+    };
+
+    // First validate initial action space
+    ActionSpace* current_space = game->actionSpace();
+
+    // Take steps through the game, validating each action space
+    while (!game_over && steps_taken < max_steps) {
+        validate_action_space(current_space, steps_taken);
+
+        // Log the current game state
+        managym::log::info(Category::TEST, "Step {}: Phase={}, Step={}, ActivePlayer={}",
+                           steps_taken, toString(game->turn_system->currentPhaseType()),
+                           toString(game->turn_system->currentStepType()),
+                           game->activePlayer()->name);
+
+        // Log the current priority if we're in a priority situation
+        if (current_space->type == ActionSpaceType::PRIORITY) {
+            managym::log::info(Category::TEST, "Priority actions available: {}",
+                               current_space->actions.size());
+        }
+
+        game_over = game->step(0);
+        current_space = game->actionSpace();
+        steps_taken++;
+    }
+
+    // Game should complete within max steps
+    ASSERT_TRUE(game_over) << "Game did not complete within " << max_steps << " steps";
+    ASSERT_LT(steps_taken, max_steps) << "Game took maximum number of steps";
+}
+
+TEST_F(TestFlow, CombatActionSpaceAfterDamage) {
+    // Create player configurations matching the Python test:
+    PlayerConfig gaea_config(
+        "gaea", {{"Mountain", 12}, {"Forest", 12}, {"Llanowar Elves", 18}, {"Grey Ogre", 18}});
+
+    PlayerConfig urza_config(
+        "urza", {{"Mountain", 12}, {"Forest", 12}, {"Llanowar Elves", 18}, {"Grey Ogre", 18}});
+
+    // Create game with these configs
+    auto game = std::make_unique<Game>(std::vector<PlayerConfig>{gaea_config, urza_config},
+                                       /*headless=*/true,
+                                       /*skip_trivial=*/true);
+    ASSERT_TRUE(game != nullptr);
+
+    // Helper to validate action space
+    auto validate_action_space = [](ActionSpace* space, int step_num) {
+        ASSERT_NE(space, nullptr) << "Null action space at step " << step_num;
+
+        // There should always be at least one action available
+        ASSERT_GT(space->actions.size(), 0) << "Empty action space at step " << step_num
+                                            << "\nAction space type: " << toString(space->type);
+
+        // Player should be assigned
+        ASSERT_NE(space->player, nullptr) << "Action space has no player at step " << step_num;
+
+        // Each action should be properly initialized
+        for (size_t i = 0; i < space->actions.size(); i++) {
+            const auto& action = space->actions[i];
+            ASSERT_NE(action, nullptr) << "Null action at index " << i << " at step " << step_num;
+            ASSERT_EQ(action->player, space->player)
+                << "Action player mismatch at index " << i << " at step " << step_num;
+        }
+
+        // Log the action space for debugging
+        managym::log::info(Category::TEST, "Action space at step {}: {}", step_num,
+                           space->toString());
+    };
+
+    // Set up combat scenario:
+    // 1. Get to precombat main
+    ASSERT_TRUE(advanceToPhase(game.get(), PhaseType::PRECOMBAT_MAIN));
+
+    // 2. Put a creature into play for each player
+    putPermanentInPlay(game.get(), game->activePlayer(), "Llanowar Elves");
+    advanceToNextTurn(game.get());
+    putPermanentInPlay(game.get(), game->activePlayer(), "Llanowar Elves");
+
+    // 3. Advance through summoning sickness
+    advanceToNextTurn(game.get());
+    advanceToNextTurn(game.get());
+
+    // 4. Get to combat declare attackers step
+    ASSERT_TRUE(
+        advanceToPhaseStep(game.get(), PhaseType::COMBAT, StepType::COMBAT_DECLARE_ATTACKERS));
+
+    managym::log::info(Category::TEST, "Starting combat sequence");
+
+    int step_count = 0;
+    const int max_steps = 20; // Should complete combat in fewer steps
+    bool combat_complete = false;
+
+    // Run through the combat sequence
+    while (!combat_complete && step_count < max_steps) {
+        // Validate current action space
+        ActionSpace* current_space = game->actionSpace();
+        validate_action_space(current_space, step_count);
+
+        // Log state before step
+        managym::log::info(Category::TEST, "Step {}: Phase={}, Step={}, ActivePlayer={}",
+                           step_count, toString(game->turn_system->currentPhaseType()),
+                           toString(game->turn_system->currentStepType()),
+                           game->activePlayer()->name);
+
+        // Take step
+        bool game_over = game->step(0);
+        ASSERT_FALSE(game_over) << "Game ended unexpectedly during combat";
+        step_count++;
+
+        // Check if we've moved past combat
+        if (game->turn_system->currentPhaseType() != PhaseType::COMBAT) {
+            combat_complete = true;
+        }
+
+        // After step, validate the next action space
+        current_space = game->actionSpace();
+        validate_action_space(current_space, step_count);
+    }
+
+    ASSERT_TRUE(combat_complete) << "Combat did not complete within " << max_steps << " steps";
 }

@@ -23,7 +23,11 @@ std::unique_ptr<ActionSpace> PrioritySystem::tick() {
     if (!sba_done) {
         performStateBasedActions();
         sba_done = true;
+        if (game->isGameOver()) {
+            return nullptr;
+        }
     }
+
 
     std::vector<Player*> players = game->playersStartingWithActive();
     if (pass_count < players.size()) {
@@ -51,7 +55,7 @@ std::unique_ptr<ActionSpace> PrioritySystem::makeActionSpace(Player* player) {
     managym::log::debug(Category::PRIORITY, "Generating actions for {}", current_player->name);
     std::vector<std::unique_ptr<Action>> actions = availablePriorityActions(current_player);
     return std::make_unique<ActionSpace>(ActionSpaceType::PRIORITY, std::move(actions),
-                                         current_player, game);
+                                         current_player);
 }
 
 void PrioritySystem::passPriority() {
@@ -100,6 +104,10 @@ void PrioritySystem::performStateBasedActions() {
         if (player->life <= 0) {
             game->loseGame(player);
         }
+    }
+
+    if (game->isGameOver()) {
+        return;
     }
 
     // 704.5g If a creature has toughness greater than 0, it has damage marked on it,
