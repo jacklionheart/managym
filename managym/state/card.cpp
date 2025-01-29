@@ -79,11 +79,11 @@ Card::Card(std::string name, std::optional<ManaCost> mana_cost, CardTypes types,
 }
 
 // Used by the card registry to instantiate a card from the registry.
-Card::Card(ObjectId id, const Card& other)
+Card::Card(ObjectId id, const Card& other, Player* owner)
     : GameObject(id), registry_key(other.registry_key), name(other.name),
       mana_cost(other.mana_cost), colors(other.colors), types(other.types),
       supertypes(other.supertypes), subtypes(other.subtypes), mana_abilities(other.mana_abilities),
-      text_box(other.text_box), power(other.power), toughness(other.toughness), owner(nullptr) {}
+      text_box(other.text_box), power(other.power), toughness(other.toughness), owner(owner) {}
 
 // Reads
 std::string Card::toString() const { return "{name: " + name + "}"; }

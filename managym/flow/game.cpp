@@ -252,6 +252,10 @@ void Game::markPermanentsNotSummoningSick(Player* player) {
 void Game::drawCards(Player* player, int amount) {
     for (int i = 0; i < amount; ++i) {
         if (zones->size(ZoneType::LIBRARY, player) == 0) {
+            managym::log::info(Category::RULES,
+                               "{} drew a card from an empty library, will die next SBA",
+                               player->name);
+            player->drew_when_empty = true;
             break;
         } else {
             Card* card = zones->top(ZoneType::LIBRARY, player);

@@ -29,7 +29,7 @@ std::unique_ptr<Game> elvesVsOgres(bool headless, int redMountains, int redOgres
 
 void putPermanentInPlay(Game* game, Player* player, const std::string& cardName) {
     // Create new card instance
-    std::unique_ptr<Card> card = game->card_registry->instantiate(cardName);
+    std::unique_ptr<Card> card = game->card_registry->instantiate(cardName, player);
     if (!card->types.isPermanent()) {
         throw std::invalid_argument("Card '" + cardName + "' is not a permanent type");
     }

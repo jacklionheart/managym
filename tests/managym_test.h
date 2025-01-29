@@ -1,7 +1,6 @@
 #pragma once
 
 #include "managym/flow/game.h"
-#include "managym/cardsets/card_registry.h"
 
 #include <gtest/gtest.h>
 #include <spdlog/spdlog.h>
@@ -22,8 +21,8 @@ PlayerConfig makePlayerConfig(const std::string& playerName,
 void registerTestCards();
 
 // Create a basic game
-std::unique_ptr<Game> elvesVsOgres(bool headless = true, int redMountains = 4, int redOgres = 3,
-                                   int greenForests = 4, int greenElves = 3);
+std::unique_ptr<Game> elvesVsOgres(bool headless = true, int redMountains = 10, int redOgres = 10,
+                                   int greenForests = 10, int greenElves = 10);
 
 // Put a permanent in play
 void putPermanentInPlay(Game* game, Player* player, const std::string& cardName);
@@ -42,5 +41,5 @@ bool advanceToNextTurn(Game* game, int maxTicks = 1000);
 
 struct ManagymTest : public ::testing::Test {
 protected:
-    void SetUp() override {    }
+    void SetUp() override {}
 };

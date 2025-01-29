@@ -75,7 +75,14 @@ void Zones::move(Card* card, ZoneType toZone) {
     auto it = card_to_zone.find(card);
     if (it != card_to_zone.end()) {
         Zone* oldZone = it->second;
+        managym::log::debug(Category::STATE, "Moving card {} owned by {} to zone {} from zone {}",
+                            card->id, card->owner->id, static_cast<int>(toZone),
+                            typeid(*oldZone).name());
+
         oldZone->exit(card);
+    } else {
+        managym::log::debug(Category::STATE, "Adding card {} {} owned by {} to zone {}", card->name,
+                            card->id, card->owner->id, static_cast<int>(toZone));
     }
 
     newZone->enter(card);
@@ -124,6 +131,26 @@ void Zones::forEachPermanent(const std::function<void(Permanent*)>& func, Player
 
 // Stack Mutations
 
-void Zones::pushStack(Card* card) { stack->push(card); }
+void Zones::pushStack(Card* card) {
+    if (!card) {
+        throw std::invalid_argument("pushStack() called with null Card*");
+    }
+
+    auto it = card_to_zone.find(card);
+    if (it != card_to_zone.end()) {
+        Zone* oldZone = it->second;
+        managym::log::debug(Category::STATE, "Moving card {} owned by {} to zone {} from zone {}",
+                            card->id, card->owner->id, static_cast<int>(ZoneType::STACK),
+                            typeid(*oldZone).name());
+
+        oldZone->exit(card);
+    } else {
+        managym::log::debug(Category::STATE, "Adding card {} {} owned by {} to zone {}", card->name,
+                            card->id, card->owner->id, static_cast<int>(ZoneType::STACK));
+    }
+
+    stack->push(card);
+    card_to_zone[card] = stack.get();
+}
 
 Card* Zones::popStack() { return stack->pop(); }

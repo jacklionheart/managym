@@ -24,14 +24,13 @@ struct TurnData {
     // The "agent player" is the players who is taking the next action.
     int agent_player_id;
     // The "active player" in magic is the player whose turn it is,
-    // but not necessarily the player currently taking 
+    // but not necessarily the player currently taking
     int active_player_id;
 };
 
 // ------------------- Player data --------------------
 struct PlayerData {
-    int id;           // Unique ID for the player
-    int player_index; // 0 for first, 1 for second, etc.
+    int id; // Unique ID for the player
     // Is the player taking the next action
     bool is_agent = false;
     // Is the player whose turn it is
@@ -59,10 +58,10 @@ struct CardTypeData {
     bool is_battle = false;
 };
 
-
 struct CardData {
     ZoneType zone;
     int owner_id;
+    std::string name;
     int id;
     int registry_key;
     int power;
@@ -74,6 +73,7 @@ struct CardData {
 // ------------------- Permanent data -----------------
 struct PermanentData {
     int id;
+    int card_id;
     int controller_id;
     bool tapped = false;
     int damage = 0;

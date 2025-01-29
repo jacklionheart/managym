@@ -2,7 +2,7 @@
 #include "managym/agent/env.h"
 #include "managym/agent/observation.h"
 #include "managym/infra/log.h"
-#include "test/managym_test.h"
+#include "tests/managym_test.h"
 
 #include <gtest/gtest.h>
 
@@ -217,4 +217,37 @@ TEST_F(TestAgent, TestFullGameLoop) {
     EXPECT_TRUE(terminated) << "Game did not terminate before maxSteps, so no IndexError happened.";
     EXPECT_LT(steps, maxSteps) << "Exceeded max steps but no exception thrown.";
     // You can add more asserts as needed
+}
+
+TEST_F(TestAgent, ReproducePriorityDeadlock) {
+    std::map<std::string, int> mixed_deck{
+        {"Mountain", 12},
+        {"Forest", 12}, 
+        {"Llanowar Elves", 18},
+        {"Grey Ogre", 18}
+    };
+    
+    std::vector<PlayerConfig> configs{
+        PlayerConfig("gaea", mixed_deck),
+        PlayerConfig("urza", mixed_deck)  
+    };
+
+    Env env(false);
+    Observation* obs = nullptr;
+    std::map<std::string, std::string> info;
+    std::tie(obs, info) = env.reset(configs);
+    ASSERT_NE(obs, nullptr);
+
+    const int max_steps = 2000;
+    int steps = 0;
+    bool terminated = false;
+    while (!terminated && steps < max_steps) {
+        double reward;
+        bool truncated;
+        std::tie(obs, reward, terminated, truncated, info) = env.step(0);
+        ASSERT_NE(obs, nullptr);
+        steps++;
+    }
+
+    ASSERT_LT(steps, max_steps) << "Game did not complete before max steps";
 }

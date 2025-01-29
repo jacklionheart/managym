@@ -93,14 +93,14 @@ struct CardTypes {
 
 // Represents a single Magic card with all its characteristics
 struct Card : public GameObject {
-     // Used by cardsets to define cards
+    // Used by cardsets to define cards
     Card(std::string name, std::optional<ManaCost> mana_cost, CardTypes types,
          const std::vector<std::string>& supertypes, const std::vector<std::string>& subtypes,
          const std::vector<ManaAbility>& mana_abilities, std::string text_box,
          std::optional<int> power, std::optional<int> toughness);
 
     // Used by CardRegistry to instantiate cards
-    Card(ObjectId id, const Card& other);
+    Card(ObjectId id, const Card& other, Player* owner);
 
     // Data
     int registry_key;
@@ -115,7 +115,6 @@ struct Card : public GameObject {
     std::optional<int> power;
     std::optional<int> toughness;
     Player* owner;
-
 
     // Reads
 

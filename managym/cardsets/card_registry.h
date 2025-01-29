@@ -18,7 +18,7 @@ public:
     void registerCard(const std::string& name, const Card& card);
 
     // Create a new instance of a registered card
-    std::unique_ptr<Card> instantiate(const std::string& name);
+    std::unique_ptr<Card> instantiate(const std::string& name, Player* owner);
 
     // Clear all registered cards
     void clear();

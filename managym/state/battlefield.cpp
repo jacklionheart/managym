@@ -148,13 +148,13 @@ void Battlefield::enter(Card* card) {
         throw std::invalid_argument("Card is not a permanent: " + card->toString());
     }
     managym::log::info(Category::STATE, "{} enters battlefield", card->toString());
-    Player* controller = card->owner;
+    const Player* controller = card->owner;
     permanents[controller].push_back(std::make_unique<Permanent>(id_generator->next(), card));
 }
 
 void Battlefield::exit(Card* card) {
     Zone::exit(card);
-    Player* controller = card->owner;
+    const Player* controller = card->owner;
     permanents[controller].erase(
         std::remove_if(permanents[controller].begin(), permanents[controller].end(),
                        [&card](const std::unique_ptr<Permanent>& permanent) {

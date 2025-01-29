@@ -99,9 +99,17 @@ std::vector<std::unique_ptr<Action>> PrioritySystem::availablePriorityActions(Pl
 void PrioritySystem::performStateBasedActions() {
     std::vector<Player*> players = game->playersStartingWithActive();
 
-    // MR04.5a If a player has 0 or less life, that player loses the game.
+    // MR704.5a If a player has 0 or less life, that player loses the game.
     for (Player* player : players) {
         if (player->life <= 0) {
+            game->loseGame(player);
+        }
+    }
+
+    // MR704.5b If a player attempted to draw a card from a library with no cards in it since
+    // the last time state-based actions were checked, that player loses the game.
+    for (Player* player : players) {
+        if (player->drew_when_empty) {
             game->loseGame(player);
         }
     }

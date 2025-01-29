@@ -1,6 +1,6 @@
 #include "managym/flow/turn.h"
 #include "managym/infra/log.h"
-#include "test/managym_test.h"
+#include "tests/managym_test.h"
 
 #include <fmt/core.h>
 #include <gtest/gtest.h>

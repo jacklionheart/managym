@@ -73,7 +73,6 @@ void Observation::populateTurn(const Game* game) {
 // Populate the action space
 void Observation::populateActionSpace(const Game* game) {
 
-
     action_space.action_space_type = game->current_action_space->type;
 
     // Copy each available action
@@ -168,6 +167,9 @@ void Observation::addCard(const Card* card, ZoneType zone) {
     }
     cdata.mana_cost = mc;
 
+    cdata.name = card->name;
+    cdata.zone = zone;
+
     cdata.card_types.is_castable = card->types.isCastable();
     cdata.card_types.is_permanent = card->types.isPermanent();
     cdata.card_types.is_non_land_permanent = card->types.isNonLandPermanent();
@@ -181,6 +183,8 @@ void Observation::addCard(const Card* card, ZoneType zone) {
     cdata.card_types.is_kindred = card->types.isKindred();
     cdata.card_types.is_battle = card->types.isBattle();
 
+    cdata.owner_id = static_cast<int>(card->owner->id);
+
     cards[cdata.id] = cdata;
 }
 
@@ -190,6 +194,8 @@ void Observation::addPermanent(const Permanent* perm) {
     // Also fill PermanentData
     PermanentData pdat;
     pdat.id = perm->id;
+    pdat.controller_id = perm->controller->id;
+    pdat.card_id = perm->card->id;
     pdat.tapped = perm->tapped;
     pdat.damage = perm->damage;
     pdat.is_summoning_sick = perm->summoning_sick;
@@ -310,7 +316,6 @@ std::string Observation::toJSON() const {
     serializeMap("players", players, [&](int pid, const PlayerData& p) {
         out << fmt::format(R"(    "{}": {{)", pid) << "\n";
         out << fmt::format(R"(      "id": {},)", p.id) << "\n";
-        out << fmt::format(R"(      "player_index": {},)", p.player_index) << "\n";
         out << fmt::format(R"(      "is_active": {},)", (p.is_active ? "true" : "false")) << "\n";
         out << fmt::format(R"(      "is_agent": {},)", (p.is_agent ? "true" : "false")) << "\n";
         out << fmt::format(R"(      "life": {},)", p.life) << "\n";

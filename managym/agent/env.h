@@ -1,6 +1,7 @@
 #pragma once
 
 #include "managym/agent/observation.h"
+#include "managym/flow/game.h"
 
 #include <map>
 #include <string>
@@ -12,9 +13,11 @@ private:
     std::unique_ptr<Game> game;
     // Skip trivial action spaces (<= 1 action)
     bool skip_trivial;
+    // Random seed for environment
+    int seed;
 
 public:
-    Env(bool skip_trivial = false);
+    Env(int seed = 0, bool skip_trivial = false);
 
     /**
      * Resets the environment with new player configs and returns (observation, info).

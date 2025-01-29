@@ -16,6 +16,8 @@ struct PlayerConfig {
 
     PlayerConfig(std::string name, const std::map<std::string, int>& cardQuantities)
         : name(std::move(name)), decklist(cardQuantities) {}
+
+    std::string deckList() const;
 };
 
 // Represents a player in the game, managing their resources and game state
@@ -27,6 +29,7 @@ public:
     std::unique_ptr<Deck> deck;
     std::string name;
     int life = 20;
+    bool drew_when_empty = false;
     bool alive = true;
     Mana mana_pool;
 
@@ -35,6 +38,11 @@ public:
 
     // Writes
     void takeDamage(int damage);
+
+    // Delete copy/assignment to prevent ownership issues
+    Player(const Player&) = delete;
+    Player& operator=(const Player&) = delete;
+    Player(Player&&) = default;
 
 private:
     // Helpers

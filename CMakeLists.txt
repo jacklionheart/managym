@@ -91,7 +91,7 @@ install(TARGETS managym_lib _managym
 enable_testing()
 
 # C++ Tests
-file(GLOB_RECURSE TEST_SOURCES "${CMAKE_SOURCE_DIR}/test/*.cpp")
+file(GLOB_RECURSE TEST_SOURCES "${CMAKE_SOURCE_DIR}/tests/*.cpp")
 add_executable(managym_test ${TEST_SOURCES})
 target_link_libraries(managym_test PRIVATE
     managym_lib
@@ -103,7 +103,7 @@ add_test(NAME cpp_tests COMMAND managym_test)
 
 # Python Tests 
 add_test(NAME python_tests 
-    COMMAND ${Python_EXECUTABLE} -m pytest ${CMAKE_SOURCE_DIR}/test
+    COMMAND ${Python_EXECUTABLE} -m pytest ${CMAKE_SOURCE_DIR}/tests
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 

@@ -15,9 +15,8 @@ static std::vector<PlayerData> getPlayersByIndex(const Observation* obs) {
     for (const auto& [player_id, pdat] : obs->players) {
         out.push_back(pdat);
     }
-    std::sort(out.begin(), out.end(), [](const PlayerData& a, const PlayerData& b) {
-        return a.player_index < b.player_index;
-    });
+    std::sort(out.begin(), out.end(),
+              [](const PlayerData& a, const PlayerData& b) { return a.id < b.id; });
     return out;
 }
 
@@ -108,8 +107,7 @@ void GameDisplay::drawLifeTotals(const sf::FloatRect& bounds, const Observation*
     auto sorted_players = getPlayersByIndex(obs);
     for (size_t i = 0; i < sorted_players.size(); ++i) {
         const auto& pdat = sorted_players[i];
-        std::string pinfo =
-            std::format("Player {} (ID={}): Life={}", pdat.player_index, pdat.id, pdat.life);
+        std::string pinfo = std::format("Player (ID={}): Life={}", pdat.id, pdat.life);
         auto text = createText(pinfo, static_cast<unsigned int>(bounds.size.y * 0.3f),
                                theme.LIFE_TOTAL_TEXT);
         text.setPosition({bounds.position.x + bounds.size.x * 0.06f,

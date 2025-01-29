@@ -159,7 +159,6 @@ static void registerDataClasses(py::module& m) {
     // ----------------- Player -----------------
     py::class_<PlayerData>(m, "Player", R"docstring(
         id: int
-        player_index: int
         is_agent: bool
         is_active: bool
         life: int
@@ -167,7 +166,6 @@ static void registerDataClasses(py::module& m) {
     )docstring")
         .def(py::init<>())
         .def_readwrite("id", &PlayerData::id)
-        .def_readwrite("player_index", &PlayerData::player_index)
         .def_readwrite("is_agent", &PlayerData::is_agent)
         .def_readwrite("is_active", &PlayerData::is_active)
         .def_readwrite("life", &PlayerData::life)
@@ -312,13 +310,15 @@ static void registerDataClasses(py::module& m) {
 
 static void registerAPI(py::module& m) {
     py::class_<Env>(m, "Env", R"docstring(
-        Main environment class. Exposes reset() and step() methods
-        returning Observations, along with rewards, etc.
-
-        Constructor:
-            Env(skip_trivial: bool = False)
+        Main environment class.
+        
+        Args:
+            seed (int): Random seed for environment
+            skip_trivial (bool): Skip trivial actionspaces (num_actions=1)
     )docstring")
-        .def(py::init<bool>(), py::arg("skip_trivial") = false)
+        .def(py::init<int, bool>(),
+             py::arg("seed") = 0,
+             py::arg("skip_trivial") = false)
         .def(
             "reset",
             [](Env& env, const std::vector<PlayerConfig>& configs) {

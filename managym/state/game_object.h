@@ -12,7 +12,7 @@ private:
 };
 
 struct GameObject {
-    ObjectId id;
+    const ObjectId id;
 
     explicit GameObject(ObjectId id) : id(id) {}
     virtual ~GameObject() = default;

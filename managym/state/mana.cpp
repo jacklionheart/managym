@@ -153,10 +153,10 @@ int Mana::total() const {
 }
 
 bool Mana::canPay(const ManaCost& mana_cost) const {
-    managym::log::debug(Category::STATE, "Mana: {}", toString());
-    managym::log::debug(Category::STATE, "Checking if can pay Mana cost: {}", mana_cost.toString());
+    managym::log::debug(Category::RULES, "Mana: {}", toString());
+    managym::log::debug(Category::RULES, "Checking if can pay Mana cost: {}", mana_cost.toString());
     if (total() < mana_cost.mana_value) {
-        managym::log::debug(Category::STATE, "Not enough total mana (have {}, need {})", total(),
+        managym::log::debug(Category::RULES, "Not enough total mana (have {}, need {})", total(),
                             mana_cost.mana_value);
         return false;
     }

@@ -4,7 +4,10 @@
 
 #include <stdexcept>
 
-Env::Env(bool skip_trivial) : game(nullptr), skip_trivial(skip_trivial) {}
+Env::Env(int seed, bool skip_trivial) : game(nullptr), skip_trivial(skip_trivial), seed(seed) {
+    // Seed the random number generator
+    std::srand(seed);
+}
 
 std::pair<Observation*, std::map<std::string, std::string>>
 Env::reset(const std::vector<PlayerConfig>& player_configs) {
