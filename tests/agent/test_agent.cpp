@@ -93,15 +93,13 @@ void verifyBasicObservation(const Observation& obs) {
     ASSERT_FALSE(obs.game_over);
     ASSERT_FALSE(obs.won);
 
-    // Verify we have two players
-    const auto& players = obs.players;
-    ASSERT_EQ(players.size(), 2u);
+    EXPECT_EQ(obs.agent.life, 20) << "Agent has wrong life total";
+    EXPECT_EQ(obs.opponent.life, 20) << "Opponent has wrong life total";
 
-    // Check both players are at starting life total
-    for (const auto& [pid, pdata] : players) {
-        EXPECT_EQ(pdata.life, 20) << "Player " << pid << " has wrong life total";
-    }
+    EXPECT_NE(obs.agent.player_index, obs.opponent.player_index) << "Agent and opponent have same player index";
+    EXPECT_NE(obs.agent.id, obs.opponent.id) << "Agent and opponent have same player id";
 }
+
 
 TEST_F(TestAgent, ObservationForPriorityAction) {
     // Advance to main phase where we have priority decisions

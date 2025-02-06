@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    managym::log::initialize(categories, debug_mode);
+    managym::log::initialize(categories, debug_mode ? spdlog::level::debug : spdlog::level::info);
 
     // Create deck configurations
     PlayerConfig red_player("Red Mage", {

@@ -58,8 +58,6 @@ public:
     Player* nonActivePlayer() const;
     // Returns true if the current action space is trivial (<= 1 action)
     bool actionSpaceTrivial() const;
-    // Get index of currently active player
-    int activePlayerIndex() const;
     // Get players, starting with the agent player (or the first player if no agent)
     std::vector<Player*> playersStartingWithAgent() const;
     // Get player order for priority

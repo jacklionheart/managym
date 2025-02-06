@@ -200,3 +200,29 @@ TEST_F(TestGame, CardCountsPreserved) {
     const int final_total = totalCardsInAllZones(game.get());
     ASSERT_EQ(final_total, initial_total) << "Total card count changed during game";
 }
+
+// This test forces the acting (agent) player to be the second player
+// and then verifies that playersStartingWithAgent() returns the correct order.
+TEST_F(TestGame, PlayersStartingWithAgentOrder) {
+    // Create a simple game with 2 players.
+    // (Assume elvesVsOgres() creates a game with 2 players.)
+    auto game = elvesVsOgres(/*headless=*/true, 10, 10, 10, 10);
+    ASSERT_EQ(game->players.size(), 2u) << "Game should have exactly 2 players.";
+
+    // Force the acting (agent) player to be the second player.
+    // Create a dummy ActionSpace with an empty actions vector and assign its player pointer.
+    std::vector<std::unique_ptr<Action>> dummyActions;  // empty dummy actions
+    game->current_action_space = std::make_unique<ActionSpace>(
+        ActionSpaceType::PRIORITY, std::move(dummyActions), game->players[1].get());
+
+    // Now get the order of players starting with the agent.
+    std::vector<Player*> order = game->playersStartingWithAgent();
+    ASSERT_EQ(order.size(), 2u) << "Order should include both players.";
+
+    // Verify that the first element is the second player (acting/agent)
+    EXPECT_EQ(order[0], game->players[1].get())
+        << "The agent (second player) should be first in the order.";
+    // Verify that the next element is the first player.
+    EXPECT_EQ(order[1], game->players[0].get())
+        << "The order should wrap so that the first player is second.";
+}

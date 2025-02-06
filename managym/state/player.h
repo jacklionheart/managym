@@ -23,9 +23,13 @@ struct PlayerConfig {
 // Represents a player in the game, managing their resources and game state
 class Player : public GameObject {
 public:
-    Player(const ObjectId& id, const PlayerConfig& config, CardRegistry* registry);
+    Player(const ObjectId& id, int index, const PlayerConfig& config, CardRegistry* registry);
 
     // Data
+
+    // 0-indexed index of the player in the game (according to initial turn order)
+    // Used by manabot to identify the player
+    int index;
     std::unique_ptr<Deck> deck;
     std::string name;
     int life = 20;

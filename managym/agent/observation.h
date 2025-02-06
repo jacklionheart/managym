@@ -14,27 +14,25 @@ class Game;
 class Card;
 class Permanent;
 class StackObject;
-class ManaValue;
 
 // ------------------- Turn data ----------------------
 struct TurnData {
     int turn_number;
     PhaseType phase;
     StepType step;
-    // The "agent player" is the players who is taking the next action.
-    int agent_player_id;
-    // The "active player" in magic is the player whose turn it is,
-    // but not necessarily the player currently taking
+    // Player whose turn it is (may not have priority)
     int active_player_id;
+    // Player who has priority (may not be active player)
+    int agent_player_id;
 };
 
 // ------------------- Player data --------------------
 struct PlayerData {
-    int id; // Unique ID for the player
-    // Is the player taking the next action
-    bool is_agent = false;
-    // Is the player whose turn it is
-    bool is_active = false;
+    // Stable index in [0, num_players) assigned at game start
+    int player_index;
+    int id;         // Unique ID for references
+    bool is_agent;  // Whether this player has priority
+    bool is_active; // Whether it's this player's turn
     int life = 20;
 
     // [LIB, HAND, BATTLEFIELD, GRAVEYARD, EXILE, STACK, COMMAND]
@@ -77,8 +75,6 @@ struct PermanentData {
     int controller_id;
     bool tapped = false;
     int damage = 0;
-    bool is_creature = false;
-    bool is_land = false;
     bool is_summoning_sick = false;
 };
 
@@ -100,16 +96,21 @@ struct Observation {
     Observation();                          // default constructor (empty)
     explicit Observation(const Game* game); // constructor from game state
 
-    // Data
+    // Data - Global State
     bool game_over = false;
-    bool won = false;
+    bool won = false; // True if observing player won
     TurnData turn;
     ActionSpaceData action_space;
 
-    // Each map is keyed by its ID, as in the Python code.
-    std::map<int, PlayerData> players;
-    std::map<int, CardData> cards;
-    std::map<int, PermanentData> permanents;
+    // Agent (observing player) data
+    PlayerData agent;
+    std::map<int, CardData> agent_cards; // Objects owned by agent
+    std::map<int, PermanentData> agent_permanents;
+
+    // Opponent data (visible portion)
+    PlayerData opponent;
+    std::map<int, CardData> opponent_cards; // Visible opponent objects
+    std::map<int, PermanentData> opponent_permanents;
 
     // Reads
     bool validate() const;      // Basic consistency checks
@@ -120,8 +121,12 @@ private:
     void populateTurn(const Game* game);
     void populateActionSpace(const Game* game);
     void populatePlayers(const Game* game);
-    void populateAllObjects(const Game* game);
+    void populateCards(const Game* game);
+    void populatePermanents(const Game* game);
 
+    // Helper for populating card data into agent/opponent sections
     void addCard(const Card* card, ZoneType zone);
+
+    // Helper for populating permanent data into agent/opponent sections
     void addPermanent(const Permanent* perm);
 };

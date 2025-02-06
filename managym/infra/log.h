@@ -20,7 +20,7 @@ enum struct Category {
 };
 
 // Initialize logging with filtered categories
-void initialize(const std::set<Category>& categories, bool debug_mode);
+void initialize(const std::set<Category>& categories, spdlog::level::level_enum level);
 
 // Convert category to display string
 std::string categoryToString(Category cat);

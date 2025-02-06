@@ -10,14 +10,13 @@ std::string FONT_PATH = "/Library/Fonts/Arial Unicode.ttf";
 
 // Helper to sort PlayerData by player_index
 static std::vector<PlayerData> getPlayersByIndex(const Observation* obs) {
-    std::vector<PlayerData> out;
-    out.reserve(obs->players.size());
-    for (const auto& [player_id, pdat] : obs->players) {
-        out.push_back(pdat);
-    }
-    std::sort(out.begin(), out.end(),
-              [](const PlayerData& a, const PlayerData& b) { return a.id < b.id; });
-    return out;
+    std::vector<PlayerData> players;
+    players.push_back(obs->agent);
+    players.push_back(obs->opponent);
+    std::sort(players.begin(), players.end(), [](const PlayerData& a, const PlayerData& b) {
+        return a.player_index < b.player_index;
+    });
+    return players;
 }
 
 // Constructor
@@ -219,134 +218,14 @@ void GameDisplay::drawHand(const PlayerData& player_data, size_t player_index,
                            const sf::FloatRect& bounds, const Observation* obs) {
     if (!obs)
         return;
-
-    LayoutMetrics layout = calculateLayout();
-
-    // Collect all "CardData" in zone=ZoneType::HAND for this player
-    // We'll sort them by ID just for stable ordering.
-    std::vector<int> hand_object_ids;
-    for (const auto& [obj_id, cdat] : obs->cards) {
-        if (cdat.zone == ZoneType::HAND && cdat.owner_id == player_data.id) {
-            hand_object_ids.push_back(obj_id);
-        }
-    }
-    std::sort(hand_object_ids.begin(), hand_object_ids.end());
-
-    float total_width =
-        (hand_object_ids.size() * layout.card_width) +
-        ((hand_object_ids.size() > 0 ? hand_object_ids.size() - 1 : 0) * layout.spacing);
-    float start_x = bounds.position.x + (bounds.size.x - total_width) / 2.f;
-    float y = bounds.position.y + (bounds.size.y - layout.card_height) / 2.f;
-
-    for (size_t i = 0; i < hand_object_ids.size(); i++) {
-        int oid = hand_object_ids[i];
-        auto cd_it = obs->cards.find(oid);
-        if (cd_it == obs->cards.end()) {
-            // If no CardData is found, skip
-            // (This can happen if there's a weird partial observation.)
-            continue;
-        }
-        float x = start_x + i * (layout.card_width + layout.spacing);
-        const CardData& cdat = cd_it->second;
-
-        drawCard(cdat, x, y, layout.card_width, layout.card_height,
-                 theme.LAND_FILL, // some color
-                 theme.LAND_GRADIENT);
-    }
+    // TODO: Re-implement this
 }
 
 void GameDisplay::drawBattlefield(const PlayerData& player_data, size_t player_index,
                                   const sf::FloatRect& bounds, const Observation* obs) {
     if (!obs)
         return;
-
-    const float TAPPED_CARD_EXTRA_SPACE = 1.5f;
-    LayoutMetrics layout = calculateLayout();
-
-    drawRoundedRect(bounds, theme.SECTION_BACKGROUND,
-                    sf::Color(theme.SECTION_BACKGROUND.r, theme.SECTION_BACKGROUND.g,
-                              theme.SECTION_BACKGROUND.b, 0),
-                    bounds.size.y * 0.02f);
-
-    float land_row_height = bounds.size.y * 0.4f * TAPPED_CARD_EXTRA_SPACE;
-    float creature_row_height = bounds.size.y * 0.4f * TAPPED_CARD_EXTRA_SPACE;
-    float card_spacing = layout.card_width * 1.1f;
-    float start_x = bounds.position.x + layout.margin;
-
-    // Separator line
-    sf::Vector2f separator_size = {bounds.size.x * 0.9f, 2.f};
-    sf::Vector2f separator_pos = {bounds.position.x + bounds.size.x * 0.05f,
-                                  bounds.position.y + land_row_height};
-    sf::RectangleShape separator(separator_size);
-    separator.setPosition(separator_pos);
-    separator.setFillColor(theme.BATTLEFIELD_DIVIDER);
-    window.draw(separator);
-
-    // Gather all permanent IDs for this player (battlefield)
-    std::vector<int> perm_ids;
-    for (const auto& [perm_id, pdat] : obs->permanents) {
-        // Check the base object
-        auto base_it = obs->cards.find(perm_id);
-        if (base_it == obs->cards.end()) {
-            // no base object => skip
-            continue;
-        }
-        const auto& base = base_it->second;
-        if (base.zone == ZoneType::BATTLEFIELD && base.owner_id == player_data.id) {
-            perm_ids.push_back(perm_id);
-        }
-    }
-    std::sort(perm_ids.begin(), perm_ids.end());
-
-    // We'll do a trivial example: if perm_id < 10 => "land", else "creature"
-    // In a real system you'd use registry_key or subtypes to check.
-    // We only have `registry_key` here. Let's do:
-    //    if cdata.registry_key < 100 => land, else creature
-    std::vector<int> lands;
-    std::vector<int> creatures;
-    for (int pid : perm_ids) {
-        auto cd_it = obs->cards.find(pid);
-        if (cd_it == obs->cards.end()) {
-            // No CardData => skip
-            // Possibly a weird partial observation
-            continue;
-        }
-        const auto& cdat = cd_it->second;
-        if (cdat.registry_key < 100) {
-            lands.push_back(pid);
-        } else {
-            creatures.push_back(pid);
-        }
-    }
-
-    // Draw lands row
-    for (size_t i = 0; i < lands.size(); i++) {
-        int perm_id = lands[i];
-        const auto& pdat = obs->permanents.at(perm_id);
-
-        // Also get CardData if you want to reference registry_key, etc.
-        auto cd_it = obs->cards.find(perm_id);
-        const CardData* cdat = (cd_it == obs->cards.end() ? nullptr : &cd_it->second);
-
-        float x = start_x + i * card_spacing;
-        float y = bounds.position.y + layout.margin;
-        drawPermanent(pdat, cdat, x, y, layout.card_width, layout.card_height, theme.LAND_FILL,
-                      theme.LAND_GRADIENT);
-    }
-
-    // Draw creatures row
-    for (size_t i = 0; i < creatures.size(); i++) {
-        int perm_id = creatures[i];
-        const auto& pdat = obs->permanents.at(perm_id);
-
-        auto cd_it = obs->cards.find(perm_id);
-        const CardData* cdat = (cd_it == obs->cards.end() ? nullptr : &cd_it->second);
-
-        float x = start_x + i * card_spacing;
-        float y = bounds.position.y + land_row_height + layout.margin;
-        drawPermanent(pdat, cdat, x, y, layout.card_width, layout.card_height, theme.CREATURE_FILL,
-                      theme.CREATURE_GRADIENT);
-    }
+    // TODO: Re-implement this
 }
 
 // Draw a rounded rectangle

@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    managym::log::initialize(categories, debug_mode);
+    managym::log::initialize(categories, debug_mode ? spdlog::level::debug : spdlog::level::info);
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

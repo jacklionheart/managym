@@ -22,9 +22,10 @@ Game::Game(std::vector<PlayerConfig> player_configs, bool headless, bool skip_tr
     }
 
     // Create players first
+    int index = 0;
     for (PlayerConfig& player_config : player_configs) {
-        players.emplace_back(
-            std::make_unique<Player>(id_generator->next(), player_config, card_registry.get()));
+        players.emplace_back(std::make_unique<Player>(id_generator->next(), index++, player_config,
+                                                      card_registry.get()));
     }
 
     std::vector<Player*> weak_players = {players[0].get(), players[1].get()};
@@ -86,8 +87,6 @@ Player* Game::nonActivePlayer() const { return turn_system->nonActivePlayer(); }
 std::vector<Player*> Game::playersStartingWithActive() const {
     return turn_system->playersStartingWithActive();
 }
-
-int Game::activePlayerIndex() const { return turn_system->active_player_index; }
 
 // Get players, starting with the agent player (or the first player if no agent)
 std::vector<Player*> Game::playersStartingWithAgent() const {

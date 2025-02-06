@@ -14,122 +14,111 @@
 
 // ------------------- Observation -------------------
 
-// Constructor: empty
-Observation::Observation() : game_over(false), won(false) {
-    // No-op
-}
+// Constructor: empty observation with defaults
+Observation::Observation() = default;
 
 // Constructor: builds from a Game*
 Observation::Observation(const Game* game) {
     // Basic flags
     if (game->isGameOver()) {
         game_over = true;
-        // "won" can be true if current player is winner, or if we just
-        // store global winner. Adjust as needed.
-        // For example, if there's a getWinnerId() or winnerIndex():
         int winner_idx = game->winnerIndex();
-        won = (winner_idx != -1 && game->players[winner_idx].get() == game->activePlayer());
+        // True if the agent won
+        won = (winner_idx != -1 && game->players[winner_idx].get() == game->agentPlayer());
     }
 
-    // Turn data
+    // Build the full state
     populateTurn(game);
-
-    // Action space
     populateActionSpace(game);
-
-    // Players
     populatePlayers(game);
-
-    // Objects
-    populateAllObjects(game);
+    populateCards(game);
+    populatePermanents(game);
 }
 
 // --------------------------------------------------
-// Data
+// Data Population
 // --------------------------------------------------
 
-// Populate the turn data
 void Observation::populateTurn(const Game* game) {
-    TurnData turn_data;
-    turn_data.turn_number = game->turn_system->global_turn_count;
-    turn_data.phase = game->turn_system->currentPhaseType();
-    turn_data.step = game->turn_system->currentStepType();
+    turn.turn_number = game->turn_system->global_turn_count;
+    turn.phase = game->turn_system->currentPhaseType();
+    turn.step = game->turn_system->currentStepType();
 
     if (game->activePlayer() != nullptr) {
-        turn_data.active_player_id = static_cast<int>(game->activePlayer()->id);
+        turn.active_player_id = static_cast<int>(game->activePlayer()->id);
     } else {
-        turn_data.active_player_id = -1;
+        turn.active_player_id = -1;
     }
 
     if (game->agentPlayer() != nullptr) {
-        turn_data.agent_player_id = static_cast<int>(game->agentPlayer()->id);
+        turn.agent_player_id = static_cast<int>(game->agentPlayer()->id);
     } else {
-        turn_data.agent_player_id = -1;
+        turn.agent_player_id = -1;
     }
-
-    turn = turn_data;
 }
 
-// Populate the action space
 void Observation::populateActionSpace(const Game* game) {
-
     action_space.action_space_type = game->current_action_space->type;
 
     // Copy each available action
     const std::vector<std::unique_ptr<Action>>& game_actions = game->current_action_space->actions;
-    for (size_t i = 0; i < game_actions.size(); i++) {
+    for (const auto& act : game_actions) {
         ActionOption opt;
-        opt.action_type = game_actions[i]->type;
-        opt.focus = game_actions[i]->focus();
+        opt.action_type = act->type;
+        opt.focus = act->focus();
         action_space.actions.push_back(opt);
     }
 }
 
-// Populate all PlayerData
 void Observation::populatePlayers(const Game* game) {
-    // The game typically has a vector of unique_ptr<Player>.
-    // We'll gather them into a map<int, PlayerData>, keyed by player->id
-    for (const Player* player : game->playersStartingWithAgent()) {
-        PlayerData pdat;
-        pdat.id = static_cast<int>(player->id);
-        pdat.is_active = (player == game->activePlayer());
-        if (game->current_action_space != nullptr && game->current_action_space->player == player) {
-            pdat.is_agent = true;
-        } else {
-            pdat.is_agent = false;
-        }
-        pdat.life = player->life;
+    const Player* agent_player = game->agentPlayer();
+    assert(agent_player != nullptr);
 
-        // Populate zone_counts
-        // Suppose the Game or Zones system has a way to count how many
-        // objects or cards are in each zone for p.
-        // We'll do something like:
-        for (int z = 0; z < 7; z++) {
-            pdat.zone_counts[z] = game->zones->size(static_cast<ZoneType>(z), player);
-        }
+    // Fill agent data
+    agent.player_index = static_cast<int>(agent_player->index);
+    agent.id = static_cast<int>(agent_player->id);
+    agent.is_agent = true; // By definition
+    agent.is_active = (agent_player == game->activePlayer());
+    agent.life = agent_player->life;
 
-        players[pdat.id] = pdat;
+    // Populate agent zone_counts
+    for (int z = 0; z < 7; z++) {
+        agent.zone_counts[z] = game->zones->size(static_cast<ZoneType>(z), agent_player);
+    }
+
+    // Find and fill opponent data
+    const Player* opponent_player = nullptr;
+    for (const auto& p : game->playersStartingWithAgent()) {
+        if (p != agent_player) {
+            opponent_player = p;
+            break;
+        }
+    }
+    assert(opponent_player != nullptr);
+
+    opponent.player_index = static_cast<int>(opponent_player->index);
+    opponent.id = static_cast<int>(opponent_player->id);
+    opponent.is_agent = false; // By definition
+    opponent.is_active = (opponent_player == game->activePlayer());
+    opponent.life = opponent_player->life;
+
+    // Populate opponent zone_counts
+    for (int z = 0; z < 7; z++) {
+        opponent.zone_counts[z] = game->zones->size(static_cast<ZoneType>(z), opponent_player);
     }
 }
 
-// Populate all object types
-void Observation::populateAllObjects(const Game* game) {
+void Observation::populateCards(const Game* game) {
     const Player* agent_player = game->agentPlayer();
-
     assert(agent_player != nullptr);
-    // 1) HAND: visible only to the owner (observer)
+
+    // 1) HAND: visible only to the owner
     const Hand* hand = game->zones->constHand();
     for (const Card* card : hand->cards.at(agent_player)) {
         addCard(card, ZoneType::HAND);
     }
 
-    // 2) BATTLEFIELD: gather for all players
-    const Battlefield* bf = game->zones->constBattlefield();
-    for (const std::unique_ptr<Permanent>& perm : bf->permanents.at(agent_player)) {
-        addPermanent(perm.get());
-    }
-
-    // 3) GRAVEYARD: gather for all players
+    // 2) GRAVEYARD: gather for all players (public info)
     const Graveyard* gy = game->zones->constGraveyard();
     for (const Player* player : game->playersStartingWithAgent()) {
         for (const Card* card : gy->cards.at(player)) {
@@ -137,7 +126,7 @@ void Observation::populateAllObjects(const Game* game) {
         }
     }
 
-    // 4) EXILE: gather for all players
+    // 3) EXILE: gather for all players (public info)
     const Exile* ex = game->zones->constExile();
     for (const Player* player : game->playersStartingWithAgent()) {
         for (const Card* card : ex->cards.at(player)) {
@@ -145,7 +134,7 @@ void Observation::populateAllObjects(const Game* game) {
         }
     }
 
-    // 5) STACK
+    // 4) STACK
     const Stack* stack = game->zones->constStack();
     // 0: top of stack
     for (int i = stack->totalSize() - 1; i >= 0; i--) {
@@ -158,16 +147,11 @@ void Observation::addCard(const Card* card, ZoneType zone) {
     CardData cdata;
     cdata.id = static_cast<int>(card->id);
     cdata.registry_key = static_cast<int>(card->registry_key);
-    ManaCost mc = ManaCost();
-    if (card->mana_cost.has_value()) {
-        mc = card->mana_cost.value();
-    } else {
-        mc = ManaCost();
-        mc.mana_value = -1;
-    }
+    ManaCost mc = card->mana_cost.value_or(ManaCost());
     cdata.mana_cost = mc;
 
     cdata.name = card->name;
+    cdata.owner_id = static_cast<int>(card->owner->id);
     cdata.zone = zone;
 
     cdata.card_types.is_castable = card->types.isCastable();
@@ -183,15 +167,28 @@ void Observation::addCard(const Card* card, ZoneType zone) {
     cdata.card_types.is_kindred = card->types.isKindred();
     cdata.card_types.is_battle = card->types.isBattle();
 
-    cdata.owner_id = static_cast<int>(card->owner->id);
-
-    cards[cdata.id] = cdata;
+    // Add to appropriate section based on owner
+    if (cdata.owner_id == agent.id) {
+        agent_cards[cdata.id] = cdata;
+    } else {
+        opponent_cards[cdata.id] = cdata;
+    }
 }
 
-// Helper to add a Permanent to objects & permanents (and also to cards)
-void Observation::addPermanent(const Permanent* perm) {
+void Observation::populatePermanents(const Game* game) {
+    const Player* agent_player = game->agentPlayer();
+    assert(agent_player != nullptr);
 
-    // Also fill PermanentData
+    // Gather from battlefield (all public info)
+    const Battlefield* bf = game->zones->constBattlefield();
+    for (const Player* player : game->playersStartingWithAgent()) {
+        for (const auto& perm : bf->permanents.at(player)) {
+            addPermanent(perm.get());
+        }
+    }
+}
+
+void Observation::addPermanent(const Permanent* perm) {
     PermanentData pdat;
     pdat.id = perm->id;
     pdat.controller_id = perm->controller->id;
@@ -200,100 +197,113 @@ void Observation::addPermanent(const Permanent* perm) {
     pdat.damage = perm->damage;
     pdat.is_summoning_sick = perm->summoning_sick;
 
-    permanents[perm->id] = pdat;
+    // Add to appropriate section based on controller
+    if (pdat.controller_id == agent.id) {
+        agent_permanents[pdat.id] = pdat;
+    } else {
+        opponent_permanents[pdat.id] = pdat;
+    }
 
+    // Also make sure we have the underlying card
     addCard(perm->card, ZoneType::BATTLEFIELD);
 }
 
 // --------------------------------------------------
-// Reads
+// Validation
 // --------------------------------------------------
+
 bool Observation::validate() const {
-    // 1) Turn data check
-    if (turn.turn_number < 0) {
+    // Check agent/opponent are distinct
+    if (agent.id == opponent.id) {
         return false;
     }
 
-    // 2) Players
-    // Check that the map key matches the player's id field
-    for (std::map<int, PlayerData>::const_iterator it = players.begin(); it != players.end();
-         ++it) {
-        int pid = it->first;
-        const PlayerData& pdata = it->second;
-        if (pdata.id != pid) {
+    // Check exactly one is_agent
+    if (agent.is_agent == opponent.is_agent) {
+        return false;
+    }
+
+    // Validate card ownership matches section
+    for (const auto& [_, card] : agent_cards) {
+        if (card.owner_id != agent.id) {
+            return false;
+        }
+    }
+    for (const auto& [_, card] : opponent_cards) {
+        if (card.owner_id != opponent.id) {
             return false;
         }
     }
 
-    // 4) Cards
-    for (std::map<int, CardData>::const_iterator it = cards.begin(); it != cards.end(); ++it) {
-        int cid = it->first;
-        const CardData& cdat = it->second;
-        if (cdat.id != cid) {
+    // Validate permanent control matches section
+    for (const auto& [_, perm] : agent_permanents) {
+        if (perm.controller_id != agent.id) {
+            return false;
+        }
+    }
+    for (const auto& [_, perm] : opponent_permanents) {
+        if (perm.controller_id != opponent.id) {
             return false;
         }
     }
 
-    // 5) Permanents
-    for (std::map<int, PermanentData>::const_iterator it = permanents.begin();
-         it != permanents.end(); ++it) {
-        int pid = it->first;
-        const PermanentData& pdat = it->second;
-        if (pdat.id != pid) {
-            return false;
-        }
-    }
-
-    // If we got here, it appears consistent
     return true;
 }
 
-// Convert to a JSON-like string for debugging or serialization
 std::string Observation::toJSON() const {
     std::ostringstream out;
     out << "{\n";
 
-    // game_over / won
-    out << fmt::format(R"(  "game_over": {},)", (game_over ? "true" : "false")) << "\n";
-    out << fmt::format(R"(  "won": {},)", (won ? "true" : "false")) << "\n";
+    // Global state
+    out << fmt::format("  \"game_over\": {},\n", game_over ? "true" : "false");
+    out << fmt::format("  \"won\": {},\n", won ? "true" : "false");
 
-    // Turn
-    out << R"(  "turn": {)" << "\n";
-    out << fmt::format(R"(    "turn_number": {},)", turn.turn_number) << "\n";
-    out << fmt::format(R"(    "phase": {},)", static_cast<int>(turn.phase)) << "\n";
-    out << fmt::format(R"(    "step": {},)", static_cast<int>(turn.step)) << "\n";
-    out << fmt::format(R"(    "active_player_id": {},)", turn.active_player_id) << "\n";
-    out << fmt::format(R"(    "agent_player_id": {})", turn.agent_player_id) << "\n";
+    // Turn state
+    out << "  \"turn\": {\n";
+    out << fmt::format("    \"turn_number\": {},\n", turn.turn_number);
+    out << fmt::format("    \"phase\": {},\n", static_cast<int>(turn.phase));
+    out << fmt::format("    \"step\": {},\n", static_cast<int>(turn.step));
+    out << fmt::format("    \"active_player_id\": {},\n", turn.active_player_id);
+    out << fmt::format("    \"agent_player_id\": {}\n", turn.agent_player_id);
     out << "  },\n";
 
-    // ActionSpace
-    out << R"(  "action_space": {)" << "\n";
-    out << fmt::format(R"(    "action_space_type": {},)",
-                       static_cast<int>(action_space.action_space_type))
-        << "\n";
-    // actions
-    out << R"(    "actions": [)" << "\n";
-    for (size_t i = 0; i < action_space.actions.size(); i++) {
-        const ActionOption& act = action_space.actions[i];
+    // Actions
+    out << "  \"action_space\": {\n";
+    out << fmt::format("    \"type\": {},\n", static_cast<int>(action_space.action_space_type));
+    out << "    \"actions\": [\n";
+    for (size_t i = 0; i < action_space.actions.size(); ++i) {
+        const auto& action = action_space.actions[i];
         out << "      {\n";
-        out << fmt::format(R"(        "action_type": {},)", static_cast<int>(act.action_type))
-            << "\n";
-        out << R"(        "focus": [)";
-        for (size_t j = 0; j < act.focus.size(); j++) {
-            out << act.focus[j];
-            if (j + 1 < act.focus.size()) {
-                out << ",";
-            }
+        out << fmt::format("        \"type\": {},\n", static_cast<int>(action.action_type));
+        out << "        \"focus\": [";
+        for (size_t j = 0; j < action.focus.size(); ++j) {
+            out << action.focus[j];
+            if (j + 1 < action.focus.size())
+                out << ", ";
         }
         out << "]\n      }";
-        if (i + 1 < action_space.actions.size()) {
+        if (i + 1 < action_space.actions.size())
             out << ",";
-        }
         out << "\n";
     }
-    out << "    ],\n";
+    out << "    ]\n  },\n";
 
-    out << "]\n  },\n";
+    // Helper for player data
+    auto writePlayer = [&out](const std::string& name, const PlayerData& player) {
+        out << fmt::format("  \"{}\": {{\n", name);
+        out << fmt::format("    \"player_index\": {},\n", player.player_index);
+        out << fmt::format("    \"id\": {},\n", player.id);
+        out << fmt::format("    \"is_active\": {},\n", player.is_active ? "true" : "false");
+        out << fmt::format("    \"is_agent\": {},\n", player.is_agent ? "true" : "false");
+        out << fmt::format("    \"life\": {},\n", player.life);
+        out << "    \"zone_counts\": [";
+        for (size_t i = 0; i < player.zone_counts.size(); ++i) {
+            out << player.zone_counts[i];
+            if (i + 1 < player.zone_counts.size())
+                out << ", ";
+        }
+        out << "]\n  },\n";
+    };
 
     // Helper lambda to serialize a map<int, T>
     auto serializeMap = [&](const std::string& name, auto& mp, auto formatter) {
@@ -310,61 +320,72 @@ std::string Observation::toJSON() const {
             formatter(the_id, val);
         }
         out << "\n  }";
+        out << "]\n  },\n";
     };
 
-    // players
-    serializeMap("players", players, [&](int pid, const PlayerData& p) {
-        out << fmt::format(R"(    "{}": {{)", pid) << "\n";
-        out << fmt::format(R"(      "id": {},)", p.id) << "\n";
-        out << fmt::format(R"(      "is_active": {},)", (p.is_active ? "true" : "false")) << "\n";
-        out << fmt::format(R"(      "is_agent": {},)", (p.is_agent ? "true" : "false")) << "\n";
-        out << fmt::format(R"(      "life": {},)", p.life) << "\n";
-        // zone_counts
-        out << R"(      "zone_counts": [)";
-        for (size_t i = 0; i < p.zone_counts.size(); i++) {
-            out << p.zone_counts[i];
-            if (i + 1 < p.zone_counts.size()) {
-                out << ",";
+    // Helper for card data
+    auto writeCards = [&out](const std::string& name, const std::map<int, CardData>& cards) {
+        out << fmt::format("  \"{}\": {{\n", name);
+        size_t i = 0;
+        for (const auto& [id, card] : cards) {
+            out << fmt::format("    \"{}\": {{\n", id);
+            out << fmt::format("      \"id\": {},\n", card.id);
+            out << fmt::format("      \"registry_key\": {},\n", card.registry_key);
+            out << fmt::format("      \"name\": \"{}\",\n", card.name);
+            out << fmt::format("      \"zone\": {},\n", static_cast<int>(card.zone));
+            out << fmt::format("      \"owner_id\": {},\n", card.owner_id);
+            out << fmt::format("      \"power\": {},\n", card.power);
+            out << fmt::format("      \"toughness\": {},\n", card.toughness);
+            out << "      \"mana_cost\": {\n";
+            out << "        \"cost\": [";
+            for (size_t j = 0; j < card.mana_cost.cost.size(); ++j) {
+                out << card.mana_cost.cost[j];
+                if (j + 1 < card.mana_cost.cost.size())
+                    out << ", ";
             }
-        }
-        out << "],\n";
-        out << "]\n    }";
-    });
-    out << ",\n";
-
-    // cards
-    serializeMap("cards", cards, [&](int cid, const CardData& cdat) {
-        out << fmt::format(R"(    "{}": {{)", cid) << "\n";
-        out << fmt::format(R"(      "id": {},)", cdat.id) << "\n";
-        out << fmt::format(R"(      "registry_key": {},)", cdat.registry_key) << "\n";
-        out << R"(      "mana_cost": {)" << "\n";
-        out << R"(        "cost": [)";
-        for (size_t i = 0; i < cdat.mana_cost.cost.size(); i++) {
-            out << cdat.mana_cost.cost[i];
-            if (i + 1 < cdat.mana_cost.cost.size()) {
+            out << "],\n";
+            out << fmt::format("        \"mana_value\": {}\n", card.mana_cost.mana_value);
+            out << "      }\n    }";
+            if (++i < cards.size())
                 out << ",";
-            }
+            out << "\n";
         }
-        out << "],\n";
-        out << fmt::format(R"(        "mana_value": {})", cdat.mana_cost.mana_value) << "\n";
-        out << "      }\n    }";
-    });
-    out << ",\n";
+        out << "  },\n";
+    };
 
-    // permanents
-    serializeMap("permanents", permanents, [&](int pid, const PermanentData& pdat) {
-        out << fmt::format(R"(    "{}": {{)", pid) << "\n";
-        out << fmt::format(R"(      "id": {},)", pdat.id) << "\n";
-        out << fmt::format(R"(      "tapped": {},)", (pdat.tapped ? "true" : "false")) << "\n";
-        out << fmt::format(R"(      "damage": {},)", pdat.damage) << "\n";
-        out << fmt::format(R"(      "is_summoning_sick": {})",
-                           (pdat.is_summoning_sick ? "true" : "false"))
-            << "\n";
-        out << "    }";
-    });
-    out << ",\n";
+    // Helper for permanent data
+    auto writePermanents = [&out](const std::string& name,
+                                  const std::map<int, PermanentData>& perms) {
+        out << fmt::format("  \"{}\": {{\n", name);
+        size_t i = 0;
+        for (const auto& [id, perm] : perms) {
+            out << fmt::format("    \"{}\": {{\n", id);
+            out << fmt::format("      \"id\": {},\n", perm.id);
+            out << fmt::format("      \"card_id\": {},\n", perm.card_id);
+            out << fmt::format("      \"controller_id\": {},\n", perm.controller_id);
+            out << fmt::format("      \"tapped\": {},\n", perm.tapped ? "true" : "false");
+            out << fmt::format("      \"damage\": {},\n", perm.damage);
+            out << fmt::format("      \"is_summoning_sick\": {}\n",
+                               perm.is_summoning_sick ? "true" : "false");
+            out << "    }";
+            if (++i < perms.size())
+                out << ",";
+            out << "\n";
+        }
+        out << "  }";
+        if (name != "opponent_permanents")
+            out << ","; // No comma after last field
+        out << "\n";
+    };
 
-    out << "\n}\n";
+    // Write all data using helpers
+    writePlayer("agent", agent);
+    writeCards("agent_cards", agent_cards);
+    writePermanents("agent_permanents", agent_permanents);
+    writePlayer("opponent", opponent);
+    writeCards("opponent_cards", opponent_cards);
+    writePermanents("opponent_permanents", opponent_permanents);
 
+    out << "}";
     return out.str();
 }

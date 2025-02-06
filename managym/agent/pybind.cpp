@@ -2,6 +2,7 @@
 #include "managym/agent/env.h"
 #include "managym/agent/observation.h"
 #include "managym/flow/game.h"
+#include "managym/infra/log.h"
 
 #include <pybind11/chrono.h>
 #include <pybind11/complex.h>
@@ -30,8 +31,8 @@ PYBIND11_MODULE(_managym, m) {
         Example usage:
             env = managym.Env()
             obs, info = env.reset([
-                managym.PlayerConfig("Alice", {"Mountain": 40}),
-                managym.PlayerConfig("Bob", {"Forest": 40})
+                managym.PlayerConfig("Urza", {"Island": 40}),
+                managym.PlayerConfig("Gaea", {"Forest": 40})
             ])
             # ...
     )docstring";
@@ -40,6 +41,9 @@ PYBIND11_MODULE(_managym, m) {
     registerEnums(m);
     registerDataClasses(m);
     registerAPI(m);
+
+    managym::log::initialize(std::set<managym::log::Category>(), spdlog::level::warn);
+    spdlog::set_level(spdlog::level::warn);
 }
 
 static void registerExceptions(py::module& m) {
@@ -158,6 +162,7 @@ static void registerDataClasses(py::module& m) {
 
     // ----------------- Player -----------------
     py::class_<PlayerData>(m, "Player", R"docstring(
+        player_index: int
         id: int
         is_agent: bool
         is_active: bool
@@ -165,6 +170,7 @@ static void registerDataClasses(py::module& m) {
         zone_counts: list[int]  # 7-element array in C++
     )docstring")
         .def(py::init<>())
+        .def_readwrite("player_index", &PlayerData::player_index)
         .def_readwrite("id", &PlayerData::id)
         .def_readwrite("is_agent", &PlayerData::is_agent)
         .def_readwrite("is_active", &PlayerData::is_active)
@@ -251,8 +257,6 @@ static void registerDataClasses(py::module& m) {
         controller_id: int
         tapped: bool
         damage: int
-        is_creature: bool
-        is_land: bool
         is_summoning_sick: bool
     )docstring")
         .def(py::init<>())
@@ -260,8 +264,6 @@ static void registerDataClasses(py::module& m) {
         .def_readwrite("controller_id", &PermanentData::controller_id)
         .def_readwrite("tapped", &PermanentData::tapped)
         .def_readwrite("damage", &PermanentData::damage)
-        .def_readwrite("is_creature", &PermanentData::is_creature)
-        .def_readwrite("is_land", &PermanentData::is_land)
         .def_readwrite("is_summoning_sick", &PermanentData::is_summoning_sick);
 
     // ----------------- Action -----------------
@@ -285,27 +287,59 @@ static void registerDataClasses(py::module& m) {
         .def_readwrite("focus", &ActionSpaceData::focus);
 
     // ----------------- Observation -----------------
-    py::class_<Observation>(m, "Observation", R"docstring(
-        game_over: bool
-        won: bool
-        turn: Turn
-        action_space: ActionSpace
-        players: dict[int, Player]
-        cards: dict[int, Card]
-        permanents: dict[int, Permanent]
-    )docstring")
-        .def(py::init<>())
-        .def_readwrite("game_over", &Observation::game_over)
-        .def_readwrite("won", &Observation::won)
-        .def_readwrite("turn", &Observation::turn)
-        .def_readwrite("action_space", &Observation::action_space)
-        .def_readwrite("players", &Observation::players)
-        .def_readwrite("cards", &Observation::cards)
-        .def_readwrite("permanents", &Observation::permanents)
-        .def("validate", &Observation::validate,
-             R"docstring(Perform basic consistency checks on the observation.)docstring")
-        .def("toJSON", &Observation::toJSON,
-             R"docstring(Generate a JSON-like string representation of the observation.)docstring");
+   py::class_<Observation>(m, "Observation", R"docstring(
+       Game state from a single player's perspective.
+
+       game_over: bool
+           Whether the game has ended
+       won: bool 
+           Whether the observing player won
+       turn: Turn
+           Current turn information
+       action_space: ActionSpace
+           Available actions for the current player
+
+       Agent (observing player) data:
+       agent: Player 
+           The observing player's state
+       agent_cards: dict[int, Card]
+           Cards owned by the observing player
+       agent_permanents: dict[int, Permanent]
+           Permanents controlled by the observing player
+
+       Opponent data (visible portion):
+       opponent: Player
+           The opponent's visible state
+       opponent_cards: dict[int, Card] 
+           Opponent's visible cards
+       opponent_permanents: dict[int, Permanent]
+           Opponent's permanents on the battlefield
+   )docstring")
+       .def(py::init<>())
+       .def_readwrite("game_over", &Observation::game_over)
+       .def_readwrite("won", &Observation::won)
+       .def_readwrite("turn", &Observation::turn)
+       .def_readwrite("action_space", &Observation::action_space)
+       // Agent data
+       .def_readwrite("agent", &Observation::agent)
+       .def_readwrite("agent_cards", &Observation::agent_cards)
+       .def_readwrite("agent_permanents", &Observation::agent_permanents)
+       // Opponent data
+       .def_readwrite("opponent", &Observation::opponent)
+       .def_readwrite("opponent_cards", &Observation::opponent_cards)
+       .def_readwrite("opponent_permanents", &Observation::opponent_permanents)
+       .def("validate", &Observation::validate,
+            R"docstring(
+            Perform basic consistency checks on the observation:
+            - Validate player identity matches (agent vs opponent) 
+            - Check card ownership matches section
+            - Verify permanent controllers match section
+            )docstring")
+       .def("toJSON", &Observation::toJSON,
+            R"docstring(
+            Generate a JSON-like string representation of the observation.
+            Preserves the agent/opponent organization.
+            )docstring");
 }
 
 static void registerAPI(py::module& m) {
@@ -316,9 +350,7 @@ static void registerAPI(py::module& m) {
             seed (int): Random seed for environment
             skip_trivial (bool): Skip trivial actionspaces (num_actions=1)
     )docstring")
-        .def(py::init<int, bool>(),
-             py::arg("seed") = 0,
-             py::arg("skip_trivial") = false)
+        .def(py::init<int, bool>(), py::arg("seed") = 0, py::arg("skip_trivial") = false)
         .def(
             "reset",
             [](Env& env, const std::vector<PlayerConfig>& configs) {

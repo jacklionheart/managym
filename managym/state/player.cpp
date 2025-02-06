@@ -4,8 +4,8 @@
 #include "managym/cardsets/card_registry.h"
 #include "managym/infra/log.h"
 
-Player::Player(const ObjectId& id, const PlayerConfig& config, CardRegistry* registry)
-    : GameObject(id), name(config.name), deck(instantiateDeck(config, registry)) {
+Player::Player(const ObjectId& id, int index, const PlayerConfig& config, CardRegistry* registry)
+    : GameObject(id), index(index), name(config.name), deck(instantiateDeck(config, registry)) {
     managym::log::debug(Category::STATE, "Created player {} (id={}) deck={}", name, id,
                         config.deckList());
 }
