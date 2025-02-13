@@ -206,12 +206,12 @@ TEST_F(TestGame, CardCountsPreserved) {
 TEST_F(TestGame, PlayersStartingWithAgentOrder) {
     // Create a simple game with 2 players.
     // (Assume elvesVsOgres() creates a game with 2 players.)
-    auto game = elvesVsOgres(/*headless=*/true, 10, 10, 10, 10);
+    auto game = elvesVsOgres(10, 10, 10, 10);
     ASSERT_EQ(game->players.size(), 2u) << "Game should have exactly 2 players.";
 
     // Force the acting (agent) player to be the second player.
     // Create a dummy ActionSpace with an empty actions vector and assign its player pointer.
-    std::vector<std::unique_ptr<Action>> dummyActions;  // empty dummy actions
+    std::vector<std::unique_ptr<Action>> dummyActions; // empty dummy actions
     game->current_action_space = std::make_unique<ActionSpace>(
         ActionSpaceType::PRIORITY, std::move(dummyActions), game->players[1].get());
 

@@ -8,14 +8,13 @@
 
 #include <gtest/gtest.h>
 
-// In the new model, the Observation no longer has a top‐level "players", "cards" or "permanents" map.
-// Instead, we now have separate agent/opponent fields and maps.
-// For example, the agent’s cards are stored in obs.agent_cards and the opponent’s in obs.opponent_cards.
+// In the new model, the Observation no longer has a top‐level "players", "cards" or "permanents"
+// map. Instead, we now have separate agent/opponent fields and maps. For example, the agent’s cards
+// are stored in obs.agent_cards and the opponent’s in obs.opponent_cards.
 
-// Helper: Given the game’s players, find the agent and opponent pointers according to the new model.
-static const Player* getGameAgent(const Game* game) {
-    return game->agentPlayer();
-}
+// Helper: Given the game’s players, find the agent and opponent pointers according to the new
+// model.
+static const Player* getGameAgent(const Game* game) { return game->agentPlayer(); }
 
 static const Player* getGameOpponent(const Game* game) {
     const Player* game_agent = game->agentPlayer();
@@ -36,13 +35,12 @@ protected:
     void SetUp() override {
         ManagymTest::SetUp();
         // Create a game where each deck has 60 total cards (for example, 30 lands and 30 creatures)
-        game = elvesVsOgres(/*headless=*/true,
-                            /*redMountains=*/30,
+        game = elvesVsOgres(/*redMountains=*/30,
                             /*redOgres=*/30,
                             /*greenForests=*/30,
                             /*greenElves=*/30);
         green_player = game->players[0].get();
-        red_player   = game->players[1].get();
+        red_player = game->players[1].get();
     }
 
     // Helper to verify mandatory observation fields step by step.
@@ -58,13 +56,13 @@ protected:
 
         // 2. Verify global game flags
         ASSERT_FALSE(obs->game_over) << "Game should not be over in initial state";
-        ASSERT_FALSE(obs->won)      << "Game should not be 'won' in initial state";
+        ASSERT_FALSE(obs->won) << "Game should not be 'won' in initial state";
         managym::log::debug(Category::TEST, "Game flags valid");
 
         // 3. Verify turn data
         ASSERT_GE(obs->turn.turn_number, 0) << "Turn number should be >= 0";
         ASSERT_GE(obs->turn.active_player_id, 0) << "Active player ID should be >= 0";
-        ASSERT_GE(obs->turn.agent_player_id, 0)  << "Agent player ID should be >= 0";
+        ASSERT_GE(obs->turn.agent_player_id, 0) << "Agent player ID should be >= 0";
         managym::log::debug(Category::TEST, "Turn data valid");
 
         // 4. Verify player data
@@ -81,13 +79,14 @@ protected:
 
         for (size_t i = 0; i < obs->agent.zone_counts.size(); i++) {
             ZoneType zt = static_cast<ZoneType>(i);
-            int expected_agent   = game->zones->size(zt, game_agent);
+            int expected_agent = game->zones->size(zt, game_agent);
             int expected_opponent = game->zones->size(zt, game_opponent);
             ASSERT_EQ(obs->agent.zone_counts[i], expected_agent)
                 << "Zone index=" << i << " mismatch for agent (obs=" << obs->agent.zone_counts[i]
                 << ", real=" << expected_agent << ")";
             ASSERT_EQ(obs->opponent.zone_counts[i], expected_opponent)
-                << "Zone index=" << i << " mismatch for opponent (obs=" << obs->opponent.zone_counts[i]
+                << "Zone index=" << i
+                << " mismatch for opponent (obs=" << obs->opponent.zone_counts[i]
                 << ", real=" << expected_opponent << ")";
         }
         managym::log::debug(Category::TEST, "Player data valid");
@@ -98,10 +97,11 @@ protected:
         for (const auto& action : obs->action_space.actions) {
             if (!action.focus.empty()) {
                 for (int focus_id : action.focus) {
-                    bool found = (obs->agent_cards.find(focus_id) != obs->agent_cards.end()) ||
-                                 (obs->opponent_cards.find(focus_id) != obs->opponent_cards.end()) ||
-                                 (obs->agent_permanents.find(focus_id) != obs->agent_permanents.end()) ||
-                                 (obs->opponent_permanents.find(focus_id) != obs->opponent_permanents.end());
+                    bool found =
+                        (obs->agent_cards.find(focus_id) != obs->agent_cards.end()) ||
+                        (obs->opponent_cards.find(focus_id) != obs->opponent_cards.end()) ||
+                        (obs->agent_permanents.find(focus_id) != obs->agent_permanents.end()) ||
+                        (obs->opponent_permanents.find(focus_id) != obs->opponent_permanents.end());
                     ASSERT_TRUE(found)
                         << "Focus ID=" << focus_id << " not found in any object collection";
                 }
@@ -137,8 +137,7 @@ TEST_F(TestObservation, InitialStateCorrectlyObserved) {
     EXPECT_EQ(obs.opponent.zone_counts[(int)ZoneType::HAND], 7)
         << "Opponent initial hand size should be 7";
 
-    EXPECT_EQ(countCards(obs.agent.zone_counts), 60)
-        << "Agent should have exactly 60 total cards";
+    EXPECT_EQ(countCards(obs.agent.zone_counts), 60) << "Agent should have exactly 60 total cards";
     EXPECT_EQ(countCards(obs.opponent.zone_counts), 60)
         << "Opponent should have exactly 60 total cards";
 }
@@ -154,32 +153,24 @@ TEST_F(TestObservation, CardDataCorrectlyOrganized) {
     // Verify agent card data.
     for (const auto& [cid, card] : obs.agent_cards) {
         EXPECT_EQ(cid, card.id) << "Agent card map key should match card id";
-        EXPECT_EQ(card.owner_id, obs.agent.id)
-            << "Agent card owner must equal agent id";
+        EXPECT_EQ(card.owner_id, obs.agent.id) << "Agent card owner must equal agent id";
 
         if (card.card_types.is_creature) {
-            EXPECT_TRUE(card.card_types.is_permanent)
-                << "Creature should be permanent";
-            EXPECT_TRUE(card.card_types.is_castable)
-                << "Creature should be castable";
-            EXPECT_GT(card.mana_cost.mana_value, 0)
-                << "Creature must have mana cost > 0";
+            EXPECT_TRUE(card.card_types.is_permanent) << "Creature should be permanent";
+            EXPECT_TRUE(card.card_types.is_castable) << "Creature should be castable";
+            EXPECT_GT(card.mana_cost.mana_value, 0) << "Creature must have mana cost > 0";
         }
         if (card.card_types.is_land) {
-            EXPECT_TRUE(card.card_types.is_permanent)
-                << "Land should be permanent";
-            EXPECT_FALSE(card.card_types.is_castable)
-                << "Land should not be castable";
-            EXPECT_FALSE(card.mana_cost.mana_value > 0)
-                << "Land should not have a mana cost";
+            EXPECT_TRUE(card.card_types.is_permanent) << "Land should be permanent";
+            EXPECT_FALSE(card.card_types.is_castable) << "Land should not be castable";
+            EXPECT_FALSE(card.mana_cost.mana_value > 0) << "Land should not have a mana cost";
         }
     }
 
     // Verify opponent card data.
     for (const auto& [cid, card] : obs.opponent_cards) {
         EXPECT_EQ(cid, card.id) << "Opponent card map key should match card id";
-        EXPECT_EQ(card.owner_id, obs.opponent.id)
-            << "Opponent card owner must equal opponent id";
+        EXPECT_EQ(card.owner_id, obs.opponent.id) << "Opponent card owner must equal opponent id";
         // Opponent hand cards are hidden.
         EXPECT_NE(card.zone, ZoneType::HAND)
             << "Opponent hand cards should be hidden (found card: " << card.name << ")";
@@ -213,8 +204,7 @@ TEST_F(TestObservation, PermanentDataCorrectlyOrganized) {
     // Verify agent permanents.
     for (const auto& [pid, perm] : obs.agent_permanents) {
         EXPECT_EQ(pid, perm.id) << "Agent permanent map key should match permanent id";
-        EXPECT_EQ(perm.controller_id, obs.agent.id)
-            << "Agent permanent's controller must be agent";
+        EXPECT_EQ(perm.controller_id, obs.agent.id) << "Agent permanent's controller must be agent";
     }
     // Verify opponent permanents.
     for (const auto& [pid, perm] : obs.opponent_permanents) {
@@ -265,11 +255,9 @@ TEST_F(TestObservation, ActionSpaceCorrectlyPopulated) {
     for (size_t i = 0; i < obs.action_space.actions.size(); i++) {
         const auto& obs_act = obs.action_space.actions[i];
         const auto& real_act = actual_aspace->actions[i];
-        EXPECT_EQ(static_cast<int>(obs_act.action_type),
-                  static_cast<int>(real_act->type))
+        EXPECT_EQ(static_cast<int>(obs_act.action_type), static_cast<int>(real_act->type))
             << "Mismatch in action type at index " << i;
-        EXPECT_EQ(obs_act.focus, real_act->focus())
-            << "Mismatch in focus vector at index " << i;
+        EXPECT_EQ(obs_act.focus, real_act->focus()) << "Mismatch in focus vector at index " << i;
     }
 }
 
@@ -277,20 +265,15 @@ TEST_F(TestObservation, ToJSONProducesValidString) {
     Observation obs(game.get());
     std::string json = obs.toJSON();
 
-    EXPECT_NE(json.find("\"game_over\":"), std::string::npos)
-        << "JSON should include 'game_over'";
-    EXPECT_NE(json.find("\"won\":"), std::string::npos)
-        << "JSON should include 'won'";
-    EXPECT_NE(json.find("\"turn\":"), std::string::npos)
-        << "JSON should include 'turn'";
-    EXPECT_NE(json.find("\"agent\":"), std::string::npos)
-        << "JSON should include 'agent'";
+    EXPECT_NE(json.find("\"game_over\":"), std::string::npos) << "JSON should include 'game_over'";
+    EXPECT_NE(json.find("\"won\":"), std::string::npos) << "JSON should include 'won'";
+    EXPECT_NE(json.find("\"turn\":"), std::string::npos) << "JSON should include 'turn'";
+    EXPECT_NE(json.find("\"agent\":"), std::string::npos) << "JSON should include 'agent'";
     EXPECT_NE(json.find("\"agent_cards\":"), std::string::npos)
         << "JSON should include 'agent_cards'";
     EXPECT_NE(json.find("\"agent_permanents\":"), std::string::npos)
         << "JSON should include 'agent_permanents'";
-    EXPECT_NE(json.find("\"opponent\":"), std::string::npos)
-        << "JSON should include 'opponent'";
+    EXPECT_NE(json.find("\"opponent\":"), std::string::npos) << "JSON should include 'opponent'";
     EXPECT_NE(json.find("\"opponent_cards\":"), std::string::npos)
         << "JSON should include 'opponent_cards'";
     EXPECT_NE(json.find("\"opponent_permanents\":"), std::string::npos)
@@ -299,7 +282,8 @@ TEST_F(TestObservation, ToJSONProducesValidString) {
 
 TEST_F(TestObservation, PreservesTurnPhaseStep) {
     // Advance to a specific combat step.
-    ASSERT_TRUE(advanceToPhaseStep(game.get(), PhaseType::COMBAT, StepType::COMBAT_DECLARE_ATTACKERS));
+    ASSERT_TRUE(
+        advanceToPhaseStep(game.get(), PhaseType::COMBAT, StepType::COMBAT_DECLARE_ATTACKERS));
 
     Observation obs(game.get());
     verifyBasicObservation(&obs);
@@ -345,8 +329,7 @@ TEST_F(TestObservation, PlayersTakeAlternatingActions) {
 
     auto game2 = std::make_unique<Game>(
         std::vector<PlayerConfig>{gaea_config, urza_config},
-        /*headless=*/true,
-        /*skip_trivial=*/false  // Ensure all actions are available for testing alternation.
+        /*skip_trivial=*/false // Ensure all actions are available for testing alternation.
     );
     ASSERT_NE(game2, nullptr);
 
@@ -399,10 +382,8 @@ TEST_F(TestObservation, PlayersTakeAlternatingActions) {
         managym::log::info(Category::TEST, "  Player {}: {} times", kv.first, kv.second);
     }
     ASSERT_TRUE(game_over) << "Game did not complete within " << max_steps << " steps";
-    ASSERT_GE(seen_agent_ids.size(), 2)
-        << "Only one player was ever the agent";
-    ASSERT_GE(seen_active_ids.size(), 2)
-        << "Only one active player was ever seen";
+    ASSERT_GE(seen_agent_ids.size(), 2) << "Only one player was ever the agent";
+    ASSERT_GE(seen_active_ids.size(), 2) << "Only one active player was ever seen";
 }
 
 TEST_F(TestObservation, ZoneCountsAccurate) {
@@ -411,26 +392,25 @@ TEST_F(TestObservation, ZoneCountsAccurate) {
     ASSERT_NE(card, nullptr);
 
     Observation before_obs(game.get());
-    auto agent_before   = before_obs.agent.zone_counts;
+    auto agent_before = before_obs.agent.zone_counts;
     auto opponent_before = before_obs.opponent.zone_counts;
     bool card_from_agent = (before_obs.agent.id == green_player->id);
 
     game->zones->move(card, ZoneType::GRAVEYARD);
     Observation after_obs(game.get());
-    auto agent_after    = after_obs.agent.zone_counts;
+    auto agent_after = after_obs.agent.zone_counts;
     auto opponent_after = after_obs.opponent.zone_counts;
 
     const std::array<int, 7>& owner_before = card_from_agent ? agent_before : opponent_before;
-    const std::array<int, 7>& owner_after  = card_from_agent ? agent_after  : opponent_after;
+    const std::array<int, 7>& owner_after = card_from_agent ? agent_after : opponent_after;
     const std::array<int, 7>& other_before = card_from_agent ? opponent_before : agent_before;
-    const std::array<int, 7>& other_after  = card_from_agent ? opponent_after  : agent_after;
+    const std::array<int, 7>& other_after = card_from_agent ? opponent_after : agent_after;
 
     for (int i = 0; i < 7; i++) {
         if (i == (int)ZoneType::HAND) {
             EXPECT_EQ(owner_after[i], owner_before[i] - 1)
                 << "Owner's hand should have 1 fewer card";
-            EXPECT_EQ(other_after[i], other_before[i])
-                << "Non-owner's hand should be unchanged";
+            EXPECT_EQ(other_after[i], other_before[i]) << "Non-owner's hand should be unchanged";
         } else if (i == (int)ZoneType::GRAVEYARD) {
             EXPECT_EQ(owner_after[i], owner_before[i] + 1)
                 << "Owner's graveyard should have +1 card";

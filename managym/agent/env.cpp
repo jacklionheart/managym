@@ -12,7 +12,7 @@ Env::Env(int seed, bool skip_trivial) : game(nullptr), skip_trivial(skip_trivial
 std::pair<Observation*, std::map<std::string, std::string>>
 Env::reset(const std::vector<PlayerConfig>& player_configs) {
     // Destroy any old game
-    game.reset(new Game(player_configs, /*headless=*/true, skip_trivial));
+    game.reset(new Game(player_configs, skip_trivial));
 
     // Build initial observation
     Observation* obs = game->observation(); // game creates a fresh observation

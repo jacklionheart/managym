@@ -1,0 +1,9 @@
+build/
+CMakeCache.txt
+CMakeFiles/
+CMakePresets.json
+CMakeUserPresets.json
+.git/
+__pycache__/
+*.pyc
+

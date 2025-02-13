@@ -6,6 +6,7 @@
 #include <map>
 #include <string>
 #include <tuple>
+#include <utility>
 
 // The environment class for manabot
 class Env {

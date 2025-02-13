@@ -1,7 +1,6 @@
 #include "managym/agent/action.h"
 #include "managym/agent/env.h"
 #include "managym/agent/observation.h"
-#include "managym/flow/game.h"
 #include "managym/infra/log.h"
 
 #include <pybind11/chrono.h>
@@ -374,7 +373,7 @@ static void registerAPI(py::module& m) {
                 auto [obs_ptr, reward, terminated, truncated, info_map] = env.step(action);
                 py::dict info;
                 for (auto& kv : info_map) {
-                    info[py::str(kv.first)] = py::str(kv.second);
+                    info[py::str(kv.first)] = kv.second;
                 }
                 return py::make_tuple(obs_ptr, reward, terminated, truncated, info);
             },

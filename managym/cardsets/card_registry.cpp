@@ -5,7 +5,6 @@
 #include "managym/infra/log.h"
 #include "managym/state/player.h"
 
-#include <format>
 #include <stdexcept>
 
 CardRegistry::CardRegistry(IDGenerator* id_generator)
@@ -16,7 +15,7 @@ CardRegistry::CardRegistry(IDGenerator* id_generator)
 // Writes
 void CardRegistry::registerCard(const std::string& name, const Card& card) {
     if (card_map.find(name) != card_map.end()) {
-        throw std::runtime_error(std::format("Card already registered: {}", name));
+        throw std::runtime_error(fmt::format("Card already registered: {}", name));
     }
     Card* new_card = new Card(0, card, nullptr);
     new_card->registry_key = registry_key_generator->next();

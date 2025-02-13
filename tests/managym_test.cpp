@@ -11,7 +11,7 @@ PlayerConfig makePlayerConfig(const std::string& playerName,
     return PlayerConfig(playerName, deckMap);
 }
 
-std::unique_ptr<Game> elvesVsOgres(bool headless, int redMountains, int redOgres, int greenForests,
+std::unique_ptr<Game> elvesVsOgres(int redMountains, int redOgres, int greenForests,
                                    int greenElves) {
     // Build the Green player's deck
     std::vector<TestDeckEntry> greenDeck{{"Forest", greenForests}, {"Llanowar Elves", greenElves}};
@@ -23,7 +23,7 @@ std::unique_ptr<Game> elvesVsOgres(bool headless, int redMountains, int redOgres
 
     // Create the game
     std::vector<PlayerConfig> configs = {greenConfig, redConfig};
-    auto game = std::make_unique<Game>(configs, headless);
+    auto game = std::make_unique<Game>(configs);
     return game;
 }
 

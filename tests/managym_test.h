@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -21,8 +22,8 @@ PlayerConfig makePlayerConfig(const std::string& playerName,
 void registerTestCards();
 
 // Create a basic game
-std::unique_ptr<Game> elvesVsOgres(bool headless = true, int redMountains = 10, int redOgres = 10,
-                                   int greenForests = 10, int greenElves = 10);
+std::unique_ptr<Game> elvesVsOgres(int redMountains = 10, int redOgres = 10, int greenForests = 10,
+                                   int greenElves = 10);
 
 // Put a permanent in play
 void putPermanentInPlay(Game* game, Player* player, const std::string& cardName);

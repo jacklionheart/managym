@@ -3,6 +3,7 @@
 #include "managym/state/card.h"
 #include "managym/state/player.h"
 
+#include <functional>
 #include <map>
 #include <vector>
 

@@ -1,28 +1,51 @@
-[build-system]
-requires = [
-"setuptools>=61",
-"scikit-build",
-"scikit-build-core",
-"pybind11",
-"cmake>=3.21",
-"ninja"
-]
-build-backend = "scikit_build_core.build"
+# Use Ubuntu 22.04 as the base image.
+FROM ubuntu:22.04
 
-[project]
-name = "managym"
-version = "0.1.0"
-description = "A Magic: The Gathering environment for reinforcement learning"
-authors = [
-{name = "Jack Heart", email = "jackheart@loopflow.studio"}
-]
-keywords = ["mtg", "magic", "reinforcement-learning", "gym-like"]
-requires-python = ">=3.7"
+# Install system dependencies and add deadsnakes PPA for Python 3.12.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      build-essential \
+      cmake \
+      ninja-build \
+      git \
+      libspdlog-dev \
+      libfmt-dev \
+      libgtest-dev \
+      python3.12 \
+      python3.12-dev \
+      python3.12-distutils \
+      python3.12-venv \
+      python3-pip && \
+    rm -rf /var/lib/apt/lists/*
 
-[tool.setuptools]
-packages = ["managym"]
-package-dir = {managym = "managym"}
+# Make python3 point to python3.12.
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
 
-[tool.setuptools.package-data]
-managym = ["/*.so", "/.dylib", "**/.dll"]
+# Upgrade pip and install pybind11.
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip install pybind11
 
+# Clear host-specific Python environment variables.
+ENV PYTHONHOME=
+ENV PYTHONPATH=
+
+# Set the working directory.
+WORKDIR /managym
+
+# Copy the repository into the container.
+# Ensure your .dockerignore excludes any build or CMake cache files.
+COPY . /managym
+
+# Create a build directory, configure, and build the project with Ninja.
+RUN rm -rf build && mkdir build && cd build && \
+    cmake -DPython_ROOT_DIR=/usr -DPython_EXECUTABLE=/usr/bin/python3 -G Ninja .. && \
+    ninja
+
+# Run tests using CTest.
+RUN cd build && ctest --output-on-failure
+
+# Default command (e.g., run your CLI executable).
+CMD ["managym_cli"]

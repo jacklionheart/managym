@@ -2,6 +2,7 @@
 
 #include "managym/state/game_object.h"
 
+#include <stdexcept>
 #include <string>
 #include <vector>
 

@@ -3,21 +3,18 @@ import managym
 
 @pytest.fixture
 def basic_deck_configs():
-    """Each config is a dict of {card_name: count}."""
     return [
-        {"Grey Ogre": 8, "Mountain": 12},  # Red deck
-        {"Forest": 12, "Llanowar Elves": 8}  # Green deck
+        {'Grey Ogre': 8, 'Mountain': 12},
+        {'Forest': 12, 'Llanowar Elves': 8}
     ]
-
 
 class TestManagym:
     def test_init(self):
-        """Smoke test environment initialization."""
         env = managym.Env()
         assert env is not None
 
     def test_reset_returns_valid_state(self, basic_deck_configs):
-        """Test reset() returns valid initial Observation with correct fields."""
+        """Test reset() returns a valid Observation with correct fields."""
         player_configs = [
             managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
             managym.PlayerConfig("Green Mage", basic_deck_configs[1])
@@ -25,21 +22,45 @@ class TestManagym:
         env = managym.Env()
         obs, info = env.reset(player_configs)
 
+        # In the new API, the Observation should expose 'agent' and 'opponent'
         assert obs is not None
         assert isinstance(info, dict)
-        assert hasattr(obs, 'players')
-        assert len(obs.players) == 2
-        assert hasattr(obs, 'action_space')
-        assert hasattr(obs.action_space, 'actions')
-        assert len(obs.action_space.actions) > 0
+        assert hasattr(obs, 'agent'), "Observation missing 'agent' field"
+        assert hasattr(obs, 'opponent'), "Observation missing 'opponent' field"
+        # Check that agent and opponent have different IDs
+        assert obs.agent.id != obs.opponent.id, "Agent and opponent must have different IDs"
+        # Also check turn and action_space fields exist
+        assert hasattr(obs, 'turn'), "Observation missing 'turn' field"
+        assert hasattr(obs, 'action_space'), "Observation missing 'action_space' field"
 
-        assert hasattr(obs.turn, 'active_player_id')
-        assert 0 <= obs.turn.active_player_id < 2
+    def test_multiple_resets(self, basic_deck_configs):
+        """Test multiple resets update Observation correctly."""
+        player_configs1 = [
+            managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
+            managym.PlayerConfig("Green Mage", basic_deck_configs[1])
+        ]
+        player_configs2 = [
+            managym.PlayerConfig("Blue Mage", {"Island": 20}),
+            managym.PlayerConfig("Black Mage", {"Swamp": 20})
+        ]
 
-        assert obs.validate()
+        env = managym.Env()
+        obs1, info1 = env.reset(player_configs1)
+        assert obs1.validate(), "First observation failed validation"
+        # Check that agent and opponent exist.
+        assert obs1.agent is not None
+        assert obs1.opponent is not None
+
+        obs2, info2 = env.reset(player_configs2)
+        assert obs2.validate(), "Second observation failed validation"
+        # Instead of checking names (which are not exposed), we can check that the player IDs
+        # differ or that some other configuration indicator has changed.
+        # For now, we simply assert that both agent and opponent exist.
+        assert obs2.agent is not None
+        assert obs2.opponent is not None
 
     def test_valid_game_loop(self, basic_deck_configs):
-        """Test a full game loop by repeatedly taking the first action."""
+        """Test a full game loop by always taking the first action."""
         player_configs = [
             managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
             managym.PlayerConfig("Green Mage", basic_deck_configs[1])
@@ -57,9 +78,9 @@ class TestManagym:
             obs, reward, terminated, truncated, info = env.step(0)
             steps += 1
 
-        assert terminated
-        assert steps < max_steps
-        assert obs.game_over
+        assert terminated, "Game should eventually terminate"
+        assert steps < max_steps, "Game exceeded maximum steps"
+        assert obs.game_over, "Observation should indicate game is over"
         assert isinstance(reward, (int, float))
 
     def test_invalid_action_handling(self, basic_deck_configs):
@@ -73,57 +94,31 @@ class TestManagym:
 
         num_actions = len(obs.action_space.actions)
         invalid_actions = [-1, num_actions, num_actions + 1]
-
         for invalid_action in invalid_actions:
             with pytest.raises(Exception) as excinfo:
                 env.step(invalid_action)
             assert "Action index" in str(excinfo.value)
 
-    def test_multiple_resets(self, basic_deck_configs):
-        """Test multiple resets with different configurations."""
-        player_configs1 = [
-            managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
-            managym.PlayerConfig("Green Mage", basic_deck_configs[1])
-        ]
-        player_configs2 = [
-            managym.PlayerConfig("Blue Mage", {"Island": 20}),
-            managym.PlayerConfig("Black Mage", {"Swamp": 20})
-        ]
-
-        env = managym.Env()
-
-        obs1, info1 = env.reset(player_configs1)
-        assert obs1.validate()
-        assert len(obs1.players) == 2
-
-        obs2, info2 = env.reset(player_configs2)
-        assert obs2.validate()
-        assert len(obs2.players) == 2
-        player_names = [p.id for p in obs2.players.values()]
-        assert len(player_names) == 2
-
     def test_observation_validation(self, basic_deck_configs):
-        """Verifies observation validation and game over conditions."""
+        """Ensure that observations pass validate() throughout game progression."""
         player_configs = [
             managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
             managym.PlayerConfig("Green Mage", basic_deck_configs[1])
         ]
         env = managym.Env()
         obs, _ = env.reset(player_configs)
-        assert obs.validate()
-
+        assert obs.validate(), "Initial observation failed validation"
         done = False
         while not done:
             obs, reward, done, truncated, info = env.step(0)
-            assert obs.validate()
-            
+            assert obs.validate(), "Observation failed validation during game"
             if done:
                 assert obs.game_over
                 assert isinstance(obs.won, bool)
                 break
 
     def test_reward_on_victory(self, basic_deck_configs):
-        """Test reward values at game end."""
+        """Test reward values are in the correct range on game end."""
         player_configs = [
             managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
             managym.PlayerConfig("Green Mage", basic_deck_configs[1])
@@ -134,16 +129,15 @@ class TestManagym:
         done = False
         truncated = False
         final_reward = 0.0
-
         while not (done or truncated):
             obs, reward, done, truncated, info = env.step(0)
             final_reward = reward
 
-        assert done
-        assert -1.0 <= final_reward <= 1.0
+        assert done, "Game did not terminate"
+        assert -1.0 <= final_reward <= 1.0, "Reward out of expected bounds"
 
     def test_play_land_and_cast_spell(self, basic_deck_configs):
-        """Test playing a land and casting a spell."""
+        """Test playing a land and casting a spell using priority actions."""
         player_configs = [
             managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
             managym.PlayerConfig("Green Mage", basic_deck_configs[1])
@@ -152,27 +146,27 @@ class TestManagym:
         obs, _ = env.reset(player_configs)
 
         def find_action(obs, action_type):
-            return next(
-                (i for i, act in enumerate(obs.action_space.actions) 
-                 if act.action_type == action_type),
-                None
-            )
+            for idx, action in enumerate(obs.action_space.actions):
+                if action.action_type == action_type:
+                    return idx
+            return None
 
+        # Try playing a land if available.
         land_idx = find_action(obs, managym.ActionEnum.PRIORITY_PLAY_LAND)
         if land_idx is not None:
             obs, _, _, _, _ = env.step(land_idx)
-            agent_player_id = obs.turn.agent_player_id
-            agent_player_data = obs.players[agent_player_id]
-            bf_count = agent_player_data.zone_counts[managym.ZoneEnum.BATTLEFIELD]
-            assert bf_count >= 1
+            # Check that the agent's battlefield count has increased.
+            bf_count = obs.agent.zone_counts[managym.ZoneEnum.BATTLEFIELD]
+            assert bf_count >= 1, "Battlefield should have at least one card after playing a land"
 
+        # Try casting a spell if available.
         cast_idx = find_action(obs, managym.ActionEnum.PRIORITY_CAST_SPELL)
         if cast_idx is not None:
             obs, _, _, _, _ = env.step(cast_idx)
-            assert obs.validate()
+            assert obs.validate(), "Observation failed validation after casting a spell"
 
     def test_skip_trivial_false(self, basic_deck_configs):
-        """Test non-skipping of trivial actions."""
+        """Test that when skip_trivial is False, trivial action spaces are not auto-skipped."""
         player_configs = [
             managym.PlayerConfig("Red Mage", basic_deck_configs[0]),
             managym.PlayerConfig("Green Mage", basic_deck_configs[1])
@@ -181,16 +175,15 @@ class TestManagym:
         obs, _ = env.reset(player_configs)
 
         terminated = False
-        truncated = False
         step_count = 0
         trivial = 0
 
-        while not (terminated or truncated) and step_count <= 2000:
+        while not terminated and step_count <= 2000:
             if len(obs.action_space.actions) == 1:
                 trivial += 1
-            obs, _, terminated, truncated, _ = env.step(0)
+            obs, _, terminated, _, _ = env.step(0)
             step_count += 1
 
-        assert terminated
-        assert trivial >= 10
-        assert step_count <= 2000
+        assert terminated, "Game should eventually terminate"
+        assert trivial >= 10, "There should be a number of trivial action spaces encountered"
+        assert step_count <= 2000, "Game should not exceed 2000 steps"

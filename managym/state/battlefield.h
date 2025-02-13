@@ -6,6 +6,7 @@
 #include "managym/state/player.h"
 #include "managym/state/zone.h"
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <vector>

@@ -7,7 +7,7 @@ This defines the Python interface to the C++ managym library.
 from __future__ import annotations
 
 from enum import IntEnum
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 # ---------------------------------------------------------------------
 # Environment API
@@ -25,7 +25,7 @@ class Env:
         """
         ...
 
-    def reset(self, player_configs: List[PlayerConfig]) -> Tuple[Observation, Dict[str, str]]:
+    def reset(self, player_configs: List[PlayerConfig]) -> Tuple[Observation, Dict[str, Any]]:
         """Reset environment with new players.
         
         Args:
@@ -36,7 +36,7 @@ class Env:
         """
         ...
 
-    def step(self, action: int) -> Tuple[Observation, float, bool, bool, Dict[str, str]]:
+    def step(self, action: int) -> Tuple[Observation, float, bool, bool, Dict[str, Any]]:
         """Take an action in the game.
         
         Args:

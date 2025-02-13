@@ -5,6 +5,7 @@
 #include "stack.h"
 #include "zone.h"
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <vector>

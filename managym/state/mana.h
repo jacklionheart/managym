@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <map>
 #include <set>
 #include <string>
@@ -48,7 +49,7 @@ struct ManaCost {
 
     // Reads
     Colors colors() const;
-    
+
     // Static factory
     static ManaCost parse(const std::string& mana_str);
 

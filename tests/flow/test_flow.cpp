@@ -11,7 +11,7 @@ protected:
     void SetUp() override {
         // Create the game using our test helpers
         ManagymTest::SetUp();
-        game = elvesVsOgres(/*headless=*/true);
+        game = elvesVsOgres(true);
     }
 };
 
@@ -41,7 +41,7 @@ TEST_F(TestFlow, ReachingCombatSteps) {
 }
 
 TEST_F(TestFlow, PriorityPassingTest) {
-    auto game = elvesVsOgres(/*headless=*/true);
+    auto game = elvesVsOgres(true);
 
     // Advance until we get priority in upkeep
     // Should execute the following sequence:
@@ -87,11 +87,8 @@ TEST_F(TestFlow, ActionSpaceValidity) {
         "urza", {{"Mountain", 12}, {"Forest", 12}, {"Llanowar Elves", 18}, {"Grey Ogre", 18}});
 
     // Create game with these configs, matching Python's Env setup
-    auto game =
-        std::make_unique<Game>(std::vector<PlayerConfig>{gaea_config, urza_config},
-                               /*headless=*/true,
-                               /*skip_trivial=*/true // Match Python Env's skip_trivial=True default
-        );
+    auto game = std::make_unique<Game>(std::vector<PlayerConfig>{gaea_config, urza_config},
+                                       /*skip_trivial=*/true);
     ASSERT_TRUE(game != nullptr);
 
     // Track progression through the game
@@ -159,9 +156,7 @@ TEST_F(TestFlow, CombatActionSpaceAfterDamage) {
         "urza", {{"Mountain", 12}, {"Forest", 12}, {"Llanowar Elves", 18}, {"Grey Ogre", 18}});
 
     // Create game with these configs
-    auto game = std::make_unique<Game>(std::vector<PlayerConfig>{gaea_config, urza_config},
-                                       /*headless=*/true,
-                                       /*skip_trivial=*/true);
+    auto game = std::make_unique<Game>(std::vector<PlayerConfig>{gaea_config, urza_config}, true);
     ASSERT_TRUE(game != nullptr);
 
     // Helper to validate action space

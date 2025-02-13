@@ -9,7 +9,7 @@
 #include <cassert>
 #include <stdexcept>
 
-Game::Game(std::vector<PlayerConfig> player_configs, bool headless, bool skip_trivial)
+Game::Game(std::vector<PlayerConfig> player_configs, bool skip_trivial)
     : skip_trivial(skip_trivial), turn_system(std::make_unique<TurnSystem>(this)),
       priority_system(std::make_unique<PrioritySystem>(this)),
       id_generator(std::make_unique<IDGenerator>()) {
@@ -50,10 +50,6 @@ Game::Game(std::vector<PlayerConfig> player_configs, bool headless, bool skip_tr
                 zones->moveTop(ZoneType::LIBRARY, ZoneType::HAND, player);
             }
         }
-    }
-
-    if (!headless) {
-        display = std::make_unique<GameDisplay>();
     }
 
     // Start the game
@@ -204,13 +200,6 @@ bool Game::step(int action) {
 bool Game::tick() {
     // Keep ticking until we have an action space or game ends
     while (!current_action_space) {
-        // Handle display updates
-        if (display) {
-            display->processEvents();
-            if (display->isOpen()) {
-                display->render(current_observation.get());
-            }
-        }
 
         // Get next action space
         current_action_space = turn_system->tick();
