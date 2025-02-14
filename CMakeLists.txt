@@ -11,6 +11,22 @@ if(APPLE)
     set(CMAKE_MACOSX_RPATH ON)
     set(CMAKE_INSTALL_RPATH "@loader_path")
     set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+elseif(UNIX)
+    # For Linux (and other Unix-like systems), use $ORIGIN to denote the directory of the binary.
+    set(CMAKE_INSTALL_RPATH "$ORIGIN")
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+    set(CMAKE_BUILD_RPATH "$ORIGIN")
+endif()
+
+# -------------------------------
+# AddressSanitizer
+# -------------------------------
+if(APPLE)
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        message(STATUS "Enabling AddressSanitizer on macOS (Debug build)")
+        add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+        add_link_options(-fsanitize=address)
+    endif()
 endif()
 
 # -------------------------------
@@ -29,7 +45,6 @@ set(Python_FIND_STRATEGY LOCATION)
 # Prefer the new Python finder for pybind11.
 set(PYBIND11_FINDPYTHON ON CACHE BOOL "" FORCE)
 set(PYBIND11_PYTHON_VERSION 3.12)
-
 
 # -------------------------------
 # Find Dependencies
@@ -68,6 +83,11 @@ if(APPLE)
         INSTALL_RPATH "@loader_path"
         BUILD_RPATH "@loader_path"
     )
+elseif(UNIX)
+    set_target_properties(managym_lib PROPERTIES 
+        INSTALL_RPATH "$ORIGIN"
+        BUILD_RPATH "$ORIGIN"
+    )
 endif()
 
 target_link_libraries(managym_lib PUBLIC
@@ -87,6 +107,11 @@ if(APPLE)
     set_target_properties(_managym PROPERTIES
         INSTALL_RPATH "@loader_path"
         BUILD_RPATH "@loader_path"
+    )
+elseif(UNIX)
+    set_target_properties(_managym PROPERTIES
+        INSTALL_RPATH "$ORIGIN"
+        BUILD_RPATH "$ORIGIN"
     )
 endif()
 

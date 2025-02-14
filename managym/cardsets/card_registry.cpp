@@ -41,22 +41,21 @@ std::unique_ptr<Card> CardRegistry::instantiate(const std::string& name, Player*
 
     // Create new Card instance with proper owner and ID
     ObjectId new_id = id_generator->next();
-    managym::log::debug(Category::STATE, 
-        "Instantiating card {} (id={}) for player {} (id={})",
-        name, new_id, owner->name, owner->id);
+    managym::log::debug(Category::STATE, "Instantiating card {} (id={}) for player {} (id={})",
+                        name, new_id, owner->name, owner->id);
 
     auto card = std::make_unique<Card>(new_id, *it->second, owner);
-    
+
     // Validate ownership was set correctly
     if (card->owner != owner) {
-        throw std::runtime_error(fmt::format(
-            "Card ownership mismatch during instantiation: expected={}, actual={}", 
-            owner->id, card->owner ? card->owner->id : -1));
+        throw std::runtime_error(
+            fmt::format("Card ownership mismatch during instantiation: expected={}, actual={}",
+                        owner->id, card->owner ? card->owner->id : -1));
     }
     if (card->owner->id != owner->id) {
-        throw std::runtime_error(fmt::format(
-            "Card owner ID mismatch during instantiation: expected={}, actual={}", 
-            owner->id, card->owner->id));
+        throw std::runtime_error(
+            fmt::format("Card owner ID mismatch during instantiation: expected={}, actual={}",
+                        owner->id, card->owner->id));
     }
 
     return card;
