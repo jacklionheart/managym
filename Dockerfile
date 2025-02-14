@@ -49,3 +49,5 @@ RUN rm -rf build && mkdir build && cd build && \
     ninja
 
 RUN ctest --output-on-failure
+
+RUN pip install -e .
