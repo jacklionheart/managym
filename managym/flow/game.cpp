@@ -52,10 +52,6 @@ Game::Game(std::vector<PlayerConfig> player_configs, bool headless, bool skip_tr
         }
     }
 
-    if (!headless) {
-        display = std::make_unique<GameDisplay>();
-    }
-
     // Start the game
     tick();
     while (skip_trivial && actionSpaceTrivial()) {
@@ -204,14 +200,6 @@ bool Game::step(int action) {
 bool Game::tick() {
     // Keep ticking until we have an action space or game ends
     while (!current_action_space) {
-        // Handle display updates
-        if (display) {
-            display->processEvents();
-            if (display->isOpen()) {
-                display->render(current_observation.get());
-            }
-        }
-
         // Get next action space
         current_action_space = turn_system->tick();
 

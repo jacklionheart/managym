@@ -28,7 +28,6 @@ endif()
 find_package(Python 3.12 EXACT COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 REQUIRED)
 find_package(spdlog REQUIRED)
-find_package(SFML 3.0 COMPONENTS Window Graphics REQUIRED)
 find_package(GTest REQUIRED)
 find_package(fmt REQUIRED)
 
@@ -58,8 +57,6 @@ endif()
 target_link_libraries(managym_lib PUBLIC
     spdlog::spdlog
     fmt::fmt
-    SFML::Graphics
-    SFML::Window
 )
 
 target_include_directories(managym_lib PUBLIC ${CMAKE_SOURCE_DIR})

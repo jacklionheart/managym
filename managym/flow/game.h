@@ -9,7 +9,6 @@
 #include "managym/state/player.h"
 #include "managym/state/zone.h"
 #include "managym/state/zones.h"
-#include "managym/ui/game_display.h"
 
 #include <managym/agent/observation.h>
 #include <spdlog/spdlog.h>
@@ -43,7 +42,6 @@ public:
     bool skip_trivial;
     std::unique_ptr<CardRegistry> card_registry;
     std::unique_ptr<IDGenerator> id_generator;
-    std::unique_ptr<GameDisplay> display;
 
     // Reads
 
