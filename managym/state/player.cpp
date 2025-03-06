@@ -4,6 +4,8 @@
 #include "managym/cardsets/card_registry.h"
 #include "managym/infra/log.h"
 
+#include <sstream>
+
 Player::Player(const ObjectId& id, int index, const PlayerConfig& config, CardRegistry* registry)
     : GameObject(id), index(index), name(config.name) {
     // Wait until 'this' is fully constructed before instantiating the deck.
