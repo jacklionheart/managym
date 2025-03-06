@@ -1,6 +1,6 @@
 // managym/infra/log.cpp
 #include "log.h"
-
+#include <sstream>
 namespace managym::log {
 
 static std::set<Category> enabled_categories;
