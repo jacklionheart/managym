@@ -16,9 +16,13 @@ endif()
 
 # Python setup
 set(CMAKE_FIND_DEBUG_MODE ON)
-set(Python_ROOT_DIR "/Users/jack/micromamba/envs/manabot")
-set(Python_EXECUTABLE "/Users/jack/micromamba/envs/manabot/bin/python3")
-set(Python_FIND_STRATEGY LOCATION)
+
+if(APPLE)
+    # On macOS, use the micromamba environment
+    set(Python_ROOT_DIR "/Users/jack/micromamba/envs/manabot")
+    set(Python_EXECUTABLE "/Users/jack/micromamba/envs/manabot/bin/python3")
+    set(Python_FIND_STRATEGY LOCATION)
+endif()
 
 # Find dependencies
 find_package(Python 3.12 EXACT COMPONENTS Interpreter Development REQUIRED)
