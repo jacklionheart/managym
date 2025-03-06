@@ -6,20 +6,20 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# macOS rpath setup 
+# macOS and Unix rpath setup
 if(APPLE)
     set(CMAKE_MACOSX_RPATH ON)
     set(CMAKE_INSTALL_RPATH "@loader_path")
     set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 elseif(UNIX)
-    # For Linux (and other Unix-like systems), use $ORIGIN to denote the directory of the binary.
+    # For Linux and other Unix-like systems, use $ORIGIN to denote the directory of the binary.
     set(CMAKE_INSTALL_RPATH "$ORIGIN")
     set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
     set(CMAKE_BUILD_RPATH "$ORIGIN")
 endif()
 
 # -------------------------------
-# AddressSanitizer
+# AddressSanitizer (macOS Debug only)
 # -------------------------------
 if(APPLE)
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -33,13 +33,21 @@ endif()
 # Python Setup
 # -------------------------------
 set(CMAKE_FIND_DEBUG_MODE ON)
-# Remove hardcoded paths - let CMake use the paths we set in Docker
+# If PYTHON_ROOT_DIR is defined in your environment, use it.
+# Otherwise, if you are in a conda environment, use CONDA_PREFIX.
 if(DEFINED ENV{PYTHON_ROOT_DIR})
     set(Python_ROOT_DIR $ENV{PYTHON_ROOT_DIR})
+elseif(DEFINED ENV{CONDA_PREFIX})
+    set(Python_ROOT_DIR $ENV{CONDA_PREFIX})
 endif()
+
+# Similarly, set the Python executable.
 if(DEFINED ENV{PYTHON_EXECUTABLE})
     set(Python_EXECUTABLE $ENV{PYTHON_EXECUTABLE})
+elseif(DEFINED ENV{CONDA_PREFIX})
+    set(Python_EXECUTABLE "$ENV{CONDA_PREFIX}/bin/python3")
 endif()
+
 set(Python_FIND_STRATEGY LOCATION)
 
 # Prefer the new Python finder for pybind11.
@@ -65,6 +73,8 @@ message(STATUS "Pybind11 includes: ${pybind11_INCLUDE_DIRS}")
 if(APPLE)
     # Needed for creating shared libraries with undefined symbols.
     set(CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS "${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS} -undefined dynamic_lookup")
+elseif(UNIX)
+    # (Optional) You might need additional linker flags on Linux depending on your system.
 endif()
 
 ########################################
@@ -72,7 +82,7 @@ endif()
 ########################################
 # Glob all .cpp source files under the managym folder.
 file(GLOB_RECURSE SOURCES "${CMAKE_SOURCE_DIR}/managym/**/*.cpp")
-# Remove the pybind source so it’s not compiled into the main library.
+# Remove the pybind source so it isn’t compiled into the main library.
 list(REMOVE_ITEM SOURCES "${CMAKE_SOURCE_DIR}/managym/agent/pybind.cpp")
 message(STATUS "Found source files for managym_lib: ${SOURCES}")
 
@@ -95,7 +105,7 @@ target_link_libraries(managym_lib PUBLIC
     fmt::fmt
 )
 
-# Add the project root as include directory (assumes headers are inside managym/).
+# Add the project root as an include directory (assumes headers are in the project root or subfolders).
 target_include_directories(managym_lib PUBLIC ${CMAKE_SOURCE_DIR})
 
 ########################################

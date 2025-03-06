@@ -200,7 +200,6 @@ bool Game::step(int action) {
 bool Game::tick() {
     // Keep ticking until we have an action space or game ends
     while (!current_action_space) {
-
         // Get next action space
         current_action_space = turn_system->tick();
 
