@@ -27,7 +27,7 @@ Env::reset(const std::vector<PlayerConfig>& player_configs) {
 }
 
 std::tuple<Observation*, double, bool, bool, std::map<std::string, std::string>>
-Env::step(int action, bool skip_trivial) {g
+Env::step(int action, bool skip_trivial) {
     Profiler::Scope scope = profiler->track("env_step");
 
     if (!game) {
