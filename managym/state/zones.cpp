@@ -75,14 +75,13 @@ void Zones::move(Card* card, ZoneType toZone) {
     auto it = card_to_zone.find(card);
     if (it != card_to_zone.end()) {
         Zone* oldZone = it->second;
-        managym::log::debug(Category::STATE, "Moving card {} owned by {} to zone {} from zone {}",
-                            card->id, card->owner->id, static_cast<int>(toZone),
-                            typeid(*oldZone).name());
+        log_debug(LogCat::STATE, "Moving card {} owned by {} to zone {} from zone {}", card->id,
+                  card->owner->id, static_cast<int>(toZone), typeid(*oldZone).name());
 
         oldZone->exit(card);
     } else {
-        managym::log::debug(Category::STATE, "Adding card {} {} owned by {} to zone {}", card->name,
-                            card->id, card->owner->id, static_cast<int>(toZone));
+        log_debug(LogCat::STATE, "Adding card {} {} owned by {} to zone {}", card->name, card->id,
+                  card->owner->id, static_cast<int>(toZone));
     }
 
     newZone->enter(card);
@@ -113,7 +112,7 @@ void Zones::forEachAll(const std::function<void(Card*)>& func, ZoneType zoneType
 // Battlefield Mutations
 
 void Zones::destroy(Permanent* permanent) {
-    managym::log::info(Category::STATE, "{} is destroyed", permanent->card->toString());
+    log_info(LogCat::STATE, "{} is destroyed", permanent->card->toString());
     move(permanent->card, ZoneType::GRAVEYARD);
 }
 
@@ -139,14 +138,13 @@ void Zones::pushStack(Card* card) {
     auto it = card_to_zone.find(card);
     if (it != card_to_zone.end()) {
         Zone* oldZone = it->second;
-        managym::log::debug(Category::STATE, "Moving card {} owned by {} to zone {} from zone {}",
-                            card->id, card->owner->id, static_cast<int>(ZoneType::STACK),
-                            typeid(*oldZone).name());
+        log_debug(LogCat::STATE, "Moving card {} owned by {} to zone {} from zone {}", card->id,
+                  card->owner->id, static_cast<int>(ZoneType::STACK), typeid(*oldZone).name());
 
         oldZone->exit(card);
     } else {
-        managym::log::debug(Category::STATE, "Adding card {} {} owned by {} to zone {}", card->name,
-                            card->id, card->owner->id, static_cast<int>(ZoneType::STACK));
+        log_debug(LogCat::STATE, "Adding card {} {} owned by {} to zone {}", card->name, card->id,
+                  card->owner->id, static_cast<int>(ZoneType::STACK));
     }
 
     stack->push(card);

@@ -1,78 +1,76 @@
 // managym/infra/log.cpp
 #include "log.h"
+
 #include <sstream>
-namespace managym::log {
 
-static std::set<Category> enabled_categories;
+static std::set<LogCat> enabled_categories;
 
-std::string categoryToString(Category cat) {
+std::string LogCatToString(LogCat cat) {
     switch (cat) {
-    case Category::TURN:
+    case LogCat::TURN:
         return "turn";
-    case Category::STATE:
+    case LogCat::STATE:
         return "state";
-    case Category::RULES:
+    case LogCat::RULES:
         return "rules";
-    case Category::COMBAT:
+    case LogCat::COMBAT:
         return "combat";
-    case Category::PRIORITY:
+    case LogCat::PRIORITY:
         return "priority";
-    case Category::AGENT:
+    case LogCat::AGENT:
         return "agent";
-    case Category::TEST:
+    case LogCat::TEST:
         return "test";
     default:
         return "???";
     }
 }
 
-Category categoryFromString(const std::string& input) {
+LogCat LogCatFromString(const std::string& input) {
     // Convert input to lowercase for comparison
     std::string str = input;
     std::transform(str.begin(), str.end(), str.begin(), ::tolower);
 
     if (str == "turn")
-        return Category::TURN;
+        return LogCat::TURN;
     if (str == "state")
-        return Category::STATE;
+        return LogCat::STATE;
     if (str == "rules")
-        return Category::RULES;
+        return LogCat::RULES;
     if (str == "combat")
-        return Category::COMBAT;
+        return LogCat::COMBAT;
     if (str == "priority")
-        return Category::PRIORITY;
+        return LogCat::PRIORITY;
     if (str == "agent")
-        return Category::AGENT;
+        return LogCat::AGENT;
     if (str == "test")
-        return Category::TEST;
-    throw std::invalid_argument("Invalid category: " + input);
+        return LogCat::TEST;
+    throw std::invalid_argument("Invalid LogCat: " + input);
 }
 
-std::set<Category> parseCategoryString(const std::string& categories) {
-    std::set<Category> result;
+std::set<LogCat> parseLogCatString(const std::string& categories) {
+    std::set<LogCat> result;
     std::stringstream ss(categories);
-    std::string category;
+    std::string LogCat;
 
-    while (std::getline(ss, category, ',')) {
+    while (std::getline(ss, LogCat, ',')) {
         // Trim whitespace
-        category.erase(0, category.find_first_not_of(" \t\r\n"));
-        category.erase(category.find_last_not_of(" \t\r\n") + 1);
-        if (!category.empty()) {
-            result.insert(categoryFromString(category));
+        LogCat.erase(0, LogCat.find_first_not_of(" \t\r\n"));
+        LogCat.erase(LogCat.find_last_not_of(" \t\r\n") + 1);
+        if (!LogCat.empty()) {
+            result.insert(LogCatFromString(LogCat));
         }
     }
 
     return result;
 }
 
-void initialize(const std::set<Category>& categories, spdlog::level::level_enum level) {
+void initialize_logging(const std::set<LogCat>& categories, spdlog::level::level_enum level) {
     enabled_categories = categories;
     spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
     spdlog::set_level(level);
 }
 
-bool isCategoryEnabled(Category cat) {
+bool isLogCatEnabled(LogCat cat) {
     return enabled_categories.empty() || enabled_categories.count(cat) > 0;
 }
-
-} // namespace managym::log

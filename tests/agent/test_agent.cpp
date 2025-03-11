@@ -20,7 +20,7 @@ protected:
         green_player = game->players[0].get();
         red_player = game->players[1].get();
 
-        managym::log::info(Category::TEST, "Advancing to PRECOMBAT_MAIN");
+        log_info(LogCat::TEST, "Advancing to PRECOMBAT_MAIN");
         ASSERT_TRUE(advanceToPhase(game.get(), PhaseType::PRECOMBAT_MAIN));
     }
 };
@@ -39,9 +39,9 @@ TEST_F(TestAgent, PlayLandMovesCardToBattlefield) {
     ASSERT_NE(land_card, nullptr) << "No land found in green_player's hand.";
 
     // Execute the action
-    managym::log::info(Category::TEST, "Advancing to PRECOMBAT_MAIN");
+    log_info(LogCat::TEST, "Advancing to PRECOMBAT_MAIN");
     advanceToPhase(game.get(), PhaseType::PRECOMBAT_MAIN);
-    managym::log::info(Category::TEST, "Playing land");
+    log_info(LogCat::TEST, "Playing land");
     PlayLand playLand(land_card, green_player, game.get());
     playLand.execute();
 
@@ -96,10 +96,10 @@ void verifyBasicObservation(const Observation& obs) {
     EXPECT_EQ(obs.agent.life, 20) << "Agent has wrong life total";
     EXPECT_EQ(obs.opponent.life, 20) << "Opponent has wrong life total";
 
-    EXPECT_NE(obs.agent.player_index, obs.opponent.player_index) << "Agent and opponent have same player index";
+    EXPECT_NE(obs.agent.player_index, obs.opponent.player_index)
+        << "Agent and opponent have same player index";
     EXPECT_NE(obs.agent.id, obs.opponent.id) << "Agent and opponent have same player id";
 }
-
 
 TEST_F(TestAgent, ObservationForPriorityAction) {
     // Advance to main phase where we have priority decisions
@@ -186,7 +186,7 @@ TEST_F(TestAgent, TestFullGameLoop) {
     playerConfigs.emplace_back("Red Mage", redDeck);
     playerConfigs.emplace_back("Green Mage", greenDeck);
 
-    Env env(/*skip_trivial=*/false);
+    Env env(false);
 
     Observation* obs = nullptr;
     std::map<std::string, std::string> info;
@@ -219,16 +219,10 @@ TEST_F(TestAgent, TestFullGameLoop) {
 
 TEST_F(TestAgent, ReproducePriorityDeadlock) {
     std::map<std::string, int> mixed_deck{
-        {"Mountain", 12},
-        {"Forest", 12}, 
-        {"Llanowar Elves", 18},
-        {"Grey Ogre", 18}
-    };
-    
-    std::vector<PlayerConfig> configs{
-        PlayerConfig("gaea", mixed_deck),
-        PlayerConfig("urza", mixed_deck)  
-    };
+        {"Mountain", 12}, {"Forest", 12}, {"Llanowar Elves", 18}, {"Grey Ogre", 18}};
+
+    std::vector<PlayerConfig> configs{PlayerConfig("gaea", mixed_deck),
+                                      PlayerConfig("urza", mixed_deck)};
 
     Env env(false);
     Observation* obs = nullptr;

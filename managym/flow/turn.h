@@ -152,7 +152,6 @@ struct Step {
     bool completed = false;
 
     // Reads
-    // Get current game
     Game* game();
     // Get turn system
     TurnSystem* turn_system();
@@ -182,6 +181,7 @@ struct Phase {
     bool completed = false;
 
     // Reads
+    Game* game();
 
     // Check if sorcery-speed spells can be cast
     virtual bool canCastSorceries() { return false; }

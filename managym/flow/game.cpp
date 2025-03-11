@@ -9,8 +9,14 @@
 #include <cassert>
 #include <stdexcept>
 
-Game::Game(std::vector<PlayerConfig> player_configs, bool skip_trivial)
-    : skip_trivial(skip_trivial), turn_system(std::make_unique<TurnSystem>(this)),
+Profiler* defaultProfiler() {
+    static Profiler instance(false);
+    return &instance;
+}
+
+Game::Game(std::vector<PlayerConfig> player_configs, bool skip_trivial, Profiler* profiler)
+    : skip_trivial(skip_trivial), profiler(profiler ? profiler : defaultProfiler()),
+      turn_system(std::make_unique<TurnSystem>(this)),
       priority_system(std::make_unique<PrioritySystem>(this)),
       id_generator(std::make_unique<IDGenerator>()) {
 
@@ -176,9 +182,9 @@ bool Game::_step(int action) {
     }
 
     // Execute action and clear current action space
-    managym::log::debug(Category::AGENT, "Available actions: {}", current_action_space->toString());
-    managym::log::debug(Category::AGENT, "Executing action: {}",
-                        current_action_space->actions[action]->toString());
+    log_debug(LogCat::AGENT, "Available actions: {}", current_action_space->toString());
+    log_debug(LogCat::AGENT, "Executing action: {}",
+              current_action_space->actions[action]->toString());
     current_action_space->actions[action]->execute();
     current_action_space = nullptr;
     current_observation = nullptr;
@@ -188,6 +194,8 @@ bool Game::_step(int action) {
 }
 
 bool Game::step(int action) {
+    Profiler::Scope scope = profiler->track("game");
+
     bool game_over = _step(action);
 
     while (!game_over && skip_trivial && actionSpaceTrivial()) {
@@ -198,6 +206,8 @@ bool Game::step(int action) {
 }
 
 bool Game::tick() {
+    Profiler::Scope scope = profiler->track("tick");
+    
     // Keep ticking until we have an action space or game ends
     while (!current_action_space) {
         // Get next action space
@@ -239,9 +249,8 @@ void Game::markPermanentsNotSummoningSick(Player* player) {
 void Game::drawCards(Player* player, int amount) {
     for (int i = 0; i < amount; ++i) {
         if (zones->size(ZoneType::LIBRARY, player) == 0) {
-            managym::log::info(Category::RULES,
-                               "{} drew a card from an empty library, will die next SBA",
-                               player->name);
+            log_info(LogCat::RULES, "{} drew a card from an empty library, will die next SBA",
+                     player->name);
             player->drew_when_empty = true;
             break;
         } else {
@@ -276,8 +285,8 @@ void Game::playLand(Player* player, Card* card) {
     if (!canPlayLand(player)) {
         throw std::logic_error("Cannot play land this turn.");
     }
-    managym::log::debug(Category::AGENT, "we canPlayLand");
+    log_debug(LogCat::AGENT, "we canPlayLand");
     turn_system->current_turn->lands_played += 1;
-    managym::log::debug(Category::AGENT, "{} plays a land {}", player->name, card->toString());
+    log_debug(LogCat::AGENT, "{} plays a land {}", player->name, card->toString());
     zones->move(card, ZoneType::BATTLEFIELD);
 }

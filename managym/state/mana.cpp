@@ -153,11 +153,11 @@ int Mana::total() const {
 }
 
 bool Mana::canPay(const ManaCost& mana_cost) const {
-    managym::log::debug(Category::RULES, "Mana: {}", toString());
-    managym::log::debug(Category::RULES, "Checking if can pay Mana cost: {}", mana_cost.toString());
+    log_debug(LogCat::RULES, "Mana: {}", toString());
+    log_debug(LogCat::RULES, "Checking if can pay Mana cost: {}", mana_cost.toString());
     if (total() < mana_cost.mana_value) {
-        managym::log::debug(Category::RULES, "Not enough total mana (have {}, need {})", total(),
-                            mana_cost.mana_value);
+        log_debug(LogCat::RULES, "Not enough total mana (have {}, need {})", total(),
+                  mana_cost.mana_value);
         return false;
     }
 
@@ -167,9 +167,9 @@ bool Mana::canPay(const ManaCost& mana_cost) const {
     // First pay colored costs (include colorless)
     for (int i = 0; i < 6; i++) {
         if (remaining[static_cast<Color>(i)] < mana_cost.cost[i]) {
-            managym::log::debug(Category::RULES, "Not enough {} mana (have {}, need {})",
-                                ::toString(static_cast<Color>(i)), remaining[static_cast<Color>(i)],
-                                mana_cost.cost[i]);
+            log_debug(LogCat::RULES, "Not enough {} mana (have {}, need {})",
+                      ::toString(static_cast<Color>(i)), remaining[static_cast<Color>(i)],
+                      mana_cost.cost[i]);
             return false;
         }
         remaining[static_cast<Color>(i)] -= mana_cost.cost[i];
@@ -182,9 +182,9 @@ bool Mana::canPay(const ManaCost& mana_cost) const {
         available_mana += amount;
     }
 
-    managym::log::debug(Category::RULES, "For generic cost: need {}, have {} available",
-                        generic_needed, available_mana);
-    managym::log::debug(Category::RULES, "Can pay: {}", generic_needed <= available_mana);
+    log_debug(LogCat::RULES, "For generic cost: need {}, have {} available", generic_needed,
+              available_mana);
+    log_debug(LogCat::RULES, "Can pay: {}", generic_needed <= available_mana);
     return generic_needed <= available_mana;
 }
 

@@ -10,8 +10,7 @@ Player::Player(const ObjectId& id, int index, const PlayerConfig& config, CardRe
     : GameObject(id), index(index), name(config.name) {
     // Wait until 'this' is fully constructed before instantiating the deck.
     deck = instantiateDeck(config, registry);
-    managym::log::debug(Category::STATE, "Created player {} (id={}) deck={}", name, id,
-                        config.deckList());
+    log_debug(LogCat::STATE, "Created player {} (id={}) deck={}", name, id, config.deckList());
 }
 
 // Writes

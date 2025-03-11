@@ -11,6 +11,8 @@
 #include "managym/state/zones.h"
 
 #include <managym/agent/observation.h>
+#include <managym/infra/profiler.h>
+
 #include <spdlog/spdlog.h>
 
 #include <vector>
@@ -20,7 +22,8 @@ class Game {
 public:
     // Constructor
     // player_configs: names, decklists
-    Game(std::vector<PlayerConfig> player_configs, bool skip_trivial = false);
+    Game(std::vector<PlayerConfig> player_configs, bool skip_trivial = false,
+         Profiler* profiler = nullptr);
 
     // Data
 
@@ -38,6 +41,7 @@ public:
 
     // Infrastructure
     bool skip_trivial;
+    Profiler* profiler;
     std::unique_ptr<CardRegistry> card_registry;
     std::unique_ptr<IDGenerator> id_generator;
 

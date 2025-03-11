@@ -18,7 +18,8 @@ bool PrioritySystem::isComplete() const {
 }
 
 std::unique_ptr<ActionSpace> PrioritySystem::tick() {
-    managym::log::debug(Category::PRIORITY, "Ticking PrioritySystem (pass_count={})", pass_count);
+    Profiler::Scope scope = game->profiler->track("priority");
+    log_debug(LogCat::PRIORITY, "Ticking PrioritySystem (pass_count={})", pass_count);
 
     if (!sba_done) {
         performStateBasedActions();
@@ -28,17 +29,16 @@ std::unique_ptr<ActionSpace> PrioritySystem::tick() {
         }
     }
 
-
     std::vector<Player*> players = game->playersStartingWithActive();
     if (pass_count < players.size()) {
         return makeActionSpace(players[pass_count]);
     }
 
-    managym::log::debug(Category::PRIORITY, "All players have passed");
+    log_debug(LogCat::PRIORITY, "All players have passed");
     reset();
 
     if (!game->zones->constStack()->objects.empty()) {
-        managym::log::debug(Category::PRIORITY, "Resolving stack object");
+        log_debug(LogCat::PRIORITY, "Resolving stack object");
         resolveTopOfStack();
         // Restart priority system now with stack -1
         return tick();
@@ -52,22 +52,21 @@ std::unique_ptr<ActionSpace> PrioritySystem::makeActionSpace(Player* player) {
     std::vector<Player*> players = game->playersStartingWithActive();
     Player* current_player = players[pass_count];
 
-    managym::log::debug(Category::PRIORITY, "Generating actions for {}", current_player->name);
+    log_debug(LogCat::PRIORITY, "Generating actions for {}", current_player->name);
     std::vector<std::unique_ptr<Action>> actions = availablePriorityActions(current_player);
     return std::make_unique<ActionSpace>(ActionSpaceType::PRIORITY, std::move(actions),
                                          current_player);
 }
 
 void PrioritySystem::passPriority() {
-    managym::log::debug(Category::PRIORITY, "Passing priority to next player {} --> {}", pass_count,
-                        pass_count + 1);
+    log_debug(LogCat::PRIORITY, "Passing priority to next player {} --> {}", pass_count,
+              pass_count + 1);
     pass_count++;
 }
 
 std::vector<std::unique_ptr<Action>> PrioritySystem::availablePriorityActions(Player* player) {
     std::vector<std::unique_ptr<Action>> actions;
-    managym::log::debug(Category::PRIORITY, "Generating priority actions for player {}",
-                        player->name);
+    log_debug(LogCat::PRIORITY, "Generating priority actions for player {}", player->name);
 
     // Get cards in hand
     const std::vector<Card*> hand_cards = game->zones->constHand()->cards.at(player);
@@ -78,20 +77,18 @@ std::vector<std::unique_ptr<Action>> PrioritySystem::availablePriorityActions(Pl
         }
         if (card->types.isLand() && game->canPlayLand(player)) {
             actions.emplace_back(new PlayLand(card, player, game));
-            managym::log::debug(Category::PRIORITY, "Added PlayLand action for {}",
-                                card->toString());
+            log_debug(LogCat::PRIORITY, "Added PlayLand action for {}", card->toString());
         } else if (card->types.isCastable() && game->canCastSorceries(player)) {
             if (game->canPayManaCost(player, card->mana_cost.value())) {
                 actions.emplace_back(new CastSpell(card, player, game));
-                managym::log::debug(Category::PRIORITY, "Added CastSpell action for {}",
-                                    card->toString());
+                log_debug(LogCat::PRIORITY, "Added CastSpell action for {}", card->toString());
             }
         }
     }
 
     // Always allow passing priority
     actions.emplace_back(new PassPriority(player, game));
-    managym::log::debug(Category::PRIORITY, "Added PassPriority action");
+    log_debug(LogCat::PRIORITY, "Added PassPriority action");
 
     return actions;
 }
@@ -133,8 +130,8 @@ void PrioritySystem::performStateBasedActions() {
     }
 
     for (Permanent* permanent : permanents_to_destroy) {
-        managym::log::info(Category::PRIORITY, "{} has lethal damage and is destroyed",
-                           permanent->card->toString());
+        log_info(LogCat::PRIORITY, "{} has lethal damage and is destroyed",
+                 permanent->card->toString());
         game->zones->destroy(permanent);
     }
 }
@@ -145,7 +142,7 @@ void PrioritySystem::resolveTopOfStack() {
     }
 
     Card* card = game->zones->popStack();
-    managym::log::info(Category::PRIORITY, "Resolving {}", card->toString());
+    log_info(LogCat::PRIORITY, "Resolving {}", card->toString());
     if (card->types.isPermanent()) {
         game->zones->move(card, ZoneType::BATTLEFIELD);
     } else {

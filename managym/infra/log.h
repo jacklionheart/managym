@@ -6,10 +6,8 @@
 #include <set>
 #include <string>
 
-namespace managym::log {
-
-// Core categories for subsystem logging 
-enum struct Category {
+// Core categories for subsystem logging
+enum struct LogCat {
     AGENT,    // Action execution
     STATE,    // Game state changes
     RULES,    // Rule engine
@@ -20,49 +18,58 @@ enum struct Category {
 };
 
 // Initialize logging with filtered categories
-void initialize(const std::set<Category>& categories, spdlog::level::level_enum level);
+void initialize_logging(const std::set<LogCat>& categories, spdlog::level::level_enum level);
 
-// Convert category to display string
-std::string categoryToString(Category cat);
+// Convert LogCat to display string
+std::string LogCatToString(LogCat cat);
 
-// Parse category from command line arg
-Category categoryFromString(const std::string& str);
+// Parse LogCat from command line arg
+LogCat LogCatFromString(const std::string& str);
 
-// Parse comma-separated category list from command line
-std::set<Category> parseCategoryString(const std::string& categories);
+// Parse comma-separated LogCat list from command line
+std::set<LogCat> parseLogCatString(const std::string& categories);
 
-// Check if category is enabled
-bool isCategoryEnabled(Category cat);
+// Check if LogCat is enabled
+bool isLogCatEnabled(LogCat cat);
 
 // Generic logging function that forwards to spdlog
 template <typename... Args>
-void log(spdlog::level::level_enum level, Category cat, fmt::format_string<Args...> fmt, Args&&... args) {
-    if (!isCategoryEnabled(cat))
+void log(spdlog::level::level_enum level, LogCat cat, fmt::format_string<Args...> fmt,
+         Args&&... args) {
+    if (!isLogCatEnabled(cat))
         return;
-        
-    spdlog::log(level, "[{}] {}", categoryToString(cat), fmt::format(fmt, std::forward<Args>(args)...));
+
+    spdlog::log(level, "[{}] {}", LogCatToString(cat),
+                fmt::format(fmt, std::forward<Args>(args)...));
 }
 
 template <typename... Args>
-void debug(Category cat, fmt::format_string<Args...> fmt, Args&&... args) {
+void log_debug(LogCat cat, fmt::format_string<Args...> fmt, Args&&... args) {
     log(spdlog::level::debug, cat, fmt, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
-void info(Category cat, fmt::format_string<Args...> fmt, Args&&... args) {
+void log_info(LogCat cat, fmt::format_string<Args...> fmt, Args&&... args) {
     log(spdlog::level::info, cat, fmt, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
-void warn(Category cat, fmt::format_string<Args...> fmt, Args&&... args) {
+void log_warn(LogCat cat, fmt::format_string<Args...> fmt, Args&&... args) {
     log(spdlog::level::warn, cat, fmt, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
-void error(Category cat, fmt::format_string<Args...> fmt, Args&&... args) {
+void log_error(LogCat cat, fmt::format_string<Args...> fmt, Args&&... args) {
     log(spdlog::level::err, cat, fmt, std::forward<Args>(args)...);
 }
 
-} // namespace managym::log
+class LogScope {
+public:
+    explicit LogScope(spdlog::level::level_enum new_level) : old_level(spdlog::get_level()) {
+        spdlog::set_level(new_level);
+    }
+    ~LogScope() { spdlog::set_level(old_level); }
 
-using Category = managym::log::Category;
+private:
+    spdlog::level::level_enum old_level;
+};

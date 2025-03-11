@@ -4,6 +4,7 @@
 #include "observation.h"
 
 #include "managym/flow/game.h"
+#include "managym/infra/profiler.h"
 #include "managym/state/mana.h"
 
 // 3rd Party
@@ -19,6 +20,8 @@ Observation::Observation() = default;
 
 // Constructor: builds from a Game*
 Observation::Observation(const Game* game) {
+    Profiler::Scope scope = game->profiler->track("observation");
+
     // Basic flags
     if (game->isGameOver()) {
         game_over = true;
@@ -40,6 +43,7 @@ Observation::Observation(const Game* game) {
 // --------------------------------------------------
 
 void Observation::populateTurn(const Game* game) {
+    Profiler::Scope scope = game->profiler->track("populateTurn");
     turn.turn_number = game->turn_system->global_turn_count;
     turn.phase = game->turn_system->currentPhaseType();
     turn.step = game->turn_system->currentStepType();
@@ -58,6 +62,8 @@ void Observation::populateTurn(const Game* game) {
 }
 
 void Observation::populateActionSpace(const Game* game) {
+    Profiler::Scope scope = game->profiler->track("populateTurn");
+
     action_space.action_space_type = game->current_action_space->type;
 
     // Copy each available action
@@ -71,6 +77,8 @@ void Observation::populateActionSpace(const Game* game) {
 }
 
 void Observation::populatePlayers(const Game* game) {
+    Profiler::Scope scope = game->profiler->track("populatePlayers");
+
     const Player* agent_player = game->agentPlayer();
     assert(agent_player != nullptr);
 
@@ -109,6 +117,8 @@ void Observation::populatePlayers(const Game* game) {
 }
 
 void Observation::populateCards(const Game* game) {
+    Profiler::Scope scope = game->profiler->track("populateCards");
+
     const Player* agent_player = game->agentPlayer();
     assert(agent_player != nullptr);
 
@@ -144,6 +154,7 @@ void Observation::populateCards(const Game* game) {
 
 // Helper to add a Card to objects & cards
 void Observation::addCard(const Card* card, ZoneType zone) {
+
     CardData cdata;
     cdata.id = static_cast<int>(card->id);
     cdata.registry_key = static_cast<int>(card->registry_key);
@@ -176,6 +187,8 @@ void Observation::addCard(const Card* card, ZoneType zone) {
 }
 
 void Observation::populatePermanents(const Game* game) {
+    Profiler::Scope scope = game->profiler->track("populatePermanents");
+
     const Player* agent_player = game->agentPlayer();
     assert(agent_player != nullptr);
 
@@ -251,6 +264,7 @@ bool Observation::validate() const {
 }
 
 std::string Observation::toJSON() const {
+
     std::ostringstream out;
     out << "{\n";
 

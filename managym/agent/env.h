@@ -2,6 +2,7 @@
 
 #include "managym/agent/observation.h"
 #include "managym/flow/game.h"
+#include "managym/infra/profiler.h"
 
 #include <map>
 #include <string>
@@ -17,9 +18,13 @@ private:
     // Random seed for environment
     int seed;
 
+
 public:
+    std::unique_ptr<Profiler> profiler;
+
     Env(int seed = 0, bool skip_trivial = false);
 
+    
     /**
      * Resets the environment with new player configs and returns (observation, info).
      */

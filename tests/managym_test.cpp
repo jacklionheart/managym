@@ -48,9 +48,8 @@ void putPermanentInPlay(Game* game, Player* player, const std::string& cardName)
 
 bool advanceToPhaseStep(Game* game, PhaseType targetPhase, std::optional<StepType> targetStep,
                         int maxTicks) {
-    managym::log::debug(Category::TURN, "Advancing to phase step: {} {}, maxTicks={}",
-                        toString(targetPhase), targetStep ? toString(*targetStep) : "none",
-                        maxTicks);
+    log_debug(LogCat::TURN, "Advancing to phase step: {} {}, maxTicks={}", toString(targetPhase),
+              targetStep ? toString(*targetStep) : "none", maxTicks);
     if (!game)
         throw std::invalid_argument("Game is null");
 
@@ -62,14 +61,13 @@ bool advanceToPhaseStep(Game* game, PhaseType targetPhase, std::optional<StepTyp
     int ticks = 0;
 
     while (ticks < maxTicks) {
-        managym::log::debug(Category::TURN, "Current phase: {}",
-                            toString(game->turn_system->currentPhaseType()));
-        managym::log::debug(Category::TURN, "Current step: {}",
-                            toString(game->turn_system->currentStepType()));
+        log_debug(LogCat::TURN, "Current phase: {}",
+                  toString(game->turn_system->currentPhaseType()));
+        log_debug(LogCat::TURN, "Current step: {}", toString(game->turn_system->currentStepType()));
 
         if (game->current_action_space) {
-            managym::log::debug(Category::TURN, "Current action space: {}",
-                                game->current_action_space->toString());
+            log_debug(LogCat::TURN, "Current action space: {}",
+                      game->current_action_space->toString());
         }
         if (game->turn_system->currentPhaseType() == targetPhase) {
             if (!targetStep || game->turn_system->currentStepType() == *targetStep) {
@@ -80,13 +78,13 @@ bool advanceToPhaseStep(Game* game, PhaseType targetPhase, std::optional<StepTyp
         // Take one step
         bool game_over = game->step(0);
         if (game_over) {
-            managym::log::debug(Category::TURN, "Game over in advanceToPhaseStep");
+            log_debug(LogCat::TURN, "Game over in advanceToPhaseStep");
             return false;
         }
         ticks++;
     }
 
-    managym::log::debug(Category::TURN, "Couldn't advance to target phase step within maxTicks");
+    log_debug(LogCat::TURN, "Couldn't advance to target phase step within maxTicks");
     return false;
 }
 
@@ -100,7 +98,7 @@ bool advanceToNextTurn(Game* game, int maxTicks) {
     while (ticks < maxTicks) {
         bool game_over = game->step(0);
         if (game_over) {
-            managym::log::debug(Category::TURN, "Game over in advanceToNextTurn");
+            log_debug(LogCat::TURN, "Game over in advanceToNextTurn");
             return false;
         }
 
@@ -111,7 +109,7 @@ bool advanceToNextTurn(Game* game, int maxTicks) {
         ticks++;
     }
 
-    managym::log::debug(Category::TURN, "Couldn't advance to next turn within maxTicks");
+    log_debug(LogCat::TURN, "Couldn't advance to next turn within maxTicks");
     return false;
 }
 // Convenience overloads

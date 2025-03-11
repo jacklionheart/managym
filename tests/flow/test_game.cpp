@@ -77,20 +77,19 @@ protected:
     }
 
     void logZoneState(const Game* game, const std::map<const Player*, PlayerZones>& zone_tracking) {
-        managym::log::debug(Category::TEST, "=== Detailed Zone State ===");
+        log_debug(LogCat::TEST, "=== Detailed Zone State ===");
         for (const auto& player_ptr : game->players) {
             const Player* player = player_ptr.get();
             const auto& player_zones = zone_tracking.at(player);
 
-            managym::log::debug(Category::TEST, "Player {} (id={})", player->name, player->id);
-            managym::log::debug(Category::TEST, "  Total unique cards tracked: {}",
-                                player_zones.totalCards());
+            log_debug(LogCat::TEST, "Player {} (id={})", player->name, player->id);
+            log_debug(LogCat::TEST, "  Total unique cards tracked: {}", player_zones.totalCards());
 
             for (int i = 0; i < 7; i++) {
                 auto zone = static_cast<ZoneType>(i);
                 const auto& zone_contents = player_zones.zones[i];
-                managym::log::debug(Category::TEST, "  Zone {}: {} cards: {}", int(zone),
-                                    zone_contents.total(), zone_contents.toString());
+                log_debug(LogCat::TEST, "  Zone {}: {} cards: {}", int(zone), zone_contents.total(),
+                          zone_contents.toString());
             }
         }
     }
@@ -110,11 +109,10 @@ protected:
 
             for (const auto& [card, locations] : card_locations) {
                 if (locations.size() > 1) {
-                    managym::log::error(Category::TEST,
-                                        "Card {} (id={}) appears in multiple zones:", card->name,
-                                        card->id);
+                    log_error(LogCat::TEST,
+                              "Card {} (id={}) appears in multiple zones:", card->name, card->id);
                     for (auto zone : locations) {
-                        managym::log::error(Category::TEST, "  - Zone {}", static_cast<int>(zone));
+                        log_error(LogCat::TEST, "  - Zone {}", static_cast<int>(zone));
                     }
                     return true;
                 }
@@ -157,7 +155,7 @@ TEST_F(TestGame, CardCountsPreserved) {
     // Log initial state
     const int initial_total = totalCardsInAllZones(game.get());
     logZoneState(game.get(), zone_tracking);
-    managym::log::debug(Category::TEST, "Initial total: {} cards", initial_total);
+    log_debug(LogCat::TEST, "Initial total: {} cards", initial_total);
 
     const int max_steps = 10000;
     int steps = 0;
@@ -165,7 +163,7 @@ TEST_F(TestGame, CardCountsPreserved) {
 
     while (!game_over && steps < max_steps) {
         // Log pre-step state
-        managym::log::debug(Category::TEST, "=== Step {} ===", steps);
+        log_debug(LogCat::TEST, "=== Step {} ===", steps);
         logZoneState(game.get(), zone_tracking);
 
         // Take step

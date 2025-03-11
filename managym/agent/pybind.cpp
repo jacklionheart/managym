@@ -41,7 +41,7 @@ PYBIND11_MODULE(_managym, m) {
     registerDataClasses(m);
     registerAPI(m);
 
-    managym::log::initialize(std::set<managym::log::Category>(), spdlog::level::warn);
+    initialize_logging(std::set<LogCat>(), spdlog::level::warn);
     spdlog::set_level(spdlog::level::warn);
 }
 
@@ -286,7 +286,7 @@ static void registerDataClasses(py::module& m) {
         .def_readwrite("focus", &ActionSpaceData::focus);
 
     // ----------------- Observation -----------------
-   py::class_<Observation>(m, "Observation", R"docstring(
+    py::class_<Observation>(m, "Observation", R"docstring(
        Game state from a single player's perspective.
 
        game_over: bool
@@ -314,28 +314,28 @@ static void registerDataClasses(py::module& m) {
        opponent_permanents: dict[int, Permanent]
            Opponent's permanents on the battlefield
    )docstring")
-       .def(py::init<>())
-       .def_readwrite("game_over", &Observation::game_over)
-       .def_readwrite("won", &Observation::won)
-       .def_readwrite("turn", &Observation::turn)
-       .def_readwrite("action_space", &Observation::action_space)
-       // Agent data
-       .def_readwrite("agent", &Observation::agent)
-       .def_readwrite("agent_cards", &Observation::agent_cards)
-       .def_readwrite("agent_permanents", &Observation::agent_permanents)
-       // Opponent data
-       .def_readwrite("opponent", &Observation::opponent)
-       .def_readwrite("opponent_cards", &Observation::opponent_cards)
-       .def_readwrite("opponent_permanents", &Observation::opponent_permanents)
-       .def("validate", &Observation::validate,
-            R"docstring(
+        .def(py::init<>())
+        .def_readwrite("game_over", &Observation::game_over)
+        .def_readwrite("won", &Observation::won)
+        .def_readwrite("turn", &Observation::turn)
+        .def_readwrite("action_space", &Observation::action_space)
+        // Agent data
+        .def_readwrite("agent", &Observation::agent)
+        .def_readwrite("agent_cards", &Observation::agent_cards)
+        .def_readwrite("agent_permanents", &Observation::agent_permanents)
+        // Opponent data
+        .def_readwrite("opponent", &Observation::opponent)
+        .def_readwrite("opponent_cards", &Observation::opponent_cards)
+        .def_readwrite("opponent_permanents", &Observation::opponent_permanents)
+        .def("validate", &Observation::validate,
+             R"docstring(
             Perform basic consistency checks on the observation:
             - Validate player identity matches (agent vs opponent) 
             - Check card ownership matches section
             - Verify permanent controllers match section
             )docstring")
-       .def("toJSON", &Observation::toJSON,
-            R"docstring(
+        .def("toJSON", &Observation::toJSON,
+             R"docstring(
             Generate a JSON-like string representation of the observation.
             Preserves the agent/opponent organization.
             )docstring");
@@ -353,6 +353,7 @@ static void registerAPI(py::module& m) {
         .def(
             "reset",
             [](Env& env, const std::vector<PlayerConfig>& configs) {
+                LogScope log_scope(spdlog::level::warn);
                 auto [obs_ptr, info_map] = env.reset(configs);
                 py::dict info;
                 for (auto& kv : info_map) {
@@ -367,9 +368,8 @@ static void registerAPI(py::module& m) {
                 Returns:
                     (Observation, dict) for the new state + extra info.
              )docstring")
-        .def(
-            "step",
-            [](Env& env, int action) {
+        .def("step", [](Env& env, int action) {
+                LogScope log_scope(spdlog::level::warn);
                 auto [obs_ptr, reward, terminated, truncated, info_map] = env.step(action);
                 py::dict info;
                 for (auto& kv : info_map) {

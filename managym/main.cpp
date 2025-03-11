@@ -5,18 +5,18 @@
 
 int main(int argc, char** argv) {
     bool debug_mode = false;
-    std::set<managym::log::Category> categories;
+    std::set<LogCat> categories;
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if (arg == "--debug") {
             debug_mode = true;
         } else if (arg.substr(0, 6) == "--log=") {
-            categories = managym::log::parseCategoryString(arg.substr(6));
+            categories = parseLogCatString(arg.substr(6));
         }
     }
 
-    managym::log::initialize(categories, debug_mode ? spdlog::level::debug : spdlog::level::info);
+    initialize_logging(categories, debug_mode ? spdlog::level::debug : spdlog::level::info);
 
     // Create deck configurations
     PlayerConfig red_player("Red Mage", {

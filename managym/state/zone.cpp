@@ -17,19 +17,18 @@ Zone::Zone(Zones* zones, std::vector<Player*>& players) : zones(zones) {
 // Writes
 
 void Zone::enter(Card* card) {
-    managym::log::debug(Category::STATE, "Zone::enter - Adding card {} owned by {}", card->id,
-                        card->owner->id);
+    log_debug(LogCat::STATE, "Zone::enter - Adding card {} owned by {}", card->id, card->owner->id);
     cards[card->owner].push_back(card);
 }
 
 void Zone::exit(Card* card) {
-    managym::log::debug(Category::STATE, "Zone::exit - Removing card {} owned by {}", card->id,
-                        card->owner->id);
+    log_debug(LogCat::STATE, "Zone::exit - Removing card {} owned by {}", card->id,
+              card->owner->id);
     std::vector<Card*>& player_cards = cards[card->owner];
     player_cards.erase(std::remove(player_cards.begin(), player_cards.end(), card),
                        player_cards.end());
-    managym::log::debug(Category::STATE, "Zone::exit - Removed card {} contained: {}", card->id,
-                        contains(card, card->owner));
+    log_debug(LogCat::STATE, "Zone::exit - Removed card {} contained: {}", card->id,
+              contains(card, card->owner));
 }
 
 // Reads

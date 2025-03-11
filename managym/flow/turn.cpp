@@ -172,7 +172,7 @@ void TurnSystem::startNextTurn() {
 }
 
 std::vector<Player*> TurnSystem::playersStartingWithActive() {
-    
+
     int num_players = game->players.size();
     std::vector<Player*> order;
     for (int i = 0; i < num_players; i++) {
@@ -200,6 +200,8 @@ Turn::Turn(Player* active_player, TurnSystem* turn_system)
 }
 
 std::unique_ptr<ActionSpace> Turn::tick() {
+    Profiler::Scope scope = turn_system->game->profiler->track("turn");
+
     if (completed || current_phase_index >= phases.size()) {
         throw std::runtime_error("Turn is complete");
     }
@@ -221,7 +223,8 @@ std::unique_ptr<ActionSpace> Turn::tick() {
 // Phase implementation
 
 std::unique_ptr<ActionSpace> Phase::tick() {
-    managym::log::debug(Category::TURN, "Ticking {}", std::string(typeid(*this).name()));
+    Profiler::Scope scope = game()->profiler->track("phase");
+    log_debug(LogCat::TURN, "Ticking {}", std::string(typeid(*this).name()));
 
     if (completed || current_step_index >= steps.size()) {
         throw std::runtime_error("Phase is complete");
@@ -245,12 +248,13 @@ std::unique_ptr<ActionSpace> Phase::tick() {
 
 Step::Step(Phase* phase) : phase(phase) {}
 std::unique_ptr<ActionSpace> Step::tick() {
-    managym::log::debug(Category::TURN, "Ticking {}", std::string(typeid(*this).name()));
+    Profiler::Scope scope = game()->profiler->track("step");
+    log_debug(LogCat::TURN, "Ticking {}", std::string(typeid(*this).name()));
 
     if (!initialized) {
         initialize();
         initialized = true;
-        managym::log::debug(Category::TURN, "Step initialized");
+        log_debug(LogCat::TURN, "Step initialized");
     }
 
     if (completed) {
@@ -260,35 +264,34 @@ std::unique_ptr<ActionSpace> Step::tick() {
     std::unique_ptr<ActionSpace> result = nullptr;
 
     // Debug the state machine
-    managym::log::debug(Category::TURN,
-                        "Step state: turn_based_actions_complete={}, has_priority_window={}",
-                        turn_based_actions_complete, has_priority_window);
+    log_debug(LogCat::TURN, "Step state: turn_based_actions_complete={}, has_priority_window={}",
+              turn_based_actions_complete, has_priority_window);
 
     if (!turn_based_actions_complete) {
         result = performTurnBasedActions();
         if (!result) {
             turn_based_actions_complete = true;
-            managym::log::debug(Category::TURN, "Turn based actions completed with no result");
+            log_debug(LogCat::TURN, "Turn based actions completed with no result");
         } else {
-            managym::log::debug(Category::TURN, "Turn based actions produced an action space");
+            log_debug(LogCat::TURN, "Turn based actions produced an action space");
             return result;
         }
     }
 
     if (has_priority_window) {
         PrioritySystem* priority_system = game()->priority_system.get();
-        managym::log::debug(Category::TURN, "Ticking priority system");
+        log_debug(LogCat::TURN, "Ticking priority system");
         result = priority_system->tick();
         if (result) {
             return result;
         }
-        managym::log::debug(Category::TURN, "Priority system completed");
+        log_debug(LogCat::TURN, "Priority system completed");
     }
 
-    managym::log::debug(Category::TURN, "Emptying mana pools");
+    log_debug(LogCat::TURN, "Emptying mana pools");
     game()->clearManaPools();
 
-    managym::log::debug(Category::TURN, "Step completing");
+    log_debug(LogCat::TURN, "Step completing");
     completed = true;
 
     return nullptr;
@@ -302,6 +305,7 @@ std::unique_ptr<ActionSpace> Step::performTurnBasedActions() {
 }
 
 Game* Step::game() { return phase->turn->turn_system->game; }
+Game* Phase::game() { return turn->turn_system->game; }
 
 TurnSystem* Step::turn_system() { return phase->turn->turn_system; }
 
@@ -310,8 +314,8 @@ Turn* Step::turn() { return phase->turn; }
 Player* Step::activePlayer() { return phase->turn->active_player; }
 
 std::unique_ptr<ActionSpace> UntapStep::performTurnBasedActions() {
-    managym::log::debug(Category::TURN, "Starting {} for {}", std::string(typeid(*this).name()),
-                        activePlayer()->name);
+    log_debug(LogCat::TURN, "Starting {} for {}", std::string(typeid(*this).name()),
+              activePlayer()->name);
     game()->markPermanentsNotSummoningSick(activePlayer());
     game()->untapAllPermanents(activePlayer());
     turn_based_actions_complete = true;

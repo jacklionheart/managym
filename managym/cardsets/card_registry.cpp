@@ -41,8 +41,8 @@ std::unique_ptr<Card> CardRegistry::instantiate(const std::string& name, Player*
 
     // Create new Card instance with proper owner and ID
     ObjectId new_id = id_generator->next();
-    managym::log::debug(Category::STATE, "Instantiating card {} (id={}) for player {} (id={})",
-                        name, new_id, owner->name, owner->id);
+    log_debug(LogCat::STATE, "Instantiating card {} (id={}) for player {} (id={})", name, new_id,
+              owner->name, owner->id);
 
     auto card = std::make_unique<Card>(new_id, *it->second, owner);
 

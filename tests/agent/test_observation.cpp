@@ -48,22 +48,22 @@ protected:
     void verifyBasicObservation(const Observation* obs) {
         SCOPED_TRACE("verifyBasicObservation");
 
-        managym::log::debug(Category::TEST, "Starting basic observation verification");
+        log_debug(LogCat::TEST, "Starting basic observation verification");
 
         // 1. Verify observation pointer
         ASSERT_NE(obs, nullptr) << "Observation pointer is null";
-        managym::log::debug(Category::TEST, "Observation pointer valid");
+        log_debug(LogCat::TEST, "Observation pointer valid");
 
         // 2. Verify global game flags
         ASSERT_FALSE(obs->game_over) << "Game should not be over in initial state";
         ASSERT_FALSE(obs->won) << "Game should not be 'won' in initial state";
-        managym::log::debug(Category::TEST, "Game flags valid");
+        log_debug(LogCat::TEST, "Game flags valid");
 
         // 3. Verify turn data
         ASSERT_GE(obs->turn.turn_number, 0) << "Turn number should be >= 0";
         ASSERT_GE(obs->turn.active_player_id, 0) << "Active player ID should be >= 0";
         ASSERT_GE(obs->turn.agent_player_id, 0) << "Agent player ID should be >= 0";
-        managym::log::debug(Category::TEST, "Turn data valid");
+        log_debug(LogCat::TEST, "Turn data valid");
 
         // 4. Verify player data
         // Check that the agent/opponent fields are set correctly.
@@ -89,7 +89,7 @@ protected:
                 << " mismatch for opponent (obs=" << obs->opponent.zone_counts[i]
                 << ", real=" << expected_opponent << ")";
         }
-        managym::log::debug(Category::TEST, "Player data valid");
+        log_debug(LogCat::TEST, "Player data valid");
 
         // 5. Verify action space
         ASSERT_GT(obs->action_space.actions.size(), 0u)
@@ -107,8 +107,8 @@ protected:
                 }
             }
         }
-        managym::log::debug(Category::TEST, "Action space valid");
-        managym::log::debug(Category::TEST, "Basic observation verification complete");
+        log_debug(LogCat::TEST, "Action space valid");
+        log_debug(LogCat::TEST, "Basic observation verification complete");
     }
 };
 
@@ -359,8 +359,8 @@ TEST_F(TestObservation, PlayersTakeAlternatingActions) {
         if (obs.opponent.is_active)
             seen_active_ids.insert(obs.opponent.id);
 
-        managym::log::debug(Category::TEST, "Step {}: agent={}, active={}, consecutive_same={}",
-                            steps, obs.agent.id, obs.turn.active_player_id, consecutive_same_agent);
+        log_debug(LogCat::TEST, "Step {}: agent={}, active={}, consecutive_same={}", steps,
+                  obs.agent.id, obs.turn.active_player_id, consecutive_same_agent);
 
         game_over = game2->step(0);
         steps++;
@@ -377,9 +377,9 @@ TEST_F(TestObservation, PlayersTakeAlternatingActions) {
                     << "Agent " << kv.first << " count deviates too far from average";
         }
     }
-    managym::log::info(Category::TEST, "Final agent counts after {} steps:", steps);
+    log_info(LogCat::TEST, "Final agent counts after {} steps:", steps);
     for (const auto& kv : agent_counts) {
-        managym::log::info(Category::TEST, "  Player {}: {} times", kv.first, kv.second);
+        log_info(LogCat::TEST, "  Player {}: {} times", kv.first, kv.second);
     }
     ASSERT_TRUE(game_over) << "Game did not complete within " << max_steps << " steps";
     ASSERT_GE(seen_agent_ids.size(), 2) << "Only one player was ever the agent";

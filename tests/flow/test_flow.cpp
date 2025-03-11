@@ -54,18 +54,18 @@ TEST_F(TestFlow, PriorityPassingTest) {
     ASSERT_NE(action_space, nullptr);
     ASSERT_EQ(action_space->type, ActionSpaceType::PRIORITY);
 
-    managym::log::info(Category::TEST, "Action space: {}", action_space->toString());
+    log_info(LogCat::TEST, "Action space: {}", action_space->toString());
 
     // Both players should pass priority
-    managym::log::info(Category::TEST, "Active player passing priority");
+    log_info(LogCat::TEST, "Active player passing priority");
     game->step(action_space->actions.size() - 1); // Last action should be pass
 
     action_space = game->actionSpace();
     ASSERT_NE(action_space, nullptr);
     ASSERT_EQ(action_space->type, ActionSpaceType::PRIORITY);
 
-    managym::log::info(Category::TEST, "Action space: {}", action_space->toString());
-    managym::log::info(Category::TEST, "Non-active player passing priority");
+    log_info(LogCat::TEST, "Action space: {}", action_space->toString());
+    log_info(LogCat::TEST, "Non-active player passing priority");
     game->step(action_space->actions.size() - 1); // Last action should be pass
 
     // After both players pass with empty stack, we should move to draw step
@@ -126,15 +126,13 @@ TEST_F(TestFlow, ActionSpaceValidity) {
         validate_action_space(current_space, steps_taken);
 
         // Log the current game state
-        managym::log::info(Category::TEST, "Step {}: Phase={}, Step={}, ActivePlayer={}",
-                           steps_taken, toString(game->turn_system->currentPhaseType()),
-                           toString(game->turn_system->currentStepType()),
-                           game->activePlayer()->name);
+        log_info(LogCat::TEST, "Step {}: Phase={}, Step={}, ActivePlayer={}", steps_taken,
+                 toString(game->turn_system->currentPhaseType()),
+                 toString(game->turn_system->currentStepType()), game->activePlayer()->name);
 
         // Log the current priority if we're in a priority situation
         if (current_space->type == ActionSpaceType::PRIORITY) {
-            managym::log::info(Category::TEST, "Priority actions available: {}",
-                               current_space->actions.size());
+            log_info(LogCat::TEST, "Priority actions available: {}", current_space->actions.size());
         }
 
         game_over = game->step(0);
@@ -179,8 +177,7 @@ TEST_F(TestFlow, CombatActionSpaceAfterDamage) {
         }
 
         // Log the action space for debugging
-        managym::log::info(Category::TEST, "Action space at step {}: {}", step_num,
-                           space->toString());
+        log_info(LogCat::TEST, "Action space at step {}: {}", step_num, space->toString());
     };
 
     // Set up combat scenario:
@@ -200,7 +197,7 @@ TEST_F(TestFlow, CombatActionSpaceAfterDamage) {
     ASSERT_TRUE(
         advanceToPhaseStep(game.get(), PhaseType::COMBAT, StepType::COMBAT_DECLARE_ATTACKERS));
 
-    managym::log::info(Category::TEST, "Starting combat sequence");
+    log_info(LogCat::TEST, "Starting combat sequence");
 
     int step_count = 0;
     const int max_steps = 20; // Should complete combat in fewer steps
@@ -213,10 +210,9 @@ TEST_F(TestFlow, CombatActionSpaceAfterDamage) {
         validate_action_space(current_space, step_count);
 
         // Log state before step
-        managym::log::info(Category::TEST, "Step {}: Phase={}, Step={}, ActivePlayer={}",
-                           step_count, toString(game->turn_system->currentPhaseType()),
-                           toString(game->turn_system->currentStepType()),
-                           game->activePlayer()->name);
+        log_info(LogCat::TEST, "Step {}: Phase={}, Step={}, ActivePlayer={}", step_count,
+                 toString(game->turn_system->currentPhaseType()),
+                 toString(game->turn_system->currentStepType()), game->activePlayer()->name);
 
         // Take step
         bool game_over = game->step(0);
