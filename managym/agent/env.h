@@ -24,7 +24,8 @@ public:
     std::unique_ptr<BehaviorTracker> hero_tracker;
     std::unique_ptr<BehaviorTracker> villain_tracker;
 
-    Env(int seed = 0, bool skip_trivial = false, bool enable_behavior_tracking = false);
+    Env(int seed = 0, bool skip_trivial = false, bool enable_profiler = false,
+        bool enable_behavior_tracking = false);
 
     /**
      * Resets the environment with new player configs and returns (observation, info).
@@ -44,4 +45,10 @@ public:
     //                      stats.
     std::tuple<Observation*, double, bool, bool, InfoDict> step(int action,
                                                                 bool skip_trivial = false);
+
+    InfoDict info();
+
+private:
+    void addProfilerInfo(InfoDict& info);
+    void addBehaviorInfo(InfoDict& info);
 };

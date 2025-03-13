@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Tuple
 class Env:
     """Main environment class for Magic gameplay."""
     
-    def __init__(self, seed: int = 0, skip_trivial: bool = False) -> None:
+    def __init__(self, seed: int = 0, skip_trivial: bool = False, enable_profiler: bool = False, enable_behavior_tracking: bool = False) -> None:
         """Initialize environment.
         
         Args:
@@ -44,6 +44,14 @@ class Env:
             
         Returns:
             Tuple of (observation, reward, terminated, truncated, info)
+        """
+        ...
+
+    def info(self) -> Dict[str, Any]:
+        """Get information about the environment.
+        
+        Returns:
+            Dictionary of environment information -- profiler and behavior stats
         """
         ...
 

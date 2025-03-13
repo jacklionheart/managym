@@ -11,6 +11,7 @@
 #include <tuple>
 
 TEST(BehaviorTrackerTest, RandomActionsOutput) {
+    LogScope log_scope(spdlog::level::warn);
     // Create standard mixed deck configuration.
     std::map<std::string, int> mixed_deck{
         {"Mountain", 12}, {"Forest", 12}, {"Llanowar Elves", 18}, {"Grey Ogre", 18}};
@@ -19,8 +20,7 @@ TEST(BehaviorTrackerTest, RandomActionsOutput) {
                                       PlayerConfig("urza", mixed_deck)};
 
     // Create environment with behavior tracking enabled.
-    // Args: seed=0, skip_trivial=true, enable_behavior_tracking=true.
-    Env env(0, true, true);
+    Env env(0, true, true, true);
 
     // Initialize random number generator with a time-based seed.
     std::mt19937 rng(std::chrono::system_clock::now().time_since_epoch().count());

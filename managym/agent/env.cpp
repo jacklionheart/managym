@@ -6,11 +6,11 @@
 #include <sstream>
 #include <stdexcept>
 
-Env::Env(int seed, bool skip_trivial, bool enable_behavior_tracking)
+Env::Env(int seed, bool skip_trivial, bool enable_profiler, bool enable_behavior_tracking)
     : game(nullptr), skip_trivial(skip_trivial), seed(seed) {
     // Seed the random number generator.
     std::srand(seed);
-    profiler = std::make_unique<Profiler>(true, 50);
+    profiler = std::make_unique<Profiler>(enable_profiler, 50);
     hero_tracker = std::make_unique<BehaviorTracker>(enable_behavior_tracking);
     villain_tracker = std::make_unique<BehaviorTracker>(enable_behavior_tracking);
 }
@@ -72,6 +72,20 @@ std::tuple<Observation*, double, bool, bool, InfoDict> Env::step(int action, boo
         }
     }
 
+    addProfilerInfo(info);
+    addBehaviorInfo(info);
+
+    return std::make_tuple(obs, reward, terminated, truncated, info);
+}
+
+InfoDict Env::info() {
+    InfoDict info = create_empty_info_dict();
+    addProfilerInfo(info);
+    addBehaviorInfo(info);
+    return info;
+}
+
+void Env::addProfilerInfo(InfoDict& info) {
     // Build nested profiler info.
     InfoDict profiler_info = create_empty_info_dict();
     if (profiler && profiler->isEnabled()) {
@@ -84,6 +98,9 @@ std::tuple<Observation*, double, bool, bool, InfoDict> Env::step(int action, boo
         }
     }
     insert_info(info, "profiler", profiler_info);
+}
+
+void Env::addBehaviorInfo(InfoDict& info) {
 
     // Build nested behavior info.
     InfoDict behavior_info = create_empty_info_dict();
@@ -107,6 +124,4 @@ std::tuple<Observation*, double, bool, bool, InfoDict> Env::step(int action, boo
         insert_info(behavior_info, "villain", villain_info);
     }
     insert_info(info, "behavior", behavior_info);
-
-    return std::make_tuple(obs, reward, terminated, truncated, info);
 }
