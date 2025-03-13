@@ -155,8 +155,11 @@ class TestManagym:
         land_idx = find_action(obs, managym.ActionEnum.PRIORITY_PLAY_LAND)
         if land_idx is not None:
             obs, _, _, _, _ = env.step(land_idx)
-            # Check that the agent's battlefield count has increased.
-            bf_count = obs.agent.zone_counts[managym.ZoneEnum.BATTLEFIELD]
+            # Determine which side corresponds to the player with index 0 (Red Mage).
+            if obs.agent.player_index == 0:
+                bf_count = obs.agent.zone_counts[managym.ZoneEnum.BATTLEFIELD]
+            else:
+                bf_count = obs.opponent.zone_counts[managym.ZoneEnum.BATTLEFIELD]
             assert bf_count >= 1, "Battlefield should have at least one card after playing a land"
 
         # Try casting a spell if available.

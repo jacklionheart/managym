@@ -1,5 +1,6 @@
 #include "game.h"
 
+#include "managym/agent/behavior_tracker.h"
 #include "managym/agent/observation.h"
 #include "managym/infra/log.h"
 
@@ -14,7 +15,8 @@ Profiler* defaultProfiler() {
     return &instance;
 }
 
-Game::Game(std::vector<PlayerConfig> player_configs, bool skip_trivial, Profiler* profiler)
+Game::Game(std::vector<PlayerConfig> player_configs, bool skip_trivial, Profiler* profiler,
+           std::vector<BehaviorTracker*> trackers)
     : skip_trivial(skip_trivial), profiler(profiler ? profiler : defaultProfiler()),
       turn_system(std::make_unique<TurnSystem>(this)),
       priority_system(std::make_unique<PrioritySystem>(this)),
@@ -30,8 +32,11 @@ Game::Game(std::vector<PlayerConfig> player_configs, bool skip_trivial, Profiler
     // Create players first
     int index = 0;
     for (PlayerConfig& player_config : player_configs) {
+        BehaviorTracker* tracker =
+            trackers.size() > index ? trackers[index] : defaultBehaviorTracker();
         players.emplace_back(std::make_unique<Player>(id_generator->next(), index++, player_config,
-                                                      card_registry.get()));
+                                                      card_registry.get(), tracker));
+        tracker->onGameStart();
     }
 
     std::vector<Player*> weak_players = {players[0].get(), players[1].get()};
@@ -202,12 +207,20 @@ bool Game::step(int action) {
         game_over = _step(0);
     }
 
+    if (game_over) {
+        if (turn_system->current_turn && !turn_system->current_turn->completed) {
+            activePlayer()->behavior_tracker->onTurnEnd();
+        }
+        Player* winner = players[winnerIndex()].get();
+        winner->behavior_tracker->onGameWon();
+    }
+
     return game_over;
 }
 
 bool Game::tick() {
     Profiler::Scope scope = profiler->track("tick");
-    
+
     // Keep ticking until we have an action space or game ends
     while (!current_action_space) {
         // Get next action space

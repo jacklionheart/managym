@@ -24,6 +24,7 @@ void DeclareAttackerAction::execute() {
         step->combat_phase->attackers.push_back(attacker);
         step->combat_phase->attacker_to_blockers[attacker] = std::vector<Permanent*>();
         attacker->attack();
+        player->behavior_tracker->onAttackerDeclared(attacker);
     }
 }
 
@@ -33,6 +34,7 @@ void DeclareBlockerAction::execute() {
     log_info(LogCat::AGENT, "Player {} Declaring blocker", player->name);
     if (attacker != nullptr) {
         step->combat_phase->attacker_to_blockers[attacker].push_back(blocker);
+        player->behavior_tracker->onBlockerDeclared(blocker, attacker);
     }
 }
 
@@ -51,6 +53,7 @@ PlayLand::PlayLand(Card* card, Player* player, Game* game)
 void PlayLand::execute() {
     log_info(LogCat::AGENT, "Player {} PlayLand: {}", player->name, card->toString());
     game->playLand(player, card);
+    player->behavior_tracker->onLandPlayed(card);
 }
 
 std::vector<ObjectId> PlayLand::focus() const { return {card->id}; }
@@ -60,6 +63,7 @@ CastSpell::CastSpell(Card* card, Player* player, Game* game)
     if (!card->types.isCastable()) {
         throw std::invalid_argument("Cannot cast a land card.");
     }
+    player->behavior_tracker->onSpellCast(card, card->mana_cost.value().mana_value);
 }
 
 void CastSpell::execute() {

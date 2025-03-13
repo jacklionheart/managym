@@ -70,7 +70,6 @@ TEST(ProfilerTest, RepeatedScopesAccumulate) {
     EXPECT_NEAR(total, 0.25, 0.1);
 }
 
-
 TEST(ProfilerTest, SampleOutput) {
     LogScope log_scope(spdlog::level::warn);
 
@@ -85,7 +84,7 @@ TEST(ProfilerTest, SampleOutput) {
 
     for (int i = 0; i < 10; ++i) {
         Observation* obs;
-        std::map<std::string, std::string> info;
+        InfoDict info;
         std::tie(obs, info) = env.reset(configs);
 
         bool terminated = false;
@@ -96,7 +95,7 @@ TEST(ProfilerTest, SampleOutput) {
     }
 
     Observation* obs;
-    std::map<std::string, std::string> info;
+    InfoDict info;
     std::tie(obs, info) = env.reset(configs);
     std::tie(obs, std::ignore, std::ignore, std::ignore, info) = env.step(0);
 

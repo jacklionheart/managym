@@ -1,5 +1,6 @@
 #pragma once
 
+#include "managym/agent/behavior_tracker.h"
 #include "managym/cardsets/card_registry.h"
 #include "managym/state/card.h"
 #include "managym/state/game_object.h"
@@ -23,7 +24,8 @@ struct PlayerConfig {
 // Represents a player in the game, managing their resources and game state
 class Player : public GameObject {
 public:
-    Player(const ObjectId& id, int index, const PlayerConfig& config, CardRegistry* registry);
+    Player(const ObjectId& id, int index, const PlayerConfig& config, CardRegistry* registry,
+           BehaviorTracker* behavior_tracker);
 
     // Data
 
@@ -36,6 +38,7 @@ public:
     bool drew_when_empty = false;
     bool alive = true;
     Mana mana_pool;
+    BehaviorTracker* behavior_tracker;
 
     // Reads
     std::string toString() const;

@@ -163,9 +163,9 @@ struct Step {
     // Writes
     // Perform game actions for this step
     virtual std::unique_ptr<ActionSpace> performTurnBasedActions();
-    // Initialize step state
-    virtual void initialize();
-    // Advance step state
+
+    virtual void onStepStart();
+    virtual void onStepEnd();
     std::unique_ptr<ActionSpace> tick();
 };
 
@@ -238,6 +238,8 @@ struct DrawStep : public Step {
 // Main phase step
 struct MainStep : public Step {
     MainStep(Phase* parent_phase) : Step(parent_phase) { has_priority_window = true; }
+    void onStepStart() override;
+    void onStepEnd() override;
 };
 
 // End phase steps

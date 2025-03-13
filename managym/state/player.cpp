@@ -1,13 +1,16 @@
 // player.cpp
 #include "player.h"
 
+#include "managym/agent/behavior_tracker.h"
 #include "managym/cardsets/card_registry.h"
 #include "managym/infra/log.h"
 
 #include <sstream>
 
-Player::Player(const ObjectId& id, int index, const PlayerConfig& config, CardRegistry* registry)
-    : GameObject(id), index(index), name(config.name) {
+Player::Player(const ObjectId& id, int index, const PlayerConfig& config, CardRegistry* registry,
+               BehaviorTracker* behavior_tracker)
+    : GameObject(id), index(index), name(config.name),
+      behavior_tracker(behavior_tracker ? behavior_tracker : defaultBehaviorTracker()) {
     // Wait until 'this' is fully constructed before instantiating the deck.
     deck = instantiateDeck(config, registry);
     log_debug(LogCat::STATE, "Created player {} (id={}) deck={}", name, id, config.deckList());
@@ -15,7 +18,10 @@ Player::Player(const ObjectId& id, int index, const PlayerConfig& config, CardRe
 
 // Writes
 
-void Player::takeDamage(int damage) { life -= damage; }
+void Player::takeDamage(int damage) {
+    life -= damage;
+    behavior_tracker->onDamageTaken(damage);
+}
 
 // Reads
 

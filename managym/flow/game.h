@@ -12,7 +12,6 @@
 
 #include <managym/agent/observation.h>
 #include <managym/infra/profiler.h>
-
 #include <spdlog/spdlog.h>
 
 #include <vector>
@@ -23,7 +22,7 @@ public:
     // Constructor
     // player_configs: names, decklists
     Game(std::vector<PlayerConfig> player_configs, bool skip_trivial = false,
-         Profiler* profiler = nullptr);
+         Profiler* profiler = nullptr, std::vector<BehaviorTracker*> trackers = {});
 
     // Data
 

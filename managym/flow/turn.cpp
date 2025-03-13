@@ -3,6 +3,8 @@
 #include "managym/flow/combat.h"
 #include "managym/flow/game.h"
 #include "managym/infra/log.h"
+
+#include <cstdarg>
 // TurnSystem implementation
 
 TurnSystem::TurnSystem(Game* game) : game(game) {
@@ -168,6 +170,7 @@ void TurnSystem::startNextTurn() {
     }
     current_turn = std::make_unique<Turn>(activePlayer(), this);
     turn_counts[activePlayer()]++;
+    activePlayer()->behavior_tracker->onTurnStart();
     global_turn_count++;
 }
 
@@ -214,6 +217,7 @@ std::unique_ptr<ActionSpace> Turn::tick() {
             current_phase_index++;
         } else {
             completed = true;
+            active_player->behavior_tracker->onTurnEnd();
         }
     }
 
@@ -252,7 +256,7 @@ std::unique_ptr<ActionSpace> Step::tick() {
     log_debug(LogCat::TURN, "Ticking {}", std::string(typeid(*this).name()));
 
     if (!initialized) {
-        initialize();
+        onStepStart();
         initialized = true;
         log_debug(LogCat::TURN, "Step initialized");
     }
@@ -292,12 +296,15 @@ std::unique_ptr<ActionSpace> Step::tick() {
     game()->clearManaPools();
 
     log_debug(LogCat::TURN, "Step completing");
+
+    onStepEnd();
     completed = true;
 
     return nullptr;
 }
 
-void Step::initialize() {}
+void Step::onStepStart() {}
+void Step::onStepEnd() {}
 
 std::unique_ptr<ActionSpace> Step::performTurnBasedActions() {
     turn_based_actions_complete = true;
@@ -312,6 +319,11 @@ TurnSystem* Step::turn_system() { return phase->turn->turn_system; }
 Turn* Step::turn() { return phase->turn; }
 
 Player* Step::activePlayer() { return phase->turn->active_player; }
+
+void MainStep::onStepStart() {
+    activePlayer()->behavior_tracker->onMainPhaseStart(game(), activePlayer());
+}
+void MainStep::onStepEnd() { activePlayer()->behavior_tracker->onMainPhaseEnd(); }
 
 std::unique_ptr<ActionSpace> UntapStep::performTurnBasedActions() {
     log_debug(LogCat::TURN, "Starting {} for {}", std::string(typeid(*this).name()),

@@ -16,6 +16,9 @@ static void registerEnums(py::module& m);
 static void registerDataClasses(py::module& m);
 static void registerAPI(py::module& m);
 
+py::object convertInfoValue(const InfoValue& value);
+py::dict convertInfoDict(const InfoDict& dict);
+
 PYBIND11_MODULE(_managym, m) {
     m.doc() = R"docstring(
         _managym (import as `import managym`)
@@ -342,46 +345,58 @@ static void registerDataClasses(py::module& m) {
 }
 
 static void registerAPI(py::module& m) {
-    py::class_<Env>(m, "Env", R"docstring(
-        Main environment class.
-        
-        Args:
-            seed (int): Random seed for environment
-            skip_trivial (bool): Skip trivial actionspaces (num_actions=1)
-    )docstring")
-        .def(py::init<int, bool>(), py::arg("seed") = 0, py::arg("skip_trivial") = false)
+    py::class_<Env>(m, "Env", "Main environment class")
+        .def(py::init<int, bool, bool>(), py::arg("seed") = 0, py::arg("skip_trivial") = true,
+             py::arg("enable_behavior_tracking") = false)
         .def(
             "reset",
             [](Env& env, const std::vector<PlayerConfig>& configs) {
                 LogScope log_scope(spdlog::level::warn);
-                auto [obs_ptr, info_map] = env.reset(configs);
-                py::dict info;
-                for (auto& kv : info_map) {
-                    info[py::str(kv.first)] = py::str(kv.second);
-                }
-                return py::make_tuple(obs_ptr, info);
+                std::tuple<Observation*, InfoDict> result = env.reset(configs);
+                py::dict pyInfo = convertInfoDict(std::get<1>(result));
+                return py::make_tuple(std::get<0>(result), pyInfo);
             },
             py::arg("player_configs"),
-            R"docstring(
-                Reset the environment with the given player configs.
-
-                Returns:
-                    (Observation, dict) for the new state + extra info.
-             )docstring")
-        .def("step", [](Env& env, int action) {
+            "Reset the environment with the given player configurations. Returns a tuple "
+            "(Observation, dict).")
+        .def(
+            "step",
+            [](Env& env, int action) {
                 LogScope log_scope(spdlog::level::warn);
-                auto [obs_ptr, reward, terminated, truncated, info_map] = env.step(action);
-                py::dict info;
-                for (auto& kv : info_map) {
-                    info[py::str(kv.first)] = kv.second;
-                }
-                return py::make_tuple(obs_ptr, reward, terminated, truncated, info);
+                std::tuple<Observation*, double, bool, bool, InfoDict> result = env.step(action);
+                py::dict pyInfo = convertInfoDict(std::get<4>(result));
+                return py::make_tuple(std::get<0>(result), std::get<1>(result), std::get<2>(result),
+                                      std::get<3>(result), pyInfo);
             },
             py::arg("action"),
-            R"docstring(
-                Advance the environment by applying the given action index.
+            "Advance the environment by applying the given action index. Returns a tuple "
+            "(Observation, reward, terminated, truncated, dict).");
+}
 
-                Returns:
-                    (Observation, float reward, bool terminated, bool truncated, dict info).
-             )docstring");
+// -----------------------------------------------------------------------------
+// Conversion functions from InfoDict (native C++) to py::dict (Python)
+// -----------------------------------------------------------------------------
+
+py::dict convertInfoDict(const InfoDict& dict) {
+    py::dict pyDict;
+    InfoDict::const_iterator it = dict.begin();
+    for (; it != dict.end(); ++it) {
+        pyDict[py::str(it->first)] = convertInfoValue(it->second);
+    }
+    return pyDict;
+}
+
+py::object convertInfoValue(const InfoValue& value) {
+    switch (value.value.index()) {
+    case 0: // std::string
+        return py::str(std::get<std::string>(value.value));
+    case 1: // InfoDict
+        return convertInfoDict(std::get<InfoDict>(value.value));
+    case 2: // int
+        return py::int_(std::get<int>(value.value));
+    case 3: // float
+        return py::float_(std::get<float>(value.value));
+    default:
+        throw std::runtime_error("Unhandled type in InfoValue variant");
+    }
 }

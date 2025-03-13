@@ -42,7 +42,7 @@ struct DeclareAttackersStep : public CombatStep {
     // Process turn-based actions for this step
     std::unique_ptr<ActionSpace> performTurnBasedActions() override;
     // Initialize step state
-    void initialize() override;
+    void onStepStart() override;
     // Create action space for a potential attacker
     std::unique_ptr<ActionSpace> makeActionSpace(Permanent* attacker);
 };
@@ -59,7 +59,7 @@ struct DeclareBlockersStep : public CombatStep {
     // Process turn-based actions for this step
     std::unique_ptr<ActionSpace> performTurnBasedActions() override;
     // Initialize step state
-    void initialize() override;
+    void onStepStart() override;
     // Create action space for a potential blocker
     std::unique_ptr<ActionSpace> makeActionSpace(Permanent* blocker);
 };

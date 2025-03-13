@@ -19,15 +19,17 @@ CombatPhase::CombatPhase(Turn* parent_turn) : Phase(parent_turn) {
 CombatStep::CombatStep(CombatPhase* parent_combat_phase)
     : Step(parent_combat_phase), combat_phase(parent_combat_phase) {}
 
-void DeclareAttackersStep::initialize() {
+void DeclareAttackersStep::onStepStart() {
     Player* active_player = game()->activePlayer();
     log_debug(LogCat::COMBAT, "DeclareAttackersStep::initialize");
     attackers_to_declare = game()->zones->constBattlefield()->eligibleAttackers(active_player);
+    active_player->behavior_tracker->onDeclareAttackersStart(game(), active_player);
 }
 
-void DeclareBlockersStep::initialize() {
+void DeclareBlockersStep::onStepStart() {
     Player* defending_player = game()->nonActivePlayer();
     blockers_to_declare = game()->zones->constBattlefield()->eligibleBlockers(defending_player);
+    defending_player->behavior_tracker->onDeclareBlockersStart(game(), defending_player);
 }
 
 std::unique_ptr<ActionSpace> DeclareAttackersStep::makeActionSpace(Permanent* attacker) {

@@ -1,33 +1,39 @@
 #include "env.h"
 
 #include "managym/flow/game.h"
-#include "managym/infra/log.h"
+#include "managym/infra/info_dict.h"
 
+#include <sstream>
 #include <stdexcept>
 
-Env::Env(int seed, bool skip_trivial) : game(nullptr), skip_trivial(skip_trivial), seed(seed) {
-    // Seed the random number generator
+Env::Env(int seed, bool skip_trivial, bool enable_behavior_tracking)
+    : game(nullptr), skip_trivial(skip_trivial), seed(seed) {
+    // Seed the random number generator.
     std::srand(seed);
     profiler = std::make_unique<Profiler>(true, 50);
+    hero_tracker = std::make_unique<BehaviorTracker>(enable_behavior_tracking);
+    villain_tracker = std::make_unique<BehaviorTracker>(enable_behavior_tracking);
 }
 
-std::pair<Observation*, std::map<std::string, std::string>>
-Env::reset(const std::vector<PlayerConfig>& player_configs) {
+std::tuple<Observation*, InfoDict> Env::reset(const std::vector<PlayerConfig>& player_configs) {
     Profiler::Scope scope = profiler->track("env_reset");
 
-    // Destroy any old game
-    game.reset(new Game(player_configs, skip_trivial, profiler.get()));
+    std::vector<BehaviorTracker*> trackers;
+    trackers.push_back(hero_tracker.get());
+    trackers.push_back(villain_tracker.get());
 
-    // Build initial observation
-    Observation* obs = game->observation(); // game creates a fresh observation
+    // Destroy any old game and create a new one.
+    game.reset(new Game(player_configs, skip_trivial, profiler.get(), trackers));
 
-    // For now, we’ll leave info empty
-    std::map<std::string, std::string> info;
-    return {obs, info};
+    // Build initial observation.
+    Observation* obs = game->observation();
+
+    // Create and return an empty InfoDict.
+    InfoDict info = create_empty_info_dict();
+    return std::make_tuple(obs, info);
 }
 
-std::tuple<Observation*, double, bool, bool, std::map<std::string, std::string>>
-Env::step(int action, bool skip_trivial) {
+std::tuple<Observation*, double, bool, bool, InfoDict> Env::step(int action, bool skip_trivial) {
     Profiler::Scope scope = profiler->track("env_step");
 
     if (!game) {
@@ -38,7 +44,6 @@ Env::step(int action, bool skip_trivial) {
     }
 
     Player* agent = game->actionSpace()->player;
-
     bool done = game->step(action); // returns true if game is over
     Observation* obs = game->observation();
 
@@ -50,35 +55,58 @@ Env::step(int action, bool skip_trivial) {
     bool terminated = false;
     bool truncated = false;
 
-    std::map<std::string, std::string> info;
+    // Build a new nested InfoDict.
+    InfoDict info = create_empty_info_dict();
 
     if (done) {
         terminated = true;
-        // Identify who won
-        int widx = game->winnerIndex(); // -1 if no winner identified
+        // Identify who won.
+        int widx = game->winnerIndex(); // -1 if no winner identified.
         if (widx >= 0) {
             Player* winner = game->players[widx].get();
-            if (winner == agent) {
-                reward = 1.0;
-            } else {
-                reward = -1.0;
-            }
-            info["winner_name"] = winner->name;
+            reward = (winner == agent) ? 1.0 : -1.0;
+            insert_info(info, "winner_name", winner->name);
         } else {
-            // e.g. a draw
             reward = 0.0;
-            info["winner_name"] = "draw";
+            insert_info(info, "winner_name", "draw");
         }
     }
 
+    // Build nested profiler info.
+    InfoDict profiler_info = create_empty_info_dict();
     if (profiler && profiler->isEnabled()) {
-        auto stats = profiler->getStats();
-        std::string profStr;
-        for (const auto& [label, stat] : stats) {
-            profStr += label + ": total=" + std::to_string(stat.total_time) +
-                       "s, count=" + std::to_string(stat.count) + "; ";
+        std::unordered_map<std::string, Profiler::Stats> stats = profiler->getStats();
+        std::unordered_map<std::string, Profiler::Stats>::iterator it = stats.begin();
+        for (; it != stats.end(); ++it) {
+            std::ostringstream oss;
+            oss << "total=" << it->second.total_time << "s, count=" << it->second.count;
+            insert_info(profiler_info, it->first, oss.str());
         }
-        info["profiler"] = profStr;
     }
+    insert_info(info, "profiler", profiler_info);
+
+    // Build nested behavior info.
+    InfoDict behavior_info = create_empty_info_dict();
+    if (hero_tracker && hero_tracker->isEnabled()) {
+        std::map<std::string, std::string> hero_stats =
+            hero_tracker->getStats(); // new API: no prefix
+        InfoDict hero_info = create_empty_info_dict();
+        std::map<std::string, std::string>::iterator hit = hero_stats.begin();
+        for (; hit != hero_stats.end(); ++hit) {
+            insert_info(hero_info, hit->first, hit->second);
+        }
+        insert_info(behavior_info, "hero", hero_info);
+    }
+    if (villain_tracker && villain_tracker->isEnabled()) {
+        std::map<std::string, std::string> villain_stats = villain_tracker->getStats();
+        InfoDict villain_info = create_empty_info_dict();
+        std::map<std::string, std::string>::iterator vit = villain_stats.begin();
+        for (; vit != villain_stats.end(); ++vit) {
+            insert_info(villain_info, vit->first, vit->second);
+        }
+        insert_info(behavior_info, "villain", villain_info);
+    }
+    insert_info(info, "behavior", behavior_info);
+
     return std::make_tuple(obs, reward, terminated, truncated, info);
 }

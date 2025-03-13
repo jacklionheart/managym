@@ -189,7 +189,7 @@ TEST_F(TestAgent, TestFullGameLoop) {
     Env env(false);
 
     Observation* obs = nullptr;
-    std::map<std::string, std::string> info;
+    InfoDict info;
     std::tie(obs, info) = env.reset(playerConfigs);
 
     ASSERT_NE(obs, nullptr) << "Initial Observation is null!";
@@ -205,7 +205,7 @@ TEST_F(TestAgent, TestFullGameLoop) {
         // step(int action, bool skip_trivial=false) -> (Observation*, double, bool, bool,
         // map<string,string>)
         Observation* newObs = nullptr;
-        std::map<std::string, std::string> newInfo;
+        InfoDict newInfo;
         std::tie(newObs, reward, terminated, truncated, newInfo) = env.step(0);
 
         obs = newObs; // update pointer
@@ -226,7 +226,7 @@ TEST_F(TestAgent, ReproducePriorityDeadlock) {
 
     Env env(false);
     Observation* obs = nullptr;
-    std::map<std::string, std::string> info;
+    InfoDict info;
     std::tie(obs, info) = env.reset(configs);
     ASSERT_NE(obs, nullptr);
 
