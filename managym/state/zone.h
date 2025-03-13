@@ -5,6 +5,7 @@
 
 #include <functional>
 #include <map>
+#include <random>
 #include <vector>
 
 // Forward declaration
@@ -25,7 +26,7 @@ public:
     // Reads
 
     // Randomize the order of the cards in this zone for a player.
-    void shuffle(const Player* player);
+    void shuffle(const Player* player, std::mt19937* rng);
 
     // Get the top card in this zone for a player.
     Card* top(const Player* player);

@@ -145,7 +145,9 @@ TEST_F(TestGame, CardCountsPreserved) {
     PlayerConfig player_b = player_a;
     player_b.name = "urza";
 
-    auto game = std::make_unique<Game>(std::vector<PlayerConfig>{player_a, player_b}, true);
+    std::mt19937 rng;
+    rng.seed(std::random_device()());
+    auto game = std::make_unique<Game>(std::vector<PlayerConfig>{player_a, player_b}, &rng, true);
     ASSERT_TRUE(game != nullptr);
 
     // Initialize tracking

@@ -346,8 +346,8 @@ static void registerDataClasses(py::module& m) {
 
 static void registerAPI(py::module& m) {
     py::class_<Env>(m, "Env", "Main environment class")
-        .def(py::init<int, bool, bool>(), py::arg("seed") = 0, py::arg("skip_trivial") = true,
-             py::arg("enable_behavior_tracking") = false)
+        .def(py::init<int, bool, bool, bool>(), py::arg("seed") = 0, py::arg("skip_trivial") = true,
+             py::arg("enable_profiler") = false, py::arg("enable_behavior_tracking") = false)
         .def(
             "reset",
             [](Env& env, const std::vector<PlayerConfig>& configs) {
@@ -371,12 +371,14 @@ static void registerAPI(py::module& m) {
             py::arg("action"),
             "Advance the environment by applying the given action index. Returns a tuple "
             "(Observation, reward, terminated, truncated, dict).")
-        .def("info", [](Env& env) {
-            LogScope log_scope(spdlog::level::warn);
-            return convertInfoDict(env.info());
-        },
-             "Get a dictionary of information about the environment. "
-             "Includes nested 'profiler' and 'behavior' sub-dictionaries.");
+        .def(
+            "info",
+            [](Env& env) {
+                LogScope log_scope(spdlog::level::warn);
+                return convertInfoDict(env.info());
+            },
+            "Get a dictionary of information about the environment. "
+            "Includes nested 'profiler' and 'behavior' sub-dictionaries.");
 }
 
 // -----------------------------------------------------------------------------

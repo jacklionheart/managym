@@ -50,7 +50,7 @@ public:
     // Move the top card from one zone to another.
     Card* moveTop(ZoneType zoneFrom, ZoneType zoneTo, Player* player);
     // Shuffle cards randomly within a single zone.
-    void shuffle(ZoneType zoneType, Player* player);
+    void shuffle(ZoneType zoneType, Player* player, std::mt19937* rng);
     // Apply a function to all cards in a zone for a single player.
     void forEach(const std::function<void(Card*)>& func, ZoneType zoneType, Player* player);
     // Apply a function to all cards in a zone for all players.
@@ -91,4 +91,5 @@ protected:
     // Card --> Current Zone (null if none or not known).
     std::map<Card*, Zone*> card_to_zone;
     IDGenerator* id_generator;
+    std::mt19937 rg;
 };

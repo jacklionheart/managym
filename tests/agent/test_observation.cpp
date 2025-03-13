@@ -327,8 +327,11 @@ TEST_F(TestObservation, PlayersTakeAlternatingActions) {
     PlayerConfig urza_config(
         "urza", {{"Mountain", 12}, {"Forest", 12}, {"Llanowar Elves", 18}, {"Grey Ogre", 18}});
 
+    std::mt19937 rng;
+    rng.seed(std::random_device()());
     auto game2 = std::make_unique<Game>(
         std::vector<PlayerConfig>{gaea_config, urza_config},
+        &rng,
         /*skip_trivial=*/false // Ensure all actions are available for testing alternation.
     );
     ASSERT_NE(game2, nullptr);

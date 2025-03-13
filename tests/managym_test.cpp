@@ -23,7 +23,9 @@ std::unique_ptr<Game> elvesVsOgres(int redMountains, int redOgres, int greenFore
 
     // Create the game
     std::vector<PlayerConfig> configs = {greenConfig, redConfig};
-    auto game = std::make_unique<Game>(configs);
+    std::mt19937 rng;
+    rng.seed(std::random_device()());
+    auto game = std::make_unique<Game>(configs, &rng);
     return game;
 }
 

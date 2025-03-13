@@ -8,6 +8,7 @@
 
 #include <tuple>
 #include <utility>
+#include <random>
 #include <vector>
 
 // The environment class for manabot
@@ -16,8 +17,14 @@ private:
     std::unique_ptr<Game> game;
     // Skip trivial action spaces (<= 1 action)
     bool skip_trivial;
-    // Random seed for environment
+    // Enable profiler
+    bool enable_profiler;
+    // Enable behavior tracking
+    bool enable_behavior_tracking;
+    // Initial seed for environment
     int seed;
+    // Random number generator
+    std::mt19937 rng;
 
 public:
     std::unique_ptr<Profiler> profiler;

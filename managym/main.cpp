@@ -2,6 +2,7 @@
 #include "managym/infra/log.h"
 
 #include <iostream>
+#include <random>
 
 int main(int argc, char** argv) {
     bool debug_mode = false;
@@ -31,7 +32,11 @@ int main(int argc, char** argv) {
 
     // Create game with these players
     std::vector<PlayerConfig> configs = {red_player, green_player};
-    Game game(configs);
+
+    // Seed for random number generator
+    std::mt19937 rng;
+    rng.seed(std::random_device()());
+    Game game(configs, &rng);
 
     // Start the game loop
     try {

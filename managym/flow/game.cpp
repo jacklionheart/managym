@@ -14,13 +14,12 @@ Profiler* defaultProfiler() {
     static Profiler instance(false);
     return &instance;
 }
-
-Game::Game(std::vector<PlayerConfig> player_configs, bool skip_trivial, Profiler* profiler,
-           std::vector<BehaviorTracker*> trackers)
+Game::Game(std::vector<PlayerConfig> player_configs, std::mt19937* rng, bool skip_trivial,
+           Profiler* profiler, std::vector<BehaviorTracker*> trackers)
     : skip_trivial(skip_trivial), profiler(profiler ? profiler : defaultProfiler()),
       turn_system(std::make_unique<TurnSystem>(this)),
       priority_system(std::make_unique<PrioritySystem>(this)),
-      id_generator(std::make_unique<IDGenerator>()) {
+      id_generator(std::make_unique<IDGenerator>()), rng(rng) {
 
     card_registry = std::make_unique<CardRegistry>(id_generator.get());
 
@@ -52,7 +51,7 @@ Game::Game(std::vector<PlayerConfig> player_configs, bool skip_trivial, Profiler
         }
 
         // Shuffle before drawing
-        zones->shuffle(ZoneType::LIBRARY, player);
+        zones->shuffle(ZoneType::LIBRARY, player, rng);
 
         // Draw starting hand
         const int STARTING_HAND_SIZE = 7;

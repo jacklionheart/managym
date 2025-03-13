@@ -39,8 +39,8 @@ bool Zone::contains(const Card* card, const Player* player) const {
                        [&card](const Card* c) { return c == card; });
 }
 
-void Zone::shuffle(const Player* player) {
-    std::shuffle(cards[player].begin(), cards[player].end(), std::mt19937(std::random_device()()));
+void Zone::shuffle(const Player* player, std::mt19937* rng) {
+    std::shuffle(cards[player].begin(), cards[player].end(), *rng);
 }
 
 Card* Zone::top(const Player* player) {

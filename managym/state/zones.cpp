@@ -94,9 +94,9 @@ Card* Zones::moveTop(ZoneType zoneFrom, ZoneType zoneTo, Player* player) {
     return card;
 }
 
-void Zones::shuffle(ZoneType zoneType, Player* player) {
+void Zones::shuffle(ZoneType zoneType, Player* player, std::mt19937* rng) {
     Zone* zoneObj = getZone(zoneType);
-    zoneObj->shuffle(player);
+    zoneObj->shuffle(player, rng);
 }
 
 void Zones::forEach(const std::function<void(Card*)>& func, ZoneType zoneType, Player* player) {

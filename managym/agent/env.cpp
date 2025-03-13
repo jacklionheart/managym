@@ -3,13 +3,19 @@
 #include "managym/flow/game.h"
 #include "managym/infra/info_dict.h"
 
+#include <random>
 #include <sstream>
 #include <stdexcept>
 
+// Thread-local random number generator
+thread_local std::mt19937 rng;
+
+
 Env::Env(int seed, bool skip_trivial, bool enable_profiler, bool enable_behavior_tracking)
-    : game(nullptr), skip_trivial(skip_trivial), seed(seed) {
+    : game(nullptr), skip_trivial(skip_trivial), seed(seed), enable_profiler(enable_profiler),
+      enable_behavior_tracking(enable_behavior_tracking) {
+    rng.seed(seed);
     // Seed the random number generator.
-    std::srand(seed);
     profiler = std::make_unique<Profiler>(enable_profiler, 50);
     hero_tracker = std::make_unique<BehaviorTracker>(enable_behavior_tracking);
     villain_tracker = std::make_unique<BehaviorTracker>(enable_behavior_tracking);
@@ -23,7 +29,7 @@ std::tuple<Observation*, InfoDict> Env::reset(const std::vector<PlayerConfig>& p
     trackers.push_back(villain_tracker.get());
 
     // Destroy any old game and create a new one.
-    game.reset(new Game(player_configs, skip_trivial, profiler.get(), trackers));
+    game.reset(new Game(player_configs, &rng, skip_trivial, profiler.get(), trackers));
 
     // Build initial observation.
     Observation* obs = game->observation();

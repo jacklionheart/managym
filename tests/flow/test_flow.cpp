@@ -87,7 +87,9 @@ TEST_F(TestFlow, ActionSpaceValidity) {
         "urza", {{"Mountain", 12}, {"Forest", 12}, {"Llanowar Elves", 18}, {"Grey Ogre", 18}});
 
     // Create game with these configs, matching Python's Env setup
-    auto game = std::make_unique<Game>(std::vector<PlayerConfig>{gaea_config, urza_config},
+    std::mt19937 rng;
+    rng.seed(std::random_device()());
+    auto game = std::make_unique<Game>(std::vector<PlayerConfig>{gaea_config, urza_config}, &rng,
                                        /*skip_trivial=*/true);
     ASSERT_TRUE(game != nullptr);
 
@@ -154,7 +156,10 @@ TEST_F(TestFlow, CombatActionSpaceAfterDamage) {
         "urza", {{"Mountain", 12}, {"Forest", 12}, {"Llanowar Elves", 18}, {"Grey Ogre", 18}});
 
     // Create game with these configs
-    auto game = std::make_unique<Game>(std::vector<PlayerConfig>{gaea_config, urza_config}, true);
+    std::mt19937 rng;
+    rng.seed(std::random_device()());
+    auto game =
+        std::make_unique<Game>(std::vector<PlayerConfig>{gaea_config, urza_config}, &rng, true);
     ASSERT_TRUE(game != nullptr);
 
     // Helper to validate action space
