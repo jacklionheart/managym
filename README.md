@@ -14,7 +14,7 @@ env = managym.Env()
 ## Installation
 
 ```zsh
-# Install in dev mode
+git clone git@github.com:jacklionheart/managym.git
 pip install -e .
 ```
 
