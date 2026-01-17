@@ -100,24 +100,20 @@ const std::vector<Player*>& Game::playersStartingWithActive() {
 }
 
 // Get players, starting with the agent player (or the first player if no agent)
-std::vector<Player*> Game::playersStartingWithAgent() const {
-    Player* first = players[0].get();
-    if (current_action_space && current_action_space->player) {
-        first = current_action_space->player;
+const std::vector<Player*>& Game::playersStartingWithAgent() {
+    Player* agent = agentPlayer();
+    if (cached_agent_player != agent) {
+        int num_players = players.size();
+        if (players_agent_first.size() != num_players) {
+            players_agent_first.resize(num_players);
+        }
+        int index = (agent == players[0].get()) ? 0 : 1;
+        for (int i = 0; i < num_players; i++) {
+            players_agent_first[i] = players[(index + i) % num_players].get();
+        }
+        cached_agent_player = agent;
     }
-
-    // Find the index of the agent player
-    auto it = std::find_if(players.begin(), players.end(),
-                           [first](const std::unique_ptr<Player>& p) { return p.get() == first; });
-    int index = (it != players.end()) ? std::distance(players.begin(), it) : 0;
-
-    int num_players = players.size();
-    std::vector<Player*> order;
-    for (int i = 0; i < num_players; i++) {
-        order.push_back(players[(index + i) % num_players].get());
-    }
-
-    return order;
+    return players_agent_first;
 }
 
 bool Game::isActivePlayer(Player* player) const { return player == turn_system->activePlayer(); }

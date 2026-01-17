@@ -93,8 +93,8 @@ struct ActionSpaceData {
 // ------------------- Full Observation -----------------
 // MR405.1 Observes all public game state for a single player viewpoint
 struct Observation {
-    Observation();                          // default constructor (empty)
-    explicit Observation(const Game* game); // constructor from game state
+    Observation();                    // default constructor (empty)
+    explicit Observation(Game* game); // constructor from game state
 
     // Data - Global State
     bool game_over = false;
@@ -118,11 +118,11 @@ struct Observation {
 
 private:
     // Writes
-    void populateTurn(const Game* game);
-    void populateActionSpace(const Game* game);
-    void populatePlayers(const Game* game);
-    void populateCards(const Game* game);
-    void populatePermanents(const Game* game);
+    void populateTurn(Game* game);
+    void populateActionSpace(Game* game);
+    void populatePlayers(Game* game);
+    void populateCards(Game* game);
+    void populatePermanents(Game* game);
 
     // Helper for populating card data into agent/opponent sections
     void addCard(const Card* card, ZoneType zone);

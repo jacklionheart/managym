@@ -19,7 +19,7 @@
 Observation::Observation() = default;
 
 // Constructor: builds from a Game*
-Observation::Observation(const Game* game) {
+Observation::Observation(Game* game) {
     Profiler::Scope scope = game->profiler->track("observation");
 
     // Basic flags
@@ -42,7 +42,7 @@ Observation::Observation(const Game* game) {
 // Data Population
 // --------------------------------------------------
 
-void Observation::populateTurn(const Game* game) {
+void Observation::populateTurn(Game* game) {
     Profiler::Scope scope = game->profiler->track("populateTurn");
     turn.turn_number = game->turn_system->global_turn_count;
     turn.phase = game->turn_system->currentPhaseType();
@@ -61,8 +61,8 @@ void Observation::populateTurn(const Game* game) {
     }
 }
 
-void Observation::populateActionSpace(const Game* game) {
-    Profiler::Scope scope = game->profiler->track("populateTurn");
+void Observation::populateActionSpace(Game* game) {
+    Profiler::Scope scope = game->profiler->track("populateActionSpace");
 
     action_space.action_space_type = game->current_action_space->type;
 
@@ -76,7 +76,7 @@ void Observation::populateActionSpace(const Game* game) {
     }
 }
 
-void Observation::populatePlayers(const Game* game) {
+void Observation::populatePlayers(Game* game) {
     Profiler::Scope scope = game->profiler->track("populatePlayers");
 
     const Player* agent_player = game->agentPlayer();
@@ -96,7 +96,8 @@ void Observation::populatePlayers(const Game* game) {
 
     // Find and fill opponent data
     const Player* opponent_player = nullptr;
-    for (const auto& p : game->playersStartingWithAgent()) {
+    const std::vector<Player*>& player_order = game->playersStartingWithAgent();
+    for (const Player* p : player_order) {
         if (p != agent_player) {
             opponent_player = p;
             break;
@@ -116,7 +117,7 @@ void Observation::populatePlayers(const Game* game) {
     }
 }
 
-void Observation::populateCards(const Game* game) {
+void Observation::populateCards(Game* game) {
     Profiler::Scope scope = game->profiler->track("populateCards");
 
     const Player* agent_player = game->agentPlayer();
@@ -128,9 +129,12 @@ void Observation::populateCards(const Game* game) {
         addCard(card, ZoneType::HAND);
     }
 
+    // Use cached player order for iteration
+    const std::vector<Player*>& player_order = game->playersStartingWithAgent();
+
     // 2) GRAVEYARD: gather for all players (public info)
     const Graveyard* gy = game->zones->constGraveyard();
-    for (const Player* player : game->playersStartingWithAgent()) {
+    for (const Player* player : player_order) {
         for (const Card* card : gy->cards[player->index]) {
             addCard(card, ZoneType::GRAVEYARD);
         }
@@ -138,7 +142,7 @@ void Observation::populateCards(const Game* game) {
 
     // 3) EXILE: gather for all players (public info)
     const Exile* ex = game->zones->constExile();
-    for (const Player* player : game->playersStartingWithAgent()) {
+    for (const Player* player : player_order) {
         for (const Card* card : ex->cards[player->index]) {
             addCard(card, ZoneType::EXILE);
         }
@@ -186,7 +190,7 @@ void Observation::addCard(const Card* card, ZoneType zone) {
     }
 }
 
-void Observation::populatePermanents(const Game* game) {
+void Observation::populatePermanents(Game* game) {
     Profiler::Scope scope = game->profiler->track("populatePermanents");
 
     const Player* agent_player = game->agentPlayer();
@@ -194,7 +198,8 @@ void Observation::populatePermanents(const Game* game) {
 
     // Gather from battlefield (all public info)
     const Battlefield* bf = game->zones->constBattlefield();
-    for (const Player* player : game->playersStartingWithAgent()) {
+    const std::vector<Player*>& player_order = game->playersStartingWithAgent();
+    for (const Player* player : player_order) {
         for (const auto& perm : bf->permanents[player->index]) {
             addPermanent(perm.get());
         }
