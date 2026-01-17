@@ -222,6 +222,7 @@ bool Game::step(int action) {
     bool game_over = _step(action);
 
     while (!game_over && skip_trivial && actionSpaceTrivial()) {
+        Profiler::Scope skip_scope = profiler->track("skip_trivial");
         game_over = _step(0);
     }
 

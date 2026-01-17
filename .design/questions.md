@@ -31,6 +31,8 @@
 
 8. **Profile comparison is additive.** The new `compareToBaseline()` compares cumulative profiler data. To measure optimization impact accurately, reset profiler between runs or create fresh Env instances. The current design accumulates stats across the lifetime of the Profiler object.
 
+8b. ~~**Skip-trivial loop visibility?**~~ **RESOLVED**: Added `skip_trivial` profiler scope at `game.cpp:225`. Shows 5.4x amplification (400,128 trivial iterations for 73,652 agent steps) consuming 72.3% of env_step time. See `.design/instrumentation-skip-trivial.md`.
+
 ## Refactor-Specific Questions
 
 9. **Training mode vs evaluation mode?** The lazy priority and policy hints in the refactor proposals are most valuable for training. Should there be a fast training mode that assumes simple policies, or should the engine always enumerate all actions?

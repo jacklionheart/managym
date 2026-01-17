@@ -220,17 +220,29 @@ Before entering a step, check if it can produce non-trivial actions:
 
 Like playersStartingWithActive(), cache and only rebuild when agent changes.
 
+## Manabot Usage Context
+
+**Critical insight**: manabot consumes observations IMMEDIATELY after every step() and reset() call. The training loop uses ALL observation fields right away for action selection, validation, and buffer storage. There is zero slack—observations cannot be deferred or lazy-loaded at the API boundary.
+
+This means:
+- "Lazy observation" at the API level provides NO benefit
+- "Deferred field population" doesn't help—ALL fields are used
+- Focus should be on making observation building FAST, not on when it happens
+- The only valid "lazy" optimization was avoiding observation creation during internal ticks (skip_trivial loop)
+
 ## Addressed (Previous Optimizations)
 
 | Optimization | When | Impact |
 |--------------|------|--------|
-| Lazy observation creation | 2026-01-16 | 17% → 4% |
+| Skip observation during internal ticks* | 2026-01-16 | 17% → 4% |
 | Map → vector in Observation | 2026-01-16 | Part of above |
 | Cached producible mana | 2026-01-16 | Removed mana iteration from hot path |
 | Zone vector storage | Already done | N/A |
 | Cache playersStartingWithActive() | 2026-01-16 | +3.8% throughput |
 | action_execute profiler scope | 2026-01-16 | Diagnostic (3.8% of game time) |
 | **InfoDict only at episode end** | 2026-01-16 | **+129% steps/sec** (17k → 39k) |
+
+*Note: This was previously called "lazy observation creation" but that's misleading. The optimization avoids building observations during the skip_trivial internal tick loop where observations are never returned to Python. This is NOT about deferring observation creation at the API boundary.
 
 ## Open Questions
 
