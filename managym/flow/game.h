@@ -49,7 +49,7 @@ public:
     // Reads
 
     ActionSpace* actionSpace() const;
-    Observation* observation() const;
+    Observation* observation();
 
     // Get agent player (i.e. player currently making decisions. If no agent, return first player)
     Player* agentPlayer() const;

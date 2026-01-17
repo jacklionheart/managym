@@ -77,7 +77,12 @@ bool Game::actionSpaceTrivial() const {
     return !current_action_space || current_action_space->actions.size() <= 1;
 }
 
-Observation* Game::observation() const { return current_observation.get(); }
+Observation* Game::observation() {
+    if (!current_observation) {
+        current_observation = std::make_unique<Observation>(this);
+    }
+    return current_observation.get();
+}
 
 Player* Game::agentPlayer() const {
     if (current_action_space && current_action_space->player) {
@@ -228,13 +233,10 @@ bool Game::tick() {
         // Check for game over
         if (isGameOver()) {
             current_action_space = ActionSpace::createEmpty();
-            current_observation = std::make_unique<Observation>(this);
             return true;
         }
     }
 
-    // Create new observation for current state
-    current_observation = std::make_unique<Observation>(this);
     return false;
 }
 
