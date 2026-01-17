@@ -9,6 +9,7 @@
 ## Design Inputs
 
 1. **Missing design doc for implement step**: No `.design/<branch>.md` or equivalent implementation plan is present in `.design/`. Unsure which spec to implement.
+2. **Implement step assumption**: No implementation doc found, so no code changes were made. Provide the intended design doc or target changes to proceed.
 
 ## Implementation Decisions
 
