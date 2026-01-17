@@ -193,11 +193,11 @@ std::tuple<Observation*, double, bool, bool, InfoDict> Env::step(int action, boo
 
 Or simpler: return empty InfoDict always, let caller use `env.info()` explicitly.
 
-### 2. Reduce profiler scope nesting
-**Impact**: ~5-10%
-**Location**: `turn.cpp:207, 231, 256`, `priority.cpp:21`
+### 2. ~~Reduce profiler scope nesting~~ **DONE**
+**Impact**: **+18% steps/sec** (36k → 42k)
+**Location**: `turn.cpp:231, 256`
 
-Replace 4 nested scopes (turn/phase/step/priority) with single scope at step level.
+Removed `phase` and `step` profiler scopes. Now only `turn` and `priority` scopes remain. Reduces scope creations from ~1.9M to ~1.2M per 500 games.
 
 ### 3. Pre-allocate PassPriority action
 **Impact**: ~3-5%
@@ -241,8 +241,11 @@ This means:
 | Cache playersStartingWithActive() | 2026-01-16 | +3.8% throughput |
 | action_execute profiler scope | 2026-01-16 | Diagnostic (3.8% of game time) |
 | **InfoDict only at episode end** | 2026-01-16 | **+129% steps/sec** (17k → 39k) |
+| **Remove phase/step profiler scopes** | 2026-01-16 | **+18% steps/sec** (36k → 42k) |
 
-*Note: This was previously called "lazy observation creation" but that's misleading. The optimization avoids building observations during the skip_trivial internal tick loop where observations are never returned to Python. This is NOT about deferring observation creation at the API boundary.
+*Note: "lazy observation creation" is misleading. The optimization avoids building observations during the skip_trivial internal tick loop where observations are never returned to Python. This is NOT about deferring observation creation at the API boundary.
+
+**Profiler scope reduction**: Removed nested `phase` and `step` profiler scopes from `turn.cpp:231` and `turn.cpp:256`. Each tick was creating 4 scopes (turn/phase/step/priority). With 625k+ ticks, this was ~1.9M scope creations. Now only 2 scopes (turn/priority), reducing overhead by ~0.27s (14% of tick loop time).
 
 ## Open Questions
 

@@ -229,7 +229,6 @@ std::unique_ptr<ActionSpace> Turn::tick() {
 // Phase implementation
 
 std::unique_ptr<ActionSpace> Phase::tick() {
-    Profiler::Scope scope = game()->profiler->track("phase");
     log_debug(LogCat::TURN, "Ticking {}", std::string(typeid(*this).name()));
 
     if (completed || current_step_index >= steps.size()) {
@@ -254,7 +253,6 @@ std::unique_ptr<ActionSpace> Phase::tick() {
 
 Step::Step(Phase* phase) : phase(phase) {}
 std::unique_ptr<ActionSpace> Step::tick() {
-    Profiler::Scope scope = game()->profiler->track("step");
     log_debug(LogCat::TURN, "Ticking {}", std::string(typeid(*this).name()));
 
     if (!initialized) {
