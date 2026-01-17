@@ -65,3 +65,24 @@ the skip-trivial fast path vs. explicit `step()` calls.
   optimized just like explicit actions.
 - If it is small, the unaccounted gap is likely elsewhere (allocations, zone operations, or
   action space creation).
+
+## Added: phase/<PhaseType> profiler scope
+
+**Location**: `Phase::tick()` (turn.cpp:146-176)
+
+**What it measures**: Total time spent inside each phase type (BEGINNING, PRECOMBAT_MAIN, COMBAT,
+POSTCOMBAT_MAIN, ENDING), inclusive of all steps within that phase.
+
+**How to read it**:
+```
+env_step/game/tick/turn/phase/BEGINNING: total=..., count=...
+env_step/game/tick/turn/phase/COMBAT: total=..., count=...
+```
+Compare totals to identify which phases dominate turn time.
+
+**Overhead**: Minimal; one profiler scope per phase tick.
+
+**What to do with the information**:
+- If a phase dominates, drill into its `step/<StepType>` scopes to find the specific steps.
+- Large time in `COMBAT` with low action counts suggests combat step logic or blockers/attackers
+  enumeration is heavy.
