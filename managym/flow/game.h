@@ -61,6 +61,13 @@ public:
     // Mana cache for producible mana calculations
     ManaCache mana_cache;
 
+    // Cache for playersStartingWithAgent
+    Player* cached_agent_player = nullptr;
+    std::vector<Player*> players_agent_first;
+
+    // Instrumentation: count of trivial action spaces auto-executed via skip_trivial
+    int skip_trivial_count = 0;
+
     // Reads
 
     ActionSpace* actionSpace() const;
@@ -75,7 +82,7 @@ public:
     // Returns true if the current action space is trivial (<= 1 action)
     bool actionSpaceTrivial() const;
     // Get players, starting with the agent player (or the first player if no agent)
-    std::vector<Player*> playersStartingWithAgent() const;
+    const std::vector<Player*>& playersStartingWithAgent();
     // Get player order for priority (returns reference to TurnSystem's internal buffer)
     const std::vector<Player*>& playersStartingWithActive();
     // Check if player is active player

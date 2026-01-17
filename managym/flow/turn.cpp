@@ -229,6 +229,10 @@ std::unique_ptr<ActionSpace> Turn::tick() {
 // Phase implementation
 
 std::unique_ptr<ActionSpace> Phase::tick() {
+    std::string scope_name =
+        std::string("phase/") + toString(turn->turn_system->currentPhaseType());
+    Profiler::Scope scope = game()->profiler->track(scope_name);
+
     log_debug(LogCat::TURN, "Ticking {}", std::string(typeid(*this).name()));
 
     if (completed || current_step_index >= steps.size()) {

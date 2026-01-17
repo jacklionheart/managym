@@ -11,15 +11,25 @@
 #include <fmt/format.h>
 
 // Built-ins
+#include <cstddef>
 #include <sstream>
 
 // ------------------- Observation -------------------
+
+static void trackReallocation(Game* game, const std::string& label, size_t before, size_t after) {
+    if (!game || !game->profiler || !game->profiler->isEnabled()) {
+        return;
+    }
+    if (after > before) {
+        Profiler::Scope scope = game->profiler->track(label);
+    }
+}
 
 // Constructor: empty observation with defaults
 Observation::Observation() = default;
 
 // Constructor: builds from a Game*
-Observation::Observation(const Game* game) {
+Observation::Observation(Game* game) {
     Profiler::Scope scope = game->profiler->track("observation");
 
     // Basic flags
@@ -42,7 +52,7 @@ Observation::Observation(const Game* game) {
 // Data Population
 // --------------------------------------------------
 
-void Observation::populateTurn(const Game* game) {
+void Observation::populateTurn(Game* game) {
     Profiler::Scope scope = game->profiler->track("populateTurn");
     turn.turn_number = game->turn_system->global_turn_count;
     turn.phase = game->turn_system->currentPhaseType();
@@ -61,9 +71,10 @@ void Observation::populateTurn(const Game* game) {
     }
 }
 
-void Observation::populateActionSpace(const Game* game) {
-    Profiler::Scope scope = game->profiler->track("populateTurn");
+void Observation::populateActionSpace(Game* game) {
+    Profiler::Scope scope = game->profiler->track("populateActionSpace");
 
+    size_t actions_before = action_space.actions.capacity();
     action_space.action_space_type = game->current_action_space->type;
 
     // Copy each available action
@@ -74,9 +85,11 @@ void Observation::populateActionSpace(const Game* game) {
         opt.focus = act->focus();
         action_space.actions.push_back(opt);
     }
+    trackReallocation(game, "realloc/action_space/actions", actions_before,
+                      action_space.actions.capacity());
 }
 
-void Observation::populatePlayers(const Game* game) {
+void Observation::populatePlayers(Game* game) {
     Profiler::Scope scope = game->profiler->track("populatePlayers");
 
     const Player* agent_player = game->agentPlayer();
@@ -96,7 +109,8 @@ void Observation::populatePlayers(const Game* game) {
 
     // Find and fill opponent data
     const Player* opponent_player = nullptr;
-    for (const auto& p : game->playersStartingWithAgent()) {
+    const std::vector<Player*>& player_order = game->playersStartingWithAgent();
+    for (const Player* p : player_order) {
         if (p != agent_player) {
             opponent_player = p;
             break;
@@ -116,9 +130,11 @@ void Observation::populatePlayers(const Game* game) {
     }
 }
 
-void Observation::populateCards(const Game* game) {
+void Observation::populateCards(Game* game) {
     Profiler::Scope scope = game->profiler->track("populateCards");
 
+    size_t agent_before = agent_cards.capacity();
+    size_t opponent_before = opponent_cards.capacity();
     const Player* agent_player = game->agentPlayer();
     assert(agent_player != nullptr);
 
@@ -128,9 +144,12 @@ void Observation::populateCards(const Game* game) {
         addCard(card, ZoneType::HAND);
     }
 
+    // Use cached player order for iteration
+    const std::vector<Player*>& player_order = game->playersStartingWithAgent();
+
     // 2) GRAVEYARD: gather for all players (public info)
     const Graveyard* gy = game->zones->constGraveyard();
-    for (const Player* player : game->playersStartingWithAgent()) {
+    for (const Player* player : player_order) {
         for (const Card* card : gy->cards[player->index]) {
             addCard(card, ZoneType::GRAVEYARD);
         }
@@ -138,7 +157,7 @@ void Observation::populateCards(const Game* game) {
 
     // 3) EXILE: gather for all players (public info)
     const Exile* ex = game->zones->constExile();
-    for (const Player* player : game->playersStartingWithAgent()) {
+    for (const Player* player : player_order) {
         for (const Card* card : ex->cards[player->index]) {
             addCard(card, ZoneType::EXILE);
         }
@@ -150,6 +169,9 @@ void Observation::populateCards(const Game* game) {
     for (int i = stack->totalSize() - 1; i >= 0; i--) {
         addCard(stack->objects[i], ZoneType::STACK);
     }
+
+    trackReallocation(game, "realloc/agent_cards", agent_before, agent_cards.capacity());
+    trackReallocation(game, "realloc/opponent_cards", opponent_before, opponent_cards.capacity());
 }
 
 // Helper to add a Card to objects & cards
@@ -161,7 +183,6 @@ void Observation::addCard(const Card* card, ZoneType zone) {
     ManaCost mc = card->mana_cost.value_or(ManaCost());
     cdata.mana_cost = mc;
 
-    cdata.name = card->name;
     cdata.owner_id = static_cast<int>(card->owner->id);
     cdata.zone = zone;
 
@@ -186,19 +207,27 @@ void Observation::addCard(const Card* card, ZoneType zone) {
     }
 }
 
-void Observation::populatePermanents(const Game* game) {
+void Observation::populatePermanents(Game* game) {
     Profiler::Scope scope = game->profiler->track("populatePermanents");
 
+    size_t agent_before = agent_permanents.capacity();
+    size_t opponent_before = opponent_permanents.capacity();
     const Player* agent_player = game->agentPlayer();
     assert(agent_player != nullptr);
 
     // Gather from battlefield (all public info)
     const Battlefield* bf = game->zones->constBattlefield();
-    for (const Player* player : game->playersStartingWithAgent()) {
+    const std::vector<Player*>& player_order = game->playersStartingWithAgent();
+    for (const Player* player : player_order) {
         for (const auto& perm : bf->permanents[player->index]) {
             addPermanent(perm.get());
         }
     }
+
+    trackReallocation(game, "realloc/agent_permanents", agent_before,
+                      agent_permanents.capacity());
+    trackReallocation(game, "realloc/opponent_permanents", opponent_before,
+                      opponent_permanents.capacity());
 }
 
 void Observation::addPermanent(const Permanent* perm) {
@@ -327,7 +356,6 @@ std::string Observation::toJSON() const {
             out << "    {\n";
             out << fmt::format("      \"id\": {},\n", card.id);
             out << fmt::format("      \"registry_key\": {},\n", card.registry_key);
-            out << fmt::format("      \"name\": \"{}\",\n", card.name);
             out << fmt::format("      \"zone\": {},\n", static_cast<int>(card.zone));
             out << fmt::format("      \"owner_id\": {},\n", card.owner_id);
             out << fmt::format("      \"power\": {},\n", card.power);

@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <utility>
 #include <vector>
 
 class Game;
@@ -33,17 +34,15 @@ struct PrioritySystem {
 
     // Return true if priority round is complete - all players passed and stack is empty
     bool isComplete() const;
-
-    // Fast check whether a player can take any action besides passing priority.
-    // Used to skip ActionSpace construction when only PassPriority is available.
-    // Must match availablePriorityActions() exactly - if this returns false,
-    // availablePriorityActions() must return only PassPriority.
-    bool canPlayerAct(Player* player) const;
+    // Return true if player has any action beyond passing priority.
+    bool canPlayerAct(Player* player);
 
 protected:
     // Helper methods
     void performStateBasedActions();
-    std::unique_ptr<ActionSpace> makeActionSpace(Player* player);
     void resolveTopOfStack();
-    std::vector<std::unique_ptr<Action>> availablePriorityActions(Player* player);
+
+    // Computes available actions for a player in a single pass.
+    // Returns pair: first = true if player has actions beyond PassPriority, second = action list.
+    std::pair<bool, std::vector<std::unique_ptr<Action>>> computePlayerActions(Player* player);
 };

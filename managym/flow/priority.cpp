@@ -13,38 +13,100 @@ void PrioritySystem::reset() {
 }
 
 bool PrioritySystem::isComplete() const {
-    std::vector<Player*> players = game->playersStartingWithActive();
+    const std::vector<Player*>& players = game->playersStartingWithActive();
     return pass_count >= players.size() && game->zones->constStack()->objects.empty();
 }
 
-bool PrioritySystem::canPlayerAct(Player* player) const {
-    // This must exactly match availablePriorityActions():
-    // Returns true if any action besides PassPriority would be available.
-
-    const std::vector<Card*>& hand_cards = game->zones->constHand()->cards[player->index];
-
-    // Empty hand means only PassPriority
-    if (hand_cards.empty()) {
+bool PrioritySystem::canPlayerAct(Player* player) {
+    const std::vector<Card*>& hand = game->zones->constHand()->cards[player->index];
+    if (hand.empty()) {
         return false;
     }
 
-    // Pre-compute conditions that apply to multiple cards
     bool can_play_land = game->canPlayLand(player);
     bool can_cast = game->canCastSorceries(player);
+    const Mana* producible = nullptr;
+    int total_mana = 0;
 
-    // Check each card in hand for playability
-    for (Card* card : hand_cards) {
-        if (card->types.isLand() && can_play_land) {
-            return true;
+    for (Card* card : hand) {
+        if (card == nullptr) {
+            throw std::logic_error("Card should never be null");
         }
-        if (card->types.isCastable() && can_cast) {
-            if (game->canPayManaCost(player, card->mana_cost.value())) {
+        if (card->types.isLand()) {
+            if (can_play_land) {
                 return true;
             }
+            continue;
+        }
+
+        if (!card->types.isCastable() || !can_cast) {
+            continue;
+        }
+
+        if (!card->mana_cost.has_value()) {
+            return true;
+        }
+
+        if (producible == nullptr) {
+            const Mana& cached = game->cachedProducibleMana(player);
+            producible = &cached;
+            total_mana = cached.total();
+        }
+
+        const ManaCost& mana_cost = card->mana_cost.value();
+        if (mana_cost.mana_value <= total_mana && producible->canPay(mana_cost)) {
+            return true;
         }
     }
 
     return false;
+}
+
+std::pair<bool, std::vector<std::unique_ptr<Action>>>
+PrioritySystem::computePlayerActions(Player* player) {
+    std::vector<std::unique_ptr<Action>> actions;
+
+    const std::vector<Card*>& hand = game->zones->constHand()->cards[player->index];
+    actions.reserve(hand.size() + 1);
+
+    bool can_play_land = game->canPlayLand(player);
+    bool can_cast = game->canCastSorceries(player);
+    const Mana* producible = nullptr;
+    int total_mana = 0;
+
+    for (Card* card : hand) {
+        if (card == nullptr) {
+            throw std::logic_error("Card should never be null");
+        }
+        if (card->types.isLand() && can_play_land) {
+            actions.emplace_back(new PlayLand(card, player, game));
+            log_debug(LogCat::PRIORITY, "Added PlayLand action for {}", card->toString());
+        } else if (card->types.isCastable() && can_cast) {
+            if (producible == nullptr) {
+                const Mana& cached = game->cachedProducibleMana(player);
+                producible = &cached;
+                total_mana = cached.total();
+            }
+
+            if (!card->mana_cost.has_value()) {
+                actions.emplace_back(new CastSpell(card, player, game));
+                log_debug(LogCat::PRIORITY, "Added CastSpell action for {}", card->toString());
+                continue;
+            }
+
+            const ManaCost& mana_cost = card->mana_cost.value();
+            if (mana_cost.mana_value <= total_mana && producible->canPay(mana_cost)) {
+                actions.emplace_back(new CastSpell(card, player, game));
+                log_debug(LogCat::PRIORITY, "Added CastSpell action for {}", card->toString());
+            }
+        }
+    }
+
+    bool can_act = !actions.empty();
+    actions.emplace_back(new PassPriority(player, game));
+    log_debug(LogCat::PRIORITY, "Added PassPriority action");
+
+    return {can_act, std::move(actions)};
 }
 
 std::unique_ptr<ActionSpace> PrioritySystem::tick() {
@@ -61,19 +123,27 @@ std::unique_ptr<ActionSpace> PrioritySystem::tick() {
 
     const std::vector<Player*>& players = game->playersStartingWithActive();
 
-    // Fast path: when skip_trivial is enabled, auto-pass players who can only pass
     while (pass_count < players.size()) {
         Player* player = players[pass_count];
 
-        // If skip_trivial is enabled and player can't act, auto-pass
-        if (game->skip_trivial && !canPlayerAct(player)) {
-            log_debug(LogCat::PRIORITY, "Fast-path: {} auto-passes (no actions)", player->name);
-            pass_count++;
-            continue;
+        if (game->skip_trivial) {
+            if (!canPlayerAct(player)) {
+                log_debug(LogCat::PRIORITY, "Fast-path: {} auto-passes (no actions)", player->name);
+                pass_count++;
+                continue;
+            }
+            std::pair<bool, std::vector<std::unique_ptr<Action>>> result =
+                computePlayerActions(player);
+            log_debug(LogCat::PRIORITY, "Generating actions for {}", player->name);
+            return std::make_unique<ActionSpace>(ActionSpaceType::PRIORITY, std::move(result.second),
+                                                 player);
         }
 
-        // Slow path: build full ActionSpace for this player
-        return makeActionSpace(player);
+        // Non-skip_trivial path: always build action space
+        log_debug(LogCat::PRIORITY, "Generating actions for {}", player->name);
+        std::pair<bool, std::vector<std::unique_ptr<Action>>> result = computePlayerActions(player);
+        return std::make_unique<ActionSpace>(ActionSpaceType::PRIORITY, std::move(result.second),
+                                             player);
     }
 
     log_debug(LogCat::PRIORITY, "All players have passed");
@@ -82,22 +152,10 @@ std::unique_ptr<ActionSpace> PrioritySystem::tick() {
     if (!game->zones->constStack()->objects.empty()) {
         log_debug(LogCat::PRIORITY, "Resolving stack object");
         resolveTopOfStack();
-        // Restart priority system now with stack -1
         return tick();
     }
 
-    // All players have passed and stack is empty, so we're done.
     return nullptr;
-}
-
-std::unique_ptr<ActionSpace> PrioritySystem::makeActionSpace(Player* player) {
-    std::vector<Player*> players = game->playersStartingWithActive();
-    Player* current_player = players[pass_count];
-
-    log_debug(LogCat::PRIORITY, "Generating actions for {}", current_player->name);
-    std::vector<std::unique_ptr<Action>> actions = availablePriorityActions(current_player);
-    return std::make_unique<ActionSpace>(ActionSpaceType::PRIORITY, std::move(actions),
-                                         current_player);
 }
 
 void PrioritySystem::passPriority() {
@@ -106,37 +164,8 @@ void PrioritySystem::passPriority() {
     pass_count++;
 }
 
-std::vector<std::unique_ptr<Action>> PrioritySystem::availablePriorityActions(Player* player) {
-    std::vector<std::unique_ptr<Action>> actions;
-    log_debug(LogCat::PRIORITY, "Generating priority actions for player {}", player->name);
-
-    // Get cards in hand
-    const std::vector<Card*>& hand_cards = game->zones->constHand()->cards[player->index];
-
-    for (Card* card : hand_cards) {
-        if (card == NULL) {
-            throw std::logic_error("Card should never be null");
-        }
-        if (card->types.isLand() && game->canPlayLand(player)) {
-            actions.emplace_back(new PlayLand(card, player, game));
-            log_debug(LogCat::PRIORITY, "Added PlayLand action for {}", card->toString());
-        } else if (card->types.isCastable() && game->canCastSorceries(player)) {
-            if (game->canPayManaCost(player, card->mana_cost.value())) {
-                actions.emplace_back(new CastSpell(card, player, game));
-                log_debug(LogCat::PRIORITY, "Added CastSpell action for {}", card->toString());
-            }
-        }
-    }
-
-    // Always allow passing priority
-    actions.emplace_back(new PassPriority(player, game));
-    log_debug(LogCat::PRIORITY, "Added PassPriority action");
-
-    return actions;
-}
-
 void PrioritySystem::performStateBasedActions() {
-    std::vector<Player*> players = game->playersStartingWithActive();
+    const std::vector<Player*>& players = game->playersStartingWithActive();
 
     // MR704.5a If a player has 0 or less life, that player loses the game.
     for (Player* player : players) {
