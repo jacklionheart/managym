@@ -25,3 +25,5 @@
    - The field was NOT exposed to Python via pybind11 (see pybind.cpp lines 236-254)
    - Only used by `toJSON()` debug method, which now omits it
    - Python code uses `registry_key` to look up card names from the card registry
+
+6. **Profiler missing populateActionSpace**: The latest profiler output did not include an `env_step/observation/populateActionSpace` entry. Should this scope be present, or is it intentionally disabled/filtered?
