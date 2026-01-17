@@ -12,6 +12,7 @@
 
 1. **Missing design doc for implement step**: No `.design/<branch>.md` or equivalent implementation plan is present in `.design/`. Unsure which spec to implement.
 2. **Implement step assumption**: No implementation doc found, so no code changes were made. Provide the intended design doc or target changes to proceed.
+3. **Implement task blocked**: Only diagnosis/profile/refactor docs present; no implement-focused spec in `.design/`. Proceeding requires a target design doc or change list.
 
 ## Implementation Decisions
 
