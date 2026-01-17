@@ -4,6 +4,10 @@
 
 1. **Cannot verify build**: The build requires Python 3.12 and cmake, which aren't available in the current environment. The CMakeLists.txt requires `find_package(Python 3.12 EXACT ...)`. Need to verify the code compiles and tests pass.
 
+## Design Inputs
+
+1. **Missing design doc for implement step**: No `.design/<branch>.md` or equivalent implementation plan is present in `.design/`. Unsure which spec to implement.
+
 ## Implementation Decisions
 
 2. **Observation constructor signature change**: Changed `Observation(const Game* game)` to `Observation(Game* game)` to support the cached `playersStartingWithAgent()` method. This is a minor API change but observation building doesn't require const access to the game.
