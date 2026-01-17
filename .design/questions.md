@@ -26,3 +26,7 @@
 6. **Why create observations on every tick?** The current implementation creates a new Observation in Game::tick() even for internal ticks that won't be returned to the agent. Was this intentional for debugging, or an oversight?
 
 7. **Should action allocation be pooled?** availablePriorityActions() allocates new vectors and unique_ptrs per call. With ~90k priority checks per profile run, this is significant allocation churn. Worth pooling?
+
+## Instrumentation Notes
+
+8. **Profile comparison is additive.** The new `compareToBaseline()` compares cumulative profiler data. To measure optimization impact accurately, reset profiler between runs or create fresh Env instances. The current design accumulates stats across the lifetime of the Profiler object.

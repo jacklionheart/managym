@@ -134,3 +134,69 @@ For 2 players, map lookups (O(log n)) are slower than direct index access. The p
 1. **Turn structure amplification**: The 10x tick ratio is inherent to Magic's turn structure. Could potentially skip entire phases when no decisions are possible (empty hand + no permanents with activated abilities = skip main phase priority).
 
 2. **Eager ActionSpace creation**: ActionSpaces are created even when the game will immediately skip them (trivial actions). Consider lazy ActionSpace creation.
+
+## Instrumentation
+
+### Profile Comparison Tool (2026-01-16)
+
+Added comparative profiling infrastructure to measure before/after optimization effects.
+
+**Files modified**:
+- `managym/infra/profiler.h` - Added `exportBaseline()`, `compareToBaseline()`, `parseBaseline()`
+- `managym/infra/profiler.cpp` - Implemented comparison logic
+- `managym/agent/pybind.cpp` - Exposed to Python: `env.export_profile_baseline()`, `env.compare_profile(baseline)`
+- `tests/infra/test_profiler.cpp` - Added tests for export/parse/compare
+
+**C++ Usage**:
+```cpp
+// Capture baseline
+Profiler profiler1(true);
+// ... run workload ...
+std::string baseline = profiler1.exportBaseline();
+
+// Later, after changes
+Profiler profiler2(true);
+// ... run same workload ...
+std::string diff = profiler2.compareToBaseline(baseline);
+std::cout << diff;
+```
+
+**Python Usage**:
+```python
+import managym
+
+# Run baseline
+env = managym.Env(enable_profiler=True)
+for _ in range(100):
+    env.reset(configs)
+    while not done:
+        obs, _, done, _, _ = env.step(0)
+baseline = env.export_profile_baseline()
+
+# Save to file for later comparison
+with open(".design/baseline.tsv", "w") as f:
+    f.write(baseline)
+
+# After optimization, run again and compare
+env2 = managym.Env(enable_profiler=True)
+# ... same workload ...
+print(env2.compare_profile(baseline))
+```
+
+**Output format**:
+```
+Profile Comparison (baseline vs current):
+Path                                         Baseline      Current     Change      Count
+------------------------------------------------------------------------------------------
+env_step                                      0.6831s     0.5123s     -25.0%          0
+env_step/game                                 0.3881s     0.2901s     -25.3%          0
+env_step/game/tick/observation                0.1185s     0.0156s     -86.8%          0
+env_step/game/tick/turn                       0.1598s     0.1234s     -22.8%          0
+```
+
+**Baseline format** (tab-separated values):
+```
+path\ttotal_time\tcount\n
+```
+
+This can be stored in `.design/` alongside profile snapshots for tracking optimization progress over time.
