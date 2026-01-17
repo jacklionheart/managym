@@ -70,6 +70,7 @@ void CastSpell::execute() {
     log_info(LogCat::AGENT, "Player {} Casting spell: {}", player->name, card->toString());
     log_debug(LogCat::AGENT, "Player's mana pool before: {}", player->mana_pool.toString());
     game->zones->produceMana(card->mana_cost.value(), player);
+    game->invalidateManaCache(player);
     log_debug(LogCat::AGENT, "Player's mana pool after producing mana: {}",
               player->mana_pool.toString());
     game->castSpell(player, card);

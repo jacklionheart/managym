@@ -7,7 +7,6 @@
 #include "managym/state/zone.h"
 
 #include <functional>
-#include <map>
 #include <memory>
 #include <vector>
 
@@ -58,7 +57,8 @@ public:
     Battlefield(Zones* zones, std::vector<Player*>& players, IDGenerator* id_generator);
 
     // Data
-    std::map<const Player*, std::vector<std::unique_ptr<Permanent>>> permanents;
+    // Permanents indexed by player->index (0 or 1 for 2-player game)
+    std::vector<std::vector<std::unique_ptr<Permanent>>> permanents;
     IDGenerator* id_generator;
 
     // Reads

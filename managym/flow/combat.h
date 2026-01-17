@@ -28,11 +28,13 @@ struct CombatStep : public Step {
 // First step of combat phase
 struct BeginningOfCombatStep : public CombatStep {
     BeginningOfCombatStep(CombatPhase* parent_combat_phase) : CombatStep(parent_combat_phase) {}
+    StepType stepType() const override { return StepType::COMBAT_BEGIN; }
 };
 
 // Step for declaring attacking creatures
 struct DeclareAttackersStep : public CombatStep {
     DeclareAttackersStep(CombatPhase* parent_combat_phase) : CombatStep(parent_combat_phase) {}
+    StepType stepType() const override { return StepType::COMBAT_DECLARE_ATTACKERS; }
 
     // Data
     std::vector<Permanent*> attackers_to_declare;
@@ -50,6 +52,7 @@ struct DeclareAttackersStep : public CombatStep {
 // Step for declaring blocking creatures
 struct DeclareBlockersStep : public CombatStep {
     DeclareBlockersStep(CombatPhase* parent_combat_phase) : CombatStep(parent_combat_phase) {}
+    StepType stepType() const override { return StepType::COMBAT_DECLARE_BLOCKERS; }
 
     // Data
     std::vector<Permanent*> blockers_to_declare;
@@ -67,6 +70,7 @@ struct DeclareBlockersStep : public CombatStep {
 // Step for dealing and resolving combat damage
 struct CombatDamageStep : public CombatStep {
     CombatDamageStep(CombatPhase* parent_combat_phase) : CombatStep(parent_combat_phase) {}
+    StepType stepType() const override { return StepType::COMBAT_DAMAGE; }
 
     // Writes
 
@@ -77,4 +81,5 @@ struct CombatDamageStep : public CombatStep {
 // Final step of combat phase
 struct EndOfCombatStep : public CombatStep {
     EndOfCombatStep(CombatPhase* parent_combat_phase) : CombatStep(parent_combat_phase) {}
+    StepType stepType() const override { return StepType::COMBAT_END; }
 };

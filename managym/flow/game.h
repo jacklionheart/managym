@@ -17,6 +17,18 @@
 #include <random>
 #include <vector>
 
+// Cache for producible mana per player. Invalidated on battlefield/tap state changes.
+struct ManaCache {
+    Mana producible[2];
+    bool valid[2] = {false, false};
+
+    void invalidate(int player_index) { valid[player_index] = false; }
+    void invalidateAll() {
+        valid[0] = false;
+        valid[1] = false;
+    }
+};
+
 // Core game class that manages game state and rules enforcement
 class Game {
 public:
@@ -46,10 +58,13 @@ public:
     std::unique_ptr<CardRegistry> card_registry;
     std::unique_ptr<IDGenerator> id_generator;
 
+    // Mana cache for producible mana calculations
+    ManaCache mana_cache;
+
     // Reads
 
     ActionSpace* actionSpace() const;
-    Observation* observation() const;
+    Observation* observation();
 
     // Get agent player (i.e. player currently making decisions. If no agent, return first player)
     Player* agentPlayer() const;
@@ -61,16 +76,20 @@ public:
     bool actionSpaceTrivial() const;
     // Get players, starting with the agent player (or the first player if no agent)
     std::vector<Player*> playersStartingWithAgent() const;
-    // Get player order for priority
-    std::vector<Player*> playersStartingWithActive() const;
+    // Get player order for priority (returns reference to TurnSystem's internal buffer)
+    const std::vector<Player*>& playersStartingWithActive();
     // Check if player is active player
     bool isActivePlayer(Player* player) const;
     // Check if player can play a land
     bool canPlayLand(Player* player) const;
     // Check if player can cast sorceries
     bool canCastSorceries(Player* player) const;
-    // Check if player can pay a mana cost
-    bool canPayManaCost(Player* player, const ManaCost& mana_cost) const;
+    // Check if player can pay a mana cost (uses cached producible mana)
+    bool canPayManaCost(Player* player, const ManaCost& mana_cost);
+    // Get cached producible mana for a player
+    const Mana& cachedProducibleMana(Player* player);
+    // Invalidate the mana cache for a player (call when battlefield/tap state changes)
+    void invalidateManaCache(Player* player);
     // Check if player is still alive
     bool isPlayerAlive(Player* player) const;
     // Check if game is over

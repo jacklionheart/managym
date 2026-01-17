@@ -78,8 +78,12 @@ std::tuple<Observation*, double, bool, bool, InfoDict> Env::step(int action, boo
         }
     }
 
-    addProfilerInfo(info);
-    addBehaviorInfo(info);
+    // Only populate profiler/behavior stats at episode end to avoid per-step overhead.
+    // Caller can use env.info() explicitly if needed during game.
+    if (done) {
+        addProfilerInfo(info);
+        addBehaviorInfo(info);
+    }
 
     return std::make_tuple(obs, reward, terminated, truncated, info);
 }

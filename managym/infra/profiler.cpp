@@ -182,19 +182,132 @@ Profiler::Scope::~Scope() {
 // -------------------- Pretty Print API --------------------
 // This function produces a nicely formatted, multi-line string representation of the profiler stats.
 std::string Profiler::toString() const {
-    auto stats = getStats();
+    std::unordered_map<std::string, Stats> stats = getStats();
     std::vector<std::string> keys;
-    for (const auto& kv : stats) {
+    for (const std::pair<const std::string, Stats>& kv : stats) {
         keys.push_back(kv.first);
     }
     std::sort(keys.begin(), keys.end());
     std::string output;
     output += "Profiler Statistics:\n";
-    for (const auto& key : keys) {
+    for (const std::string& key : keys) {
         const Stats& s = stats.at(key);
         output += fmt::format("  {}\n    Total Time: {:.6f} s\n    Count: {}\n    %% of Parent: {:.2f}%\n    %% of Total: {:.2f}%\n    Min: {:.6f} s\n    Max: {:.6f} s\n    Mean: {:.6f} s\n    5th Percentile: {:.6f} s\n    95th Percentile: {:.6f} s\n",
                               key, s.total_time, s.count, s.pct_of_parent, s.pct_of_total,
                               s.min, s.max, s.mean, s.p5, s.p95);
     }
     return output;
+}
+
+// -------------------- Baseline Export/Compare API --------------------
+
+std::string Profiler::exportBaseline() const {
+    std::unordered_map<std::string, Stats> stats = getStats();
+    std::vector<std::string> keys;
+    for (const std::pair<const std::string, Stats>& kv : stats) {
+        keys.push_back(kv.first);
+    }
+    std::sort(keys.begin(), keys.end());
+
+    std::ostringstream output;
+    for (const std::string& key : keys) {
+        const Stats& s = stats.at(key);
+        output << key << "\t" << s.total_time << "\t" << s.count << "\n";
+    }
+    return output.str();
+}
+
+std::unordered_map<std::string, std::pair<double, int>> Profiler::parseBaseline(
+    const std::string& baseline) {
+    std::unordered_map<std::string, std::pair<double, int>> result;
+    std::istringstream input(baseline);
+    std::string line;
+
+    while (std::getline(input, line)) {
+        if (line.empty()) {
+            continue;
+        }
+
+        // Parse tab-separated: path\ttotal_time\tcount
+        size_t tab1 = line.find('\t');
+        if (tab1 == std::string::npos) {
+            continue;
+        }
+        size_t tab2 = line.find('\t', tab1 + 1);
+        if (tab2 == std::string::npos) {
+            continue;
+        }
+
+        std::string path = line.substr(0, tab1);
+        double total_time = std::stod(line.substr(tab1 + 1, tab2 - tab1 - 1));
+        int count = std::stoi(line.substr(tab2 + 1));
+
+        result[path] = std::make_pair(total_time, count);
+    }
+
+    return result;
+}
+
+std::string Profiler::compareToBaseline(const std::string& baseline) const {
+    std::unordered_map<std::string, std::pair<double, int>> baseline_stats = parseBaseline(baseline);
+    std::unordered_map<std::string, Stats> current_stats = getStats();
+
+    // Collect all keys from both
+    std::vector<std::string> keys;
+    for (const std::pair<const std::string, std::pair<double, int>>& kv : baseline_stats) {
+        keys.push_back(kv.first);
+    }
+    for (const std::pair<const std::string, Stats>& kv : current_stats) {
+        if (baseline_stats.find(kv.first) == baseline_stats.end()) {
+            keys.push_back(kv.first);
+        }
+    }
+    std::sort(keys.begin(), keys.end());
+
+    std::ostringstream output;
+    output << "Profile Comparison (baseline vs current):\n";
+    output << fmt::format("{:<50} {:>12} {:>12} {:>10} {:>10}\n",
+                          "Path", "Baseline", "Current", "Change", "Count");
+    output << std::string(94, '-') << "\n";
+
+    for (const std::string& key : keys) {
+        bool in_baseline = baseline_stats.find(key) != baseline_stats.end();
+        bool in_current = current_stats.find(key) != current_stats.end();
+
+        if (in_baseline && in_current) {
+            double base_time = baseline_stats[key].first;
+            int base_count = baseline_stats[key].second;
+            double curr_time = current_stats[key].total_time;
+            int curr_count = current_stats[key].count;
+
+            double pct_change = 0.0;
+            if (base_time > 0) {
+                pct_change = ((curr_time - base_time) / base_time) * 100.0;
+            }
+
+            std::string change_str;
+            if (pct_change > 1.0) {
+                change_str = fmt::format("+{:.1f}%", pct_change);
+            } else if (pct_change < -1.0) {
+                change_str = fmt::format("{:.1f}%", pct_change);
+            } else {
+                change_str = "~0%";
+            }
+
+            output << fmt::format("{:<50} {:>10.4f}s {:>10.4f}s {:>10} {:>10}\n",
+                                  key, base_time, curr_time, change_str,
+                                  curr_count - base_count);
+        } else if (in_baseline) {
+            double base_time = baseline_stats[key].first;
+            output << fmt::format("{:<50} {:>10.4f}s {:>12} {:>10} {:>10}\n",
+                                  key, base_time, "(removed)", "-100%", "N/A");
+        } else {
+            double curr_time = current_stats[key].total_time;
+            int curr_count = current_stats[key].count;
+            output << fmt::format("{:<50} {:>12} {:>10.4f}s {:>10} {:>10}\n",
+                                  key, "(new)", curr_time, "+NEW", curr_count);
+        }
+    }
+
+    return output.str();
 }

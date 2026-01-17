@@ -236,3 +236,51 @@ TEST_F(TestFlow, CombatActionSpaceAfterDamage) {
 
     ASSERT_TRUE(combat_complete) << "Combat did not complete within " << max_steps << " steps";
 }
+
+TEST_F(TestFlow, CanPlayerActMatchesAvailableActions) {
+    // Verify that canPlayerAct() returns true if and only if
+    // availablePriorityActions() returns more than just PassPriority.
+    // This is a regression test to ensure the fast path matches the slow path.
+
+    PlayerConfig gaea_config(
+        "gaea", {{"Mountain", 12}, {"Forest", 12}, {"Llanowar Elves", 18}, {"Grey Ogre", 18}});
+    PlayerConfig urza_config(
+        "urza", {{"Mountain", 12}, {"Forest", 12}, {"Llanowar Elves", 18}, {"Grey Ogre", 18}});
+
+    // Create game WITHOUT skip_trivial so we see every action space
+    std::mt19937 rng;
+    rng.seed(42);
+    auto game = std::make_unique<Game>(std::vector<PlayerConfig>{gaea_config, urza_config}, &rng,
+                                       /*skip_trivial=*/false);
+
+    int steps_taken = 0;
+    const int max_steps = 500;
+    bool game_over = false;
+    int mismatches = 0;
+
+    while (!game_over && steps_taken < max_steps) {
+        ActionSpace* space = game->actionSpace();
+        if (space && space->type == ActionSpaceType::PRIORITY && space->player) {
+            Player* player = space->player;
+
+            // canPlayerAct returns true if player has actions beyond PassPriority
+            bool fast_path_can_act = game->priority_system->canPlayerAct(player);
+
+            // Count actions: if more than 1, player can act (not just PassPriority)
+            bool slow_path_can_act = (space->actions.size() > 1);
+
+            if (fast_path_can_act != slow_path_can_act) {
+                mismatches++;
+                log_info(LogCat::TEST,
+                         "Mismatch at step {}: canPlayerAct={}, actions.size()={}, player={}",
+                         steps_taken, fast_path_can_act, space->actions.size(), player->name);
+            }
+        }
+
+        game_over = game->step(0);
+        steps_taken++;
+    }
+
+    EXPECT_EQ(mismatches, 0) << "canPlayerAct() did not match availablePriorityActions()";
+    log_info(LogCat::TEST, "Verified {} steps with {} mismatches", steps_taken, mismatches);
+}

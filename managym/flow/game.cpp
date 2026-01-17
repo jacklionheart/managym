@@ -77,7 +77,12 @@ bool Game::actionSpaceTrivial() const {
     return !current_action_space || current_action_space->actions.size() <= 1;
 }
 
-Observation* Game::observation() const { return current_observation.get(); }
+Observation* Game::observation() {
+    if (!current_observation) {
+        current_observation = std::make_unique<Observation>(this);
+    }
+    return current_observation.get();
+}
 
 Player* Game::agentPlayer() const {
     if (current_action_space && current_action_space->player) {
@@ -90,7 +95,7 @@ Player* Game::activePlayer() const { return turn_system->activePlayer(); }
 
 Player* Game::nonActivePlayer() const { return turn_system->nonActivePlayer(); }
 
-std::vector<Player*> Game::playersStartingWithActive() const {
+const std::vector<Player*>& Game::playersStartingWithActive() {
     return turn_system->playersStartingWithActive();
 }
 
@@ -126,9 +131,20 @@ bool Game::canCastSorceries(Player* player) const {
            turn_system->current_turn->currentPhase()->canCastSorceries();
 }
 
-bool Game::canPayManaCost(Player* player, const ManaCost& mana_cost) const {
-    return zones->constBattlefield()->producibleMana(player).canPay(mana_cost);
+bool Game::canPayManaCost(Player* player, const ManaCost& mana_cost) {
+    return cachedProducibleMana(player).canPay(mana_cost);
 }
+
+const Mana& Game::cachedProducibleMana(Player* player) {
+    int idx = player->index;
+    if (!mana_cache.valid[idx]) {
+        mana_cache.producible[idx] = zones->constBattlefield()->producibleMana(player);
+        mana_cache.valid[idx] = true;
+    }
+    return mana_cache.producible[idx];
+}
+
+void Game::invalidateManaCache(Player* player) { mana_cache.invalidate(player->index); }
 
 bool Game::isPlayerAlive(Player* player) const { return player->alive; }
 
@@ -189,7 +205,10 @@ bool Game::_step(int action) {
     log_debug(LogCat::AGENT, "Available actions: {}", current_action_space->toString());
     log_debug(LogCat::AGENT, "Executing action: {}",
               current_action_space->actions[action]->toString());
-    current_action_space->actions[action]->execute();
+    {
+        Profiler::Scope action_scope = profiler->track("action_execute");
+        current_action_space->actions[action]->execute();
+    }
     current_action_space = nullptr;
     current_observation = nullptr;
 
@@ -200,11 +219,8 @@ bool Game::_step(int action) {
 bool Game::step(int action) {
     Profiler::Scope scope = profiler->track("game");
 
+    // The skip_trivial loop is now inside tick(), so _step handles everything
     bool game_over = _step(action);
-
-    while (!game_over && skip_trivial && actionSpaceTrivial()) {
-        game_over = _step(0);
-    }
 
     if (game_over) {
         if (turn_system->current_turn && !turn_system->current_turn->completed) {
@@ -220,22 +236,31 @@ bool Game::step(int action) {
 bool Game::tick() {
     Profiler::Scope scope = profiler->track("tick");
 
-    // Keep ticking until we have an action space or game ends
-    while (!current_action_space) {
-        // Get next action space
+    // Keep ticking until we have a non-trivial action space or game ends
+    while (true) {
+        // Get next action space from turn system
         current_action_space = turn_system->tick();
 
         // Check for game over
         if (isGameOver()) {
             current_action_space = ActionSpace::createEmpty();
-            current_observation = std::make_unique<Observation>(this);
             return true;
         }
-    }
 
-    // Create new observation for current state
-    current_observation = std::make_unique<Observation>(this);
-    return false;
+        // If we got an action space, check if we should auto-execute
+        if (current_action_space) {
+            // Non-trivial or skip_trivial disabled: return to caller for decision
+            if (!skip_trivial || current_action_space->actions.size() > 1) {
+                return false;
+            }
+
+            // Trivial: auto-execute action 0 and continue loop
+            current_action_space->actions[0]->execute();
+            current_action_space = nullptr;
+            current_observation = nullptr;
+            // Loop continues to get next action space
+        }
+    }
 }
 
 void Game::clearManaPools() {
@@ -251,6 +276,7 @@ void Game::clearDamage() {
 
 void Game::untapAllPermanents(Player* player) {
     zones->forEachPermanent([&](Permanent* permanent) { permanent->untap(); }, player);
+    invalidateManaCache(player);
 }
 
 void Game::markPermanentsNotSummoningSick(Player* player) {
@@ -301,4 +327,5 @@ void Game::playLand(Player* player, Card* card) {
     turn_system->current_turn->lands_played += 1;
     log_debug(LogCat::AGENT, "{} plays a land {}", player->name, card->toString());
     zones->move(card, ZoneType::BATTLEFIELD);
+    invalidateManaCache(player);
 }

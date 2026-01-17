@@ -79,27 +79,24 @@ void Permanent::activateAbility(ActivatedAbility* ability) {
 
 Battlefield::Battlefield(Zones* zones, std::vector<Player*>& players, IDGenerator* id_generator)
     : Zone(zones, players), id_generator(id_generator) {
-    for (Player* player : players) {
-        cards[player] = std::vector<Card*>();
-        permanents[player] = std::vector<std::unique_ptr<Permanent>>();
-    }
+    permanents.resize(players.size());
 }
 
 // Reads
 std::vector<Permanent*> Battlefield::attackers(Player* player) const {
-    std::vector<Permanent*> attackers;
-    const std::vector<std::unique_ptr<Permanent>>& player_permanents = permanents.at(player);
+    std::vector<Permanent*> result;
+    const std::vector<std::unique_ptr<Permanent>>& player_permanents = permanents[player->index];
     for (const std::unique_ptr<Permanent>& permanent : player_permanents) {
         if (permanent->attacking) {
-            attackers.push_back(permanent.get());
+            result.push_back(permanent.get());
         }
     }
-    return attackers;
+    return result;
 }
 
 std::vector<Permanent*> Battlefield::eligibleAttackers(Player* player) const {
     std::vector<Permanent*> eligible_attackers;
-    const std::vector<std::unique_ptr<Permanent>>& player_permanents = permanents.at(player);
+    const std::vector<std::unique_ptr<Permanent>>& player_permanents = permanents[player->index];
     for (const std::unique_ptr<Permanent>& permanent : player_permanents) {
         if (permanent->canAttack()) {
             eligible_attackers.push_back(permanent.get());
@@ -110,7 +107,7 @@ std::vector<Permanent*> Battlefield::eligibleAttackers(Player* player) const {
 
 std::vector<Permanent*> Battlefield::eligibleBlockers(Player* player) const {
     std::vector<Permanent*> eligible_blockers;
-    const std::vector<std::unique_ptr<Permanent>>& player_permanents = permanents.at(player);
+    const std::vector<std::unique_ptr<Permanent>>& player_permanents = permanents[player->index];
     for (const std::unique_ptr<Permanent>& permanent : player_permanents) {
         if (permanent->canBlock()) {
             eligible_blockers.push_back(permanent.get());
@@ -120,7 +117,7 @@ std::vector<Permanent*> Battlefield::eligibleBlockers(Player* player) const {
 }
 
 Permanent* Battlefield::find(const Card* card) const {
-    for (const auto& [player, player_permanents] : permanents) {
+    for (const std::vector<std::unique_ptr<Permanent>>& player_permanents : permanents) {
         for (const std::unique_ptr<Permanent>& permanent : player_permanents) {
             if (permanent->card == card) {
                 return permanent.get();
@@ -132,11 +129,9 @@ Permanent* Battlefield::find(const Card* card) const {
 
 Mana Battlefield::producibleMana(Player* player) const {
     Mana total_mana;
-    auto it = permanents.find(player);
-    if (it != permanents.end()) {
-        for (const auto& permanent : it->second) {
-            total_mana.add(permanent->producibleMana());
-        }
+    const std::vector<std::unique_ptr<Permanent>>& player_permanents = permanents[player->index];
+    for (const std::unique_ptr<Permanent>& permanent : player_permanents) {
+        total_mana.add(permanent->producibleMana());
     }
     return total_mana;
 }
@@ -148,23 +143,24 @@ void Battlefield::enter(Card* card) {
         throw std::invalid_argument("Card is not a permanent: " + card->toString());
     }
     log_info(LogCat::STATE, "{} enters battlefield", card->toString());
-    const Player* controller = card->owner;
-    permanents[controller].push_back(std::make_unique<Permanent>(id_generator->next(), card));
+    int controller_index = card->owner->index;
+    permanents[controller_index].push_back(std::make_unique<Permanent>(id_generator->next(), card));
 }
 
 void Battlefield::exit(Card* card) {
     Zone::exit(card);
-    const Player* controller = card->owner;
-    permanents[controller].erase(
-        std::remove_if(permanents[controller].begin(), permanents[controller].end(),
+    int controller_index = card->owner->index;
+    std::vector<std::unique_ptr<Permanent>>& player_permanents = permanents[controller_index];
+    player_permanents.erase(
+        std::remove_if(player_permanents.begin(), player_permanents.end(),
                        [&card](const std::unique_ptr<Permanent>& permanent) {
                            return permanent->card == card;
                        }),
-        permanents[controller].end());
+        player_permanents.end());
 }
 
 void Battlefield::forEachAll(const std::function<void(Permanent*)>& func) {
-    for (const auto& [player, player_permanents] : permanents) {
+    for (const std::vector<std::unique_ptr<Permanent>>& player_permanents : permanents) {
         for (const std::unique_ptr<Permanent>& permanent : player_permanents) {
             func(permanent.get());
         }
@@ -172,7 +168,7 @@ void Battlefield::forEachAll(const std::function<void(Permanent*)>& func) {
 }
 
 void Battlefield::forEach(const std::function<void(Permanent*)>& func, Player* player) {
-    std::vector<std::unique_ptr<Permanent>>& player_permanents = permanents[player];
+    std::vector<std::unique_ptr<Permanent>>& player_permanents = permanents[player->index];
     for (const std::unique_ptr<Permanent>& permanent : player_permanents) {
         func(permanent.get());
     }
@@ -188,9 +184,9 @@ void Battlefield::produceMana(const ManaCost& mana_cost, Player* player) {
         throw std::runtime_error("Not enough producible mana to pay for mana cost.");
     }
 
-    std::vector<std::unique_ptr<Permanent>>& player_permanents = permanents[player];
+    std::vector<std::unique_ptr<Permanent>>& player_permanents = permanents[player->index];
 
-    for (auto& permanent : player_permanents) {
+    for (std::unique_ptr<Permanent>& permanent : player_permanents) {
         if (player->mana_pool.canPay(mana_cost)) {
             break;
         }

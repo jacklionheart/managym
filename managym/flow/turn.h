@@ -98,6 +98,11 @@ public:
     std::map<Player*, int> turn_counts;
     Game* game;
 
+    // Pre-allocated player order vectors (reused to avoid allocations)
+    std::vector<Player*> players_active_first;
+    // Cached index to avoid rebuilding players_active_first on every call
+    int cached_active_index = -1;
+
     TurnSystem(Game* game);
 
     // Reads
@@ -112,8 +117,8 @@ public:
     bool isInPhase(PhaseType phase) const;
     // Check if game is in a specific step
     bool isInStep(StepType step) const;
-    // Get controlling player's order for priority
-    std::vector<Player*> playersStartingWithActive();
+    // Get controlling player's order for priority (returns reference to internal buffer)
+    const std::vector<Player*>& playersStartingWithActive();
     // Get current active player
     Player* activePlayer();
     // Get non-active player
@@ -159,6 +164,8 @@ struct Step {
     Turn* turn();
     // Get active player
     Player* activePlayer();
+    // Get the step type for profiler tracking
+    virtual StepType stepType() const = 0;
 
     // Writes
     // Perform game actions for this step
@@ -221,23 +228,28 @@ struct Turn {
 // Step where permanents become untapped
 struct UntapStep : public Step {
     UntapStep(Phase* parent_phase) : Step(parent_phase) { has_priority_window = false; }
+    StepType stepType() const override { return StepType::BEGINNING_UNTAP; }
     std::unique_ptr<ActionSpace> performTurnBasedActions() override;
 };
 
 // Step for upkeep triggers
 struct UpkeepStep : public Step {
     UpkeepStep(Phase* parent_phase) : Step(parent_phase) { has_priority_window = true; }
+    StepType stepType() const override { return StepType::BEGINNING_UPKEEP; }
 };
 
 // Step where active player draws a card
 struct DrawStep : public Step {
     DrawStep(Phase* parent_phase) : Step(parent_phase) { has_priority_window = true; }
+    StepType stepType() const override { return StepType::BEGINNING_DRAW; }
     std::unique_ptr<ActionSpace> performTurnBasedActions() override;
 };
 
 // Main phase step
 struct MainStep : public Step {
-    MainStep(Phase* parent_phase) : Step(parent_phase) { has_priority_window = true; }
+    StepType step_type;
+    MainStep(Phase* parent_phase, StepType type) : Step(parent_phase), step_type(type) { has_priority_window = true; }
+    StepType stepType() const override { return step_type; }
     void onStepStart() override;
     void onStepEnd() override;
 };
@@ -247,11 +259,13 @@ struct MainStep : public Step {
 // Step for end of turn triggers
 struct EndStep : public Step {
     EndStep(Phase* parent_phase) : Step(parent_phase) { has_priority_window = true; }
+    StepType stepType() const override { return StepType::ENDING_END; }
 };
 
 // Step for cleanup actions
 struct CleanupStep : public Step {
     CleanupStep(Phase* parent_phase) : Step(parent_phase) { has_priority_window = false; }
+    StepType stepType() const override { return StepType::ENDING_CLEANUP; }
     std::unique_ptr<ActionSpace> performTurnBasedActions() override;
 };
 

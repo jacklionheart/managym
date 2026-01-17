@@ -73,6 +73,19 @@ public:
     /// Return a pretty-printed string of all profiler statistics.
     std::string toString() const;
 
+    /// Export stats to a simple text format for later comparison.
+    /// Format: "path\ttotal_time\tcount\n" per line (tab-separated).
+    std::string exportBaseline() const;
+
+    /// Compare current stats against a baseline and return a formatted diff report.
+    /// Baseline format should match exportBaseline() output.
+    /// Reports: path, baseline time, current time, % change, count change.
+    std::string compareToBaseline(const std::string& baseline) const;
+
+    /// Parse a baseline string into a map of path -> (total_time, count).
+    static std::unordered_map<std::string, std::pair<double, int>> parseBaseline(
+        const std::string& baseline);
+
 private:
     bool enabled;
     int max_samples;

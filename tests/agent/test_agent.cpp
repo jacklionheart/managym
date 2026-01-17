@@ -30,7 +30,7 @@ TEST_F(TestAgent, PlayLandMovesCardToBattlefield) {
 
     // Find a land in green_player's hand
     Card* land_card = nullptr;
-    for (auto* c : game->zones->constHand()->cards.at(green_player)) {
+    for (auto* c : game->zones->constHand()->cards[green_player->index]) {
         if (c->types.isLand()) {
             land_card = c;
             break;
@@ -59,7 +59,7 @@ TEST_F(TestAgent, CastSpellGoesOnStack) {
     // Find a castable spell and required lands
     Card* spell_card = nullptr;
     std::vector<Card*> lands;
-    auto hand = game->zones->constHand()->cards.at(red_player);
+    const std::vector<Card*>& hand = game->zones->constHand()->cards[red_player->index];
 
     for (Card* c : hand) {
         if (c->types.isCastable()) {

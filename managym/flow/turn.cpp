@@ -8,12 +8,10 @@
 // TurnSystem implementation
 
 TurnSystem::TurnSystem(Game* game) : game(game) {
-    for (std::unique_ptr<Player>& player : game->players) {
-        turn_counts[player.get()] = 0;
-    }
-
     global_turn_count = 0;
     active_player_index = 0;
+    // Note: players_active_first and players_nap_first are lazily initialized
+    // in playersStartingWithActive() because game->players is empty at this point
 }
 
 const Phase* TurnSystem::currentPhase() const {
@@ -174,15 +172,19 @@ void TurnSystem::startNextTurn() {
     global_turn_count++;
 }
 
-std::vector<Player*> TurnSystem::playersStartingWithActive() {
-
-    int num_players = game->players.size();
-    std::vector<Player*> order;
-    for (int i = 0; i < num_players; i++) {
-        order.push_back(game->players[(active_player_index + i) % num_players].get());
+const std::vector<Player*>& TurnSystem::playersStartingWithActive() {
+    // Only rebuild when active_player_index changes
+    if (cached_active_index != active_player_index) {
+        int num_players = game->players.size();
+        if (players_active_first.size() != num_players) {
+            players_active_first.resize(num_players);
+        }
+        for (int i = 0; i < num_players; i++) {
+            players_active_first[i] = game->players[(active_player_index + i) % num_players].get();
+        }
+        cached_active_index = active_player_index;
     }
-
-    return order;
+    return players_active_first;
 }
 
 Player* TurnSystem::activePlayer() { return game->players.at(active_player_index).get(); }
@@ -227,7 +229,6 @@ std::unique_ptr<ActionSpace> Turn::tick() {
 // Phase implementation
 
 std::unique_ptr<ActionSpace> Phase::tick() {
-    Profiler::Scope scope = game()->profiler->track("phase");
     log_debug(LogCat::TURN, "Ticking {}", std::string(typeid(*this).name()));
 
     if (completed || current_step_index >= steps.size()) {
@@ -252,7 +253,9 @@ std::unique_ptr<ActionSpace> Phase::tick() {
 
 Step::Step(Phase* phase) : phase(phase) {}
 std::unique_ptr<ActionSpace> Step::tick() {
-    Profiler::Scope scope = game()->profiler->track("step");
+    std::string scope_name = std::string("step/") + toString(stepType());
+    Profiler::Scope scope = game()->profiler->track(scope_name);
+
     log_debug(LogCat::TURN, "Ticking {}", std::string(typeid(*this).name()));
 
     if (!initialized) {
@@ -355,11 +358,11 @@ BeginningPhase::BeginningPhase(Turn* parent_turn) : Phase(parent_turn) {
 }
 
 PrecombatMainPhase::PrecombatMainPhase(Turn* parent_turn) : Phase(parent_turn) {
-    steps.emplace_back(new MainStep(this));
+    steps.emplace_back(new MainStep(this, StepType::PRECOMBAT_MAIN_STEP));
 }
 
 PostcombatMainPhase::PostcombatMainPhase(Turn* parent_turn) : Phase(parent_turn) {
-    steps.emplace_back(new MainStep(this));
+    steps.emplace_back(new MainStep(this, StepType::POSTCOMBAT_MAIN_STEP));
 }
 
 EndingPhase::EndingPhase(Turn* parent_turn) : Phase(parent_turn) {

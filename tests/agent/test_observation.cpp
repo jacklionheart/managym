@@ -12,7 +12,7 @@
 // map. Instead, we now have separate agent/opponent fields and maps. For example, the agent’s cards
 // are stored in obs.agent_cards and the opponent’s in obs.opponent_cards.
 
-// Helper: Given the game’s players, find the agent and opponent pointers according to the new
+// Helper: Given the game's players, find the agent and opponent pointers according to the new
 // model.
 static const Player* getGameAgent(const Game* game) { return game->agentPlayer(); }
 
@@ -21,6 +21,26 @@ static const Player* getGameOpponent(const Game* game) {
     for (const auto& p : game->playersStartingWithAgent()) {
         if (p != game_agent) {
             return p;
+        }
+    }
+    return nullptr;
+}
+
+// Helper to find a card by ID in a vector of CardData
+static const CardData* findCardById(const std::vector<CardData>& cards, int id) {
+    for (const CardData& card : cards) {
+        if (card.id == id) {
+            return &card;
+        }
+    }
+    return nullptr;
+}
+
+// Helper to find a permanent by ID in a vector of PermanentData
+static const PermanentData* findPermanentById(const std::vector<PermanentData>& perms, int id) {
+    for (const PermanentData& perm : perms) {
+        if (perm.id == id) {
+            return &perm;
         }
     }
     return nullptr;
@@ -97,11 +117,10 @@ protected:
         for (const auto& action : obs->action_space.actions) {
             if (!action.focus.empty()) {
                 for (int focus_id : action.focus) {
-                    bool found =
-                        (obs->agent_cards.find(focus_id) != obs->agent_cards.end()) ||
-                        (obs->opponent_cards.find(focus_id) != obs->opponent_cards.end()) ||
-                        (obs->agent_permanents.find(focus_id) != obs->agent_permanents.end()) ||
-                        (obs->opponent_permanents.find(focus_id) != obs->opponent_permanents.end());
+                    bool found = (findCardById(obs->agent_cards, focus_id) != nullptr) ||
+                                 (findCardById(obs->opponent_cards, focus_id) != nullptr) ||
+                                 (findPermanentById(obs->agent_permanents, focus_id) != nullptr) ||
+                                 (findPermanentById(obs->opponent_permanents, focus_id) != nullptr);
                     ASSERT_TRUE(found)
                         << "Focus ID=" << focus_id << " not found in any object collection";
                 }
@@ -151,8 +170,7 @@ TEST_F(TestObservation, CardDataCorrectlyOrganized) {
     verifyBasicObservation(&obs);
 
     // Verify agent card data.
-    for (const auto& [cid, card] : obs.agent_cards) {
-        EXPECT_EQ(cid, card.id) << "Agent card map key should match card id";
+    for (const CardData& card : obs.agent_cards) {
         EXPECT_EQ(card.owner_id, obs.agent.id) << "Agent card owner must equal agent id";
 
         if (card.card_types.is_creature) {
@@ -168,8 +186,7 @@ TEST_F(TestObservation, CardDataCorrectlyOrganized) {
     }
 
     // Verify opponent card data.
-    for (const auto& [cid, card] : obs.opponent_cards) {
-        EXPECT_EQ(cid, card.id) << "Opponent card map key should match card id";
+    for (const CardData& card : obs.opponent_cards) {
         EXPECT_EQ(card.owner_id, obs.opponent.id) << "Opponent card owner must equal opponent id";
         // Opponent hand cards are hidden.
         EXPECT_NE(card.zone, ZoneType::HAND)
@@ -177,18 +194,18 @@ TEST_F(TestObservation, CardDataCorrectlyOrganized) {
     }
 
     // For permanents on the battlefield, the corresponding card data should be present.
-    for (const auto& [pid, perm] : obs.agent_permanents) {
-        auto it = obs.agent_cards.find(perm.card_id);
-        ASSERT_NE(it, obs.agent_cards.end())
+    for (const PermanentData& perm : obs.agent_permanents) {
+        const CardData* card = findCardById(obs.agent_cards, perm.card_id);
+        ASSERT_NE(card, nullptr)
             << "Agent permanent's card_id " << perm.card_id << " not found in agent_cards";
-        EXPECT_EQ(it->second.zone, ZoneType::BATTLEFIELD)
+        EXPECT_EQ(card->zone, ZoneType::BATTLEFIELD)
             << "Agent permanent's card must be in BATTLEFIELD";
     }
-    for (const auto& [pid, perm] : obs.opponent_permanents) {
-        auto it = obs.opponent_cards.find(perm.card_id);
-        ASSERT_NE(it, obs.opponent_cards.end())
+    for (const PermanentData& perm : obs.opponent_permanents) {
+        const CardData* card = findCardById(obs.opponent_cards, perm.card_id);
+        ASSERT_NE(card, nullptr)
             << "Opponent permanent's card_id " << perm.card_id << " not found in opponent_cards";
-        EXPECT_EQ(it->second.zone, ZoneType::BATTLEFIELD)
+        EXPECT_EQ(card->zone, ZoneType::BATTLEFIELD)
             << "Opponent permanent's card must be in BATTLEFIELD";
     }
 }
@@ -202,13 +219,11 @@ TEST_F(TestObservation, PermanentDataCorrectlyOrganized) {
     verifyBasicObservation(&obs);
 
     // Verify agent permanents.
-    for (const auto& [pid, perm] : obs.agent_permanents) {
-        EXPECT_EQ(pid, perm.id) << "Agent permanent map key should match permanent id";
+    for (const PermanentData& perm : obs.agent_permanents) {
         EXPECT_EQ(perm.controller_id, obs.agent.id) << "Agent permanent's controller must be agent";
     }
     // Verify opponent permanents.
-    for (const auto& [pid, perm] : obs.opponent_permanents) {
-        EXPECT_EQ(pid, perm.id) << "Opponent permanent map key should match permanent id";
+    for (const PermanentData& perm : obs.opponent_permanents) {
         EXPECT_EQ(perm.controller_id, obs.opponent.id)
             << "Opponent permanent's controller must be opponent";
     }
@@ -221,11 +236,11 @@ TEST_F(TestObservation, HandInformationCorrectlyHidden) {
     int agentHandCount = 0;
     int opponentHandCount = 0;
 
-    for (const auto& [_, card] : obs.agent_cards) {
+    for (const CardData& card : obs.agent_cards) {
         if (card.zone == ZoneType::HAND)
             agentHandCount++;
     }
-    for (const auto& [_, card] : obs.opponent_cards) {
+    for (const CardData& card : obs.opponent_cards) {
         if (card.zone == ZoneType::HAND)
             opponentHandCount++;
     }
@@ -306,13 +321,11 @@ TEST_F(TestObservation, PreservesTurnPhaseStep) {
         for (auto* attacker : attackers) {
             const PermanentData* perm_data = nullptr;
             if (attacker->controller->id == obs.agent.id) {
-                auto it = obs.agent_permanents.find(attacker->id);
-                ASSERT_NE(it, obs.agent_permanents.end());
-                perm_data = &it->second;
+                perm_data = findPermanentById(obs.agent_permanents, attacker->id);
+                ASSERT_NE(perm_data, nullptr);
             } else {
-                auto it = obs.opponent_permanents.find(attacker->id);
-                ASSERT_NE(it, obs.opponent_permanents.end());
-                perm_data = &it->second;
+                perm_data = findPermanentById(obs.opponent_permanents, attacker->id);
+                ASSERT_NE(perm_data, nullptr);
             }
             EXPECT_FALSE(perm_data->is_summoning_sick)
                 << "Attacker cannot be summoning sick in observation";
@@ -434,23 +447,21 @@ TEST_F(TestObservation, ValidateMethodCatchesInconsistencies) {
     EXPECT_TRUE(obs.validate()) << "Initial observation should be valid";
 
     // 2. Marking both players as agent should cause validation failure.
-    auto invalid_obs = obs;
+    Observation invalid_obs = obs;
     invalid_obs.opponent.is_agent = true;
     EXPECT_FALSE(invalid_obs.validate()) << "Should detect multiple agents";
 
     // 3. Alter card ownership in agent_cards to be wrong.
     invalid_obs = obs;
     if (!invalid_obs.agent_cards.empty()) {
-        auto it = invalid_obs.agent_cards.begin();
-        it->second.owner_id = invalid_obs.opponent.id;
+        invalid_obs.agent_cards[0].owner_id = invalid_obs.opponent.id;
         EXPECT_FALSE(invalid_obs.validate()) << "Should detect incorrect card ownership";
     }
 
     // 4. Alter permanent controller in agent_permanents to be wrong.
     invalid_obs = obs;
     if (!invalid_obs.agent_permanents.empty()) {
-        auto it = invalid_obs.agent_permanents.begin();
-        it->second.controller_id = invalid_obs.opponent.id;
+        invalid_obs.agent_permanents[0].controller_id = invalid_obs.opponent.id;
         EXPECT_FALSE(invalid_obs.validate()) << "Should detect incorrect permanent controller";
     }
 }

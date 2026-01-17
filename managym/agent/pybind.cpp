@@ -294,7 +294,7 @@ static void registerDataClasses(py::module& m) {
 
        game_over: bool
            Whether the game has ended
-       won: bool 
+       won: bool
            Whether the observing player won
        turn: Turn
            Current turn information
@@ -302,19 +302,19 @@ static void registerDataClasses(py::module& m) {
            Available actions for the current player
 
        Agent (observing player) data:
-       agent: Player 
+       agent: Player
            The observing player's state
-       agent_cards: dict[int, Card]
+       agent_cards: list[Card]
            Cards owned by the observing player
-       agent_permanents: dict[int, Permanent]
+       agent_permanents: list[Permanent]
            Permanents controlled by the observing player
 
        Opponent data (visible portion):
        opponent: Player
            The opponent's visible state
-       opponent_cards: dict[int, Card] 
+       opponent_cards: list[Card]
            Opponent's visible cards
-       opponent_permanents: dict[int, Permanent]
+       opponent_permanents: list[Permanent]
            Opponent's permanents on the battlefield
    )docstring")
         .def(py::init<>())
@@ -378,7 +378,26 @@ static void registerAPI(py::module& m) {
                 return convertInfoDict(env.info());
             },
             "Get a dictionary of information about the environment. "
-            "Includes nested 'profiler' and 'behavior' sub-dictionaries.");
+            "Includes nested 'profiler' and 'behavior' sub-dictionaries.")
+        .def(
+            "export_profile_baseline",
+            [](Env& env) {
+                if (env.profiler && env.profiler->isEnabled()) {
+                    return env.profiler->exportBaseline();
+                }
+                return std::string("");
+            },
+            "Export profiler stats to a tab-separated baseline format for later comparison.")
+        .def(
+            "compare_profile",
+            [](Env& env, const std::string& baseline) {
+                if (env.profiler && env.profiler->isEnabled()) {
+                    return env.profiler->compareToBaseline(baseline);
+                }
+                return std::string("Profiler not enabled");
+            },
+            py::arg("baseline"),
+            "Compare current profiler stats against a baseline and return a diff report.");
 }
 
 // -----------------------------------------------------------------------------
