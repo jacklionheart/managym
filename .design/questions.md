@@ -30,3 +30,13 @@
 ## Instrumentation Notes
 
 8. **Profile comparison is additive.** The new `compareToBaseline()` compares cumulative profiler data. To measure optimization impact accurately, reset profiler between runs or create fresh Env instances. The current design accumulates stats across the lifetime of the Profiler object.
+
+## Refactor-Specific Questions
+
+9. **Training mode vs evaluation mode?** The lazy priority and policy hints in the refactor proposals are most valuable for training. Should there be a fast training mode that assumes simple policies, or should the engine always enumerate all actions?
+
+10. **Triggered abilities timeline?** The decision-driven tick loop and static feasibility proposals assume the turn structure is static. If "at beginning of upkeep" triggers are imminent, the feasibility checks become more complex. When are triggered abilities planned?
+
+11. **playersStartingWithActive() caching status?** The function at `turn.cpp:175-186` rebuilds the player order vector on every call (~350,000 times per 200 games). The diagnosis recommended caching based on `active_player_index`, but this hasn't been implemented. Was there a reason to defer this?
+
+12. **Combat phase behavior expectations?** Proposal 2 would skip the entire combat phase when there are no creatures. This matches current behavior with skip_trivial=True, but may need flags for future features. Is this acceptable?

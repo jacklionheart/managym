@@ -1,287 +1,441 @@
-# Refactor Proposal
+# Refactor Proposals
 
 ## Summary
 
-The turn/phase/step hierarchy accounts for 31% of simulation time despite doing minimal actual work. The root cause is not the Magic rules engine itself, but **the overhead of traversing a deep object hierarchy 10x more often than necessary**. The current design creates and destroys Turn/Phase/Step objects per turn, allocates vectors per tick, and runs profiler scopes at every level of the hierarchy.
+The simulation bottleneck is **architectural, not algorithmic**. After optimizations reduced observation overhead to 3.4%, the turn/phase/step hierarchy now dominates at 31% of total time—despite doing minimal actual work. The 10.1x tick amplification (98,502 internal ticks for 9,779 agent decisions) reveals the core problem: **the game engine is organized for code clarity, not for fast simulation**.
 
-The core insight: **flatten the state machine**. Magic's turn structure is fixed and predictable. Instead of a tree of polymorphic objects, represent the game state as a simple enum + integer pair. Skip phases/steps that cannot produce decisions, not just trivial action spaces.
+The fundamental insight: **Magic's turn structure is deterministic and sparse**. Most steps produce no decisions. Most priority passes are automatic. The engine traverses a 4-level object hierarchy and creates 4 profiler scopes to ultimately return "PassPriority" 97% of the time.
+
+Bold refactoring means restructuring the engine around the actual workload: ~10,000 decisions per 200 games, not ~100,000 hierarchy traversals.
 
 ## Proposals
 
-### 1. Flat State Machine — Expected impact: 25-35%
+### 1. Decision-Driven Tick Loop — Expected impact: 35-50%
 
 **Current state:**
-The turn structure is a 4-level object hierarchy (TurnSystem → Turn → Phase → Step). Each tick traverses this entire tree:
-- `TurnSystem::tick()` → `Turn::tick()` → `Phase::tick()` → `Step::tick()` → `PrioritySystem::tick()`
-- Each level creates a `Profiler::Scope` object (4 allocations + 4 destructor calls per tick)
-- `Turn` constructor allocates 5 Phase objects (`turn.cpp:198-202`)
-- Each Phase constructor allocates 1-5 Step objects (`turn.cpp:351-367`)
-- `playersStartingWithActive()` allocates a new vector on every call (`turn.cpp:177-186`)
+The tick loop processes every step in sequence, regardless of whether decisions are possible:
 
-For 9,779 agent steps, this hierarchy processes 98,502 turn/phase/step ticks—a **10.1x amplification**.
+```
+Game::tick() → TurnSystem::tick() → Turn::tick() → Phase::tick() → Step::tick() → PrioritySystem::tick()
+```
+
+For 9,779 agent decisions, this hierarchy executes:
+- 67,822 game ticks (skip_trivial loop iterations)
+- 98,502 turn/phase/step ticks (hierarchy traversals)
+- 87,590 priority ticks (97% are just PassPriority)
+- 394,008 profiler scope creations/destructions
 
 **Problem:**
-The polymorphic design serves code organization, not performance. Virtual dispatch, object allocation, and deep call chains create overhead for a state machine that's entirely deterministic. Magic's turn structure is the same every turn: Beginning (3 steps) → Main → Combat (5 steps) → Main → Ending (2 steps).
+The engine asks "what step are we in?" then "does this step have decisions?" The question should be inverted: "what's the next decision point?" then "advance state to there."
+
+The polymorphic Phase/Step hierarchy exists for code organization. At runtime, Magic's turn structure is:
+```
+UNTAP → UPKEEP → DRAW → MAIN1 → COMBAT_BEGIN → ATTACKERS → BLOCKERS → DAMAGE → COMBAT_END → MAIN2 → END → CLEANUP
+```
+This never changes. A switch statement is faster than virtual dispatch through 4 object levels.
 
 **Proposal:**
-Replace the object hierarchy with a flat state machine. The entire turn state becomes two integers:
+Replace the pull-based hierarchy with a push-based decision finder. The entire turn state becomes:
 
 ```cpp
 struct TurnState {
-    int step;           // 0-11 (StepType enum value)
-    int priority_pass;  // 0 = active player, 1 = NAP, 2 = done
+    StepType step = StepType::BEGINNING_UNTAP;
+    int priority_player = 0;  // 0 = active, 1 = NAP, 2 = stack resolution
+    bool sba_done = false;
 };
 ```
 
-A single `advanceTurn()` function replaces the entire hierarchy:
+A single function finds the next decision:
 
 ```cpp
-std::unique_ptr<ActionSpace> TurnSystem::advanceTurn() {
-    // Skip steps that can't produce decisions
+std::unique_ptr<ActionSpace> TurnSystem::findNextDecision() {
     while (true) {
-        if (step == StepType::BEGINNING_UNTAP) {
-            untapAndMarkNotSick();
-            step++;
-            continue;
-        }
+        // Execute turn-based actions for current step
+        executeTurnBasedActions(state.step);
 
-        if (!hasDecisionAtStep(step)) {
-            step++;
-            if (step > ENDING_CLEANUP) {
-                step = 0;
-                advanceActivePlayer();
+        // Check if this step can produce a non-trivial decision
+        if (canProduceDecision(state.step)) {
+            ActionSpace* space = buildActionSpace(state.step);
+            if (space->actions.size() > 1) {
+                return std::unique_ptr<ActionSpace>(space);
             }
-            continue;
+            // Trivial action space - auto-execute and continue
+            space->actions[0]->execute();
+            delete space;
         }
 
-        // This step needs a decision
-        return makeActionSpace();
+        // Advance to next step
+        if (!advanceStep()) {
+            // Turn complete, start next turn
+            advanceActivePlayer();
+            state.step = StepType::BEGINNING_UNTAP;
+        }
     }
 }
 ```
 
-Key changes:
-- Remove Turn, Phase, Step classes entirely
-- One profiler scope for the entire tick, not nested scopes
-- Pre-computed player order (2-element array, never reallocated)
-- No virtual dispatch, no heap allocations in the hot path
+Key insight: **combine skip_trivial into the tick loop itself**. Don't return ActionSpaces with 1 action; auto-execute them internally. This eliminates the 6.9x game tick amplification.
 
 **Implementation sketch:**
-1. Add `TurnState` struct to `TurnSystem`
-2. Implement `advanceTurn()` as a single switch/loop
-3. Move step-specific logic (untap, draw, cleanup) into helper methods
-4. Remove `turn.cpp` Phase/Step classes
-5. Update `turn.h` to keep only TurnSystem + enums
+1. Add `TurnState` to TurnSystem with step/priority/sba fields
+2. Add `executeTurnBasedActions(StepType)` - switch statement for untap/draw/cleanup
+3. Add `canProduceDecision(StepType)` - checks hand size, creatures, abilities
+4. Add `buildActionSpace(StepType)` - creates actions for current step
+5. Add `advanceStep()` - increments step, handles phase boundaries
+6. Replace `Turn`, `Phase`, `Step` classes with `TurnState` + helper methods
+7. Single profiler scope for `findNextDecision()`, not nested scopes
+
+**Impact breakdown:**
+- Eliminates 4-level object hierarchy traversal: ~15% savings
+- Eliminates 3 of 4 profiler scopes per tick: ~10% savings
+- Combines skip_trivial loop: ~10% savings
+- Reduces function call overhead: ~5% savings
 
 **Risks:**
-- Significant refactor touching turn.cpp, turn.h, game.cpp
-- Combat phase has complex step skipping logic that needs careful handling
-- Tests assume Turn/Phase/Step objects exist
+- Large refactor touching turn.cpp, turn.h, game.cpp, priority.cpp
+- Combat phase step skipping logic needs careful handling
+- Tests assume Turn/Phase/Step objects exist for assertions
+- BehaviorTracker callbacks need to fire at correct points
 
 ---
 
-### 2. Phase/Step Skipping — Expected impact: 15-25%
+### 2. Static Decision Feasibility — Expected impact: 20-30%
 
 **Current state:**
-The game ticks through every step even when no decisions are possible. With `skip_trivial=True`, we skip trivial *action spaces* (≤1 action), but we still:
-- Enter each step
-- Create a profiler scope
-- Check if priority is needed
-- Create an ActionSpace with just PassPriority
-- Then skip it
-
-**Problem:**
-Many steps are *statically* known to have no decisions before we enter them:
-- Untap step: no priority window
-- Draw step with empty hand and no permanents with activated abilities: priority passes immediately
-- Combat steps when there are no creatures: no attackers/blockers to declare
-- All steps when hand is empty and no battlefield abilities: only PassPriority available
-
-The 10.1x tick amplification could be reduced to ~2-3x if we skipped these phases entirely.
-
-**Proposal:**
-Before entering a step, check if it can possibly produce a non-trivial decision:
+Every step creates a full ActionSpace then checks if it's trivial:
 
 ```cpp
-bool TurnSystem::canStepProduceDecision(StepType step) const {
-    if (!stepHasPriorityWindow(step)) return false;
+// priority.cpp:67-94
+std::vector<std::unique_ptr<Action>> PrioritySystem::availablePriorityActions(Player* player) {
+    std::vector<std::unique_ptr<Action>> actions;
 
-    Player* active = activePlayer();
-    Player* nap = nonActivePlayer();
+    for (Card* card : hand_cards) {
+        if (card->types.isLand() && game->canPlayLand(player)) {
+            actions.emplace_back(new PlayLand(card, player, game));
+        } else if (card->types.isCastable() && game->canCastSorceries(player)) {
+            if (game->canPayManaCost(player, card->mana_cost.value())) {
+                actions.emplace_back(new CastSpell(card, player, game));
+            }
+        }
+    }
 
-    // Check if either player has any possible actions besides pass
-    bool active_has_actions =
-        (game->zones->size(ZoneType::HAND, active) > 0) ||
-        hasBattlefieldAbilities(active);
-    bool nap_has_actions =
-        (game->zones->size(ZoneType::HAND, nap) > 0) ||
-        hasBattlefieldAbilities(nap);
+    actions.emplace_back(new PassPriority(player, game));  // Always
+    return actions;
+}
+```
 
-    // For combat steps, also need attackers/blockers
+With 87,590 priority ticks, this creates 87,590 PassPriority objects even though 97% of these are the only action.
+
+**Problem:**
+The engine builds a complete ActionSpace to discover it has only PassPriority. This is backwards. Check feasibility first:
+
+- Empty hand + no battlefield abilities = only PassPriority possible
+- Main phase + can't play land + can't afford any spell = only PassPriority
+- Combat declare attackers + no eligible attackers = skip step entirely
+
+**Proposal:**
+Add a fast feasibility check before building ActionSpace:
+
+```cpp
+enum DecisionFeasibility {
+    NO_DECISIONS,        // Skip this priority pass entirely
+    TRIVIAL_ONLY,        // Only PassPriority - auto-execute
+    HAS_REAL_DECISIONS   // Build full ActionSpace
+};
+
+DecisionFeasibility TurnSystem::checkFeasibility(StepType step, Player* player) {
+    // Steps without priority windows
+    if (step == BEGINNING_UNTAP || step == ENDING_CLEANUP) {
+        return NO_DECISIONS;
+    }
+
+    // Combat steps without creatures
     if (step == COMBAT_DECLARE_ATTACKERS) {
-        return game->zones->constBattlefield()->hasEligibleAttackers(active);
-    }
-    // ... similar for blockers
-
-    return active_has_actions || nap_has_actions;
-}
-```
-
-**Implementation sketch:**
-1. Add `canStepProduceDecision()` to TurnSystem
-2. Add `hasBattlefieldAbilities()` helper (checks for untapped permanents with abilities)
-3. In `tick()`, skip entire step if `!canStepProduceDecision()`
-4. Track stats on how many steps are skipped to validate impact
-
-**Risks:**
-- Subtle bugs if the skip logic is wrong (could skip steps that actually need decisions)
-- Requires careful handling of triggered abilities (not currently implemented)
-- Complexity if cards with "at beginning of X step" triggers are added
-
----
-
-### 3. Cached Producible Mana — Expected impact: 10-15%
-
-**Current state:**
-`canPayManaCost()` is called for every castable card on every priority check. Each call triggers `Battlefield::producibleMana()` which iterates all permanents:
-
-```cpp
-Mana Battlefield::producibleMana(Player* player) const {
-    Mana total_mana;
-    for (const auto& permanent : permanents.at(player)) {
-        total_mana.add(permanent->producibleMana());
-    }
-    return total_mana;
-}
-```
-
-With ~90k priority ticks and ~10 cards in hand, that's ~900k iterations over permanents. Each permanent checks its mana abilities, each ability checks if it can be activated (not tapped).
-
-**Problem:**
-Producible mana only changes when:
-- A permanent enters or leaves the battlefield
-- A permanent taps or untaps
-- A mana ability is activated
-
-Between these events, producible mana is constant. We're recalculating it hundreds of thousands of times when it could be cached.
-
-**Proposal:**
-Cache producible mana per player. Invalidate on battlefield/tap state changes.
-
-```cpp
-// In TurnSystem or a new ManaCache class
-struct ManaCache {
-    Mana producible[2];  // Indexed by player_index
-    bool valid[2] = {false, false};
-
-    void invalidate(int player_index) { valid[player_index] = false; }
-    void invalidateAll() { valid[0] = valid[1] = false; }
-
-    const Mana& get(int player_index, const Battlefield* bf, const Player* player) {
-        if (!valid[player_index]) {
-            producible[player_index] = bf->producibleMana(player);
-            valid[player_index] = true;
+        if (game->zones->constBattlefield()->eligibleAttackers(player).empty()) {
+            return NO_DECISIONS;
         }
-        return producible[player_index];
     }
-};
+
+    // Priority passes - check if any non-pass actions possible
+    int hand_size = game->zones->size(ZoneType::HAND, player);
+    if (hand_size == 0) {
+        // No hand, check battlefield abilities
+        if (!hasBattlefieldAbilities(player)) {
+            return TRIVIAL_ONLY;  // Only PassPriority
+        }
+    }
+
+    // Has cards - check affordability
+    if (!hasAffordableAction(player)) {
+        return TRIVIAL_ONLY;
+    }
+
+    return HAS_REAL_DECISIONS;
+}
+
+bool TurnSystem::hasAffordableAction(Player* player) {
+    const Mana& available = game->cachedProducibleMana(player);
+
+    // Check if can play land (sorcery speed only)
+    if (game->canPlayLand(player)) {
+        for (Card* card : game->zones->constHand()->cards[player->index]) {
+            if (card->types.isLand()) return true;
+        }
+    }
+
+    // Check if can cast any spell
+    if (game->canCastSorceries(player)) {
+        for (Card* card : game->zones->constHand()->cards[player->index]) {
+            if (card->types.isCastable() && available.canPay(card->mana_cost.value())) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
 ```
 
-Invalidation points:
-- `Battlefield::enter()` → invalidate controller
-- `Battlefield::exit()` → invalidate controller
-- `Permanent::tap()` → invalidate controller
-- `Permanent::untap()` → invalidate controller
-- Step transition (untap step) → invalidate active player
-
 **Implementation sketch:**
-1. Add `ManaCache` to `Game` or `TurnSystem`
-2. Add `Game::cachedProducibleMana(Player*)` that uses the cache
-3. Replace `canPayManaCost()` to use cached version
-4. Add invalidation calls to battlefield enter/exit and tap/untap
+1. Add `checkFeasibility()` method to TurnSystem
+2. Add `hasAffordableAction()` helper using cached mana
+3. In tick loop: if `TRIVIAL_ONLY`, auto-advance priority without building ActionSpace
+4. If `NO_DECISIONS`, skip step entirely (don't even enter priority system)
+5. Only build full ActionSpace when `HAS_REAL_DECISIONS`
+
+**Impact breakdown:**
+- Skip ~60% of priority passes (empty hand, no affordable spells): ~12% savings
+- Avoid Action object allocation for trivial passes: ~8% savings
+- Reduce priority system iterations: ~5% savings
 
 **Risks:**
-- Cache invalidation bugs could cause incorrect mana calculations
-- Need to ensure all mutation points are covered
-- Adds complexity for modest gain
+- Must be 100% correct - skipping a step that has a real decision breaks the game
+- Need extensive test coverage for edge cases
+- Future cards with triggered abilities complicate this
 
 ---
 
-### 4. Zone Map → Vector Conversion — Expected impact: 5-10%
+### 3. Pooled Action Objects — Expected impact: 8-12%
 
 **Current state:**
-Zones use `std::map<const Player*, std::vector<Card*>>` for storing cards per player. Every zone access does a red-black tree lookup:
+Every priority check allocates new Action objects:
 
 ```cpp
-const std::vector<Card*> hand_cards = game->zones->constHand()->cards.at(player);
+actions.emplace_back(new PlayLand(card, player, game));
+actions.emplace_back(new CastSpell(card, player, game));
+actions.emplace_back(new PassPriority(player, game));  // 87,590 times!
 ```
 
-For 2 players, this is O(log 2) = 1 comparison, but with map overhead (pointer chasing, node allocation).
-
-Similarly, `Zones::card_to_zone` is `std::map<Card*, Zone*>` requiring O(log n) lookups for every zone query.
+For 200 games: ~90,000 PassPriority allocations, ~5,000 PlayLand allocations, ~5,000 CastSpell allocations.
 
 **Problem:**
-With only 2 players, we're paying map overhead for no benefit. A vector indexed by `player->index` would be:
-- O(1) direct array access
-- Better cache locality
-- No allocator overhead
+PassPriority is identical every time—same player, same game, same effect. Yet we allocate 87,590 of them. PlayLand and CastSpell are parameterized but still follow predictable patterns.
 
 **Proposal:**
-Replace zone maps with vectors indexed by player index:
+Pre-allocate action objects and reset them instead of creating new ones:
 
 ```cpp
-// Zone base class
-class Zone {
-    std::vector<std::vector<Card*>> cards;  // cards[player_index]
+// In PrioritySystem
+struct ActionCache {
+    PassPriority pass_priority[2];     // One per player
+    std::vector<PlayLand> play_lands;  // Sized to max hand size
+    std::vector<CastSpell> cast_spells;
 
-    void enter(Card* card) {
-        cards[card->owner->index].push_back(card);
+    void reset(Game* game) {
+        for (int i = 0; i < 2; i++) {
+            pass_priority[i].player = game->players[i].get();
+            pass_priority[i].game = game;
+        }
+        // play_lands and cast_spells resized as needed
     }
 };
+```
 
-// Zones card lookup
-class Zones {
-    std::vector<Zone*> card_to_zone;  // card_to_zone[card->id]
+Return raw pointers to cached actions instead of unique_ptr:
 
-    Zone* getCardZone(Card* card) {
-        if (card->id >= card_to_zone.size()) return nullptr;
-        return card_to_zone[card->id];
+```cpp
+std::vector<Action*> PrioritySystem::availablePriorityActions(Player* player) {
+    std::vector<Action*> actions;
+
+    int land_idx = 0;
+    int spell_idx = 0;
+
+    for (Card* card : hand_cards) {
+        if (card->types.isLand() && game->canPlayLand(player)) {
+            cache.play_lands[land_idx].card = card;
+            cache.play_lands[land_idx].player = player;
+            actions.push_back(&cache.play_lands[land_idx++]);
+        } else if (card->types.isCastable() && game->canPayManaCost(player, card->mana_cost.value())) {
+            cache.cast_spells[spell_idx].card = card;
+            cache.cast_spells[spell_idx].player = player;
+            actions.push_back(&cache.cast_spells[spell_idx++]);
+        }
     }
-};
+
+    actions.push_back(&cache.pass_priority[player->index]);
+    return actions;
+}
+```
+
+**Alternative: Flyweight pattern**
+If pooling is too complex, use a simpler flyweight for PassPriority:
+
+```cpp
+// Single shared PassPriority per player, never deallocated
+PassPriority* PrioritySystem::getPassPriority(Player* player) {
+    static PassPriority pass[2];  // Thread-local if needed
+    pass[player->index].player = player;
+    pass[player->index].game = game;
+    return &pass[player->index];
+}
 ```
 
 **Implementation sketch:**
-1. Change `Zone::cards` from `map<Player*, vector>` to `vector<vector<Card*>>`
-2. Update all zone accessors to use `player->index`
-3. Change `Battlefield::permanents` similarly
-4. Change `Zones::card_to_zone` to vector, resize as needed
-5. Update tests that iterate over map entries
+1. Change ActionSpace to store `std::vector<Action*>` not `std::vector<unique_ptr<Action>>`
+2. Add ActionCache to PrioritySystem
+3. Reset cache on game reset
+4. Update action creation to use cached objects
+5. Ensure actions are not stored beyond the current step
+
+**Impact:**
+- Eliminates 87,590 PassPriority heap allocations: ~4% savings
+- Eliminates ~10,000 PlayLand/CastSpell allocations: ~2% savings
+- Reduces allocator pressure: ~3% savings
 
 **Risks:**
-- Assumes `player->index` is stable and small (0 or 1)
-- Card IDs must be reasonably bounded for the vector approach
-- Breaking change to zone iteration patterns
+- Action lifetime must be carefully managed (valid only until next step)
+- ActionSpace can't own actions anymore - semantic change
+- Thread safety if multi-threaded later
 
 ---
 
-## Recommended Sequence
+### 4. Lazy Priority with Early Exit — Expected impact: 10-15%
 
-1. **Phase/Step Skipping** (Proposal 2) — Lowest risk, highest confidence. Can be done without structural changes. Measure impact before proceeding.
+**Current state:**
+Priority system creates all possible actions upfront, then the agent picks one:
 
-2. **Cached Producible Mana** (Proposal 3) — Isolated change, easy to verify. Good warmup for more invasive changes.
+```cpp
+// Build all actions
+std::vector<Action> actions = availablePriorityActions(player);
+// Agent picks
+int choice = agent->selectAction(actions);
+// Execute one
+actions[choice]->execute();
+```
 
-3. **Zone Map → Vector** (Proposal 4) — Moderate refactor, clear benefits. Foundation for other optimizations.
+For a training agent that always picks action 0 (or uses a simple heuristic), we're building 5-10 actions when only 1 will be used.
 
-4. **Flat State Machine** (Proposal 1) — Highest impact but largest refactor. Do this last when the smaller changes have proven the methodology.
+**Problem:**
+The engine doesn't know if the agent will:
+1. Always pick PassPriority (97% of steps in skip_trivial mode)
+2. Pick the first land if one is playable
+3. Pick the cheapest castable spell
 
-Each proposal can be implemented and measured independently. If the simpler changes achieve sufficient throughput, the state machine refactor may not be necessary.
+If the engine could predict the agent's choice, it could skip building other actions.
 
-## Questions
+**Proposal:**
+Add an "eager agent" mode where simple policies are evaluated inline:
 
-1. **Are triggered abilities planned?** Proposals 1 and 2 assume the turn structure is static. If "at beginning of upkeep" triggers are coming, the skip logic becomes much more complex.
+```cpp
+// For skip_trivial mode: if only PassPriority or 1 other action, auto-resolve
+std::unique_ptr<ActionSpace> PrioritySystem::tick() {
+    // Check for trivial cases first
+    int hand_size = game->zones->size(ZoneType::HAND, player);
+    bool can_play_land = hand_size > 0 && game->canPlayLand(player);
+    bool can_cast = hand_size > 0 && game->canCastSorceries(player) && hasAffordableSpell(player);
 
-2. **What's the target throughput?** Current ~330 games/sec may be sufficient. Understanding the goal helps prioritize effort.
+    // If no real actions, auto-pass
+    if (!can_play_land && !can_cast) {
+        passPriority();  // Don't even build ActionSpace
+        return nullptr;  // Continue tick loop
+    }
 
-3. **How stable are Card IDs?** Proposal 4's vector-based `card_to_zone` assumes IDs are sequential and bounded. If IDs can be sparse or very large, a different approach is needed.
+    // Build minimal ActionSpace
+    return makeActionSpace(player);
+}
+```
 
-4. **Is combat phase skipping acceptable?** Proposal 2 would skip the entire combat phase when there are no creatures. This matches current behavior but may need flags for future features.
+For training, add a callback hook:
+
+```cpp
+// Agent provides a policy hint
+enum PolicyHint {
+    FULL_ACTIONS,      // Build all actions, agent will choose
+    PREFER_FIRST,      // Auto-pick first non-pass action if available
+    PREFER_PASS,       // Auto-pass unless forced
+    PREFER_AGGRESSIVE  // Prefer attacks/casts over pass
+};
+
+void Env::setPolicyHint(PolicyHint hint);
+```
+
+**Implementation sketch:**
+1. Add `PolicyHint` to Env configuration
+2. In PrioritySystem::tick(), check hint before building full ActionSpace
+3. For `PREFER_PASS`: immediately pass if PassPriority is available
+4. For `PREFER_FIRST`: build actions lazily until first non-pass found
+5. Return full ActionSpace only for `FULL_ACTIONS` or when hint doesn't apply
+
+**Impact:**
+- Skip ActionSpace building for 97% of steps in training: ~10% savings
+- Reduce action object creation: ~3% savings
+
+**Risks:**
+- Changes agent interface semantics
+- Training quality may differ if actions aren't fully enumerated
+- Need to ensure hint doesn't break game correctness
+
+---
+
+## Sequence
+
+**Phase 1: Quick wins (implement together)**
+1. Cache `playersStartingWithActive()` with `cached_active_index` — 5-10% impact
+2. Pooled PassPriority flyweight — 3-5% impact
+3. Single profiler scope at step level — 3-5% impact
+
+**Phase 2: Decision feasibility**
+4. Static decision feasibility checks — 20-30% impact
+   - This can be done independently of the flat state machine
+   - Lower risk, easier to test
+
+**Phase 3: Architectural refactor**
+5. Decision-driven tick loop — 35-50% impact
+   - Largest change, requires Phase 2 to be solid
+   - Subsumes several smaller optimizations
+
+**Phase 4: Advanced optimizations (if needed)**
+6. Pooled action objects — 8-12% impact
+7. Lazy priority with early exit — 10-15% impact
+
+**Expected cumulative impact:**
+- Phase 1: +15-25% throughput (quick, low risk)
+- Phase 1+2: +40-60% throughput
+- Phase 1+2+3: +80-120% throughput (potentially 2x faster)
+- Phase 1+2+3+4: +100-150% throughput
+
+## Open Questions
+
+1. **Training mode vs evaluation mode?** The lazy priority and policy hints are most valuable for training. Should there be a fast training mode that assumes simple policies?
+
+2. **Multi-threading plans?** If simulation will be parallelized, action pooling needs thread-local storage. The flat state machine approach is more thread-friendly than the current design.
+
+3. **Triggered abilities timeline?** Proposals 1 and 2 assume the turn structure is static. If "at beginning of upkeep" triggers are imminent, the feasibility checks become more complex.
+
+4. **Target throughput?** Current ~340 games/sec. Is 500? 1000? Knowing the target helps prioritize the riskier refactors.
+
+## Already Implemented
+
+These optimizations are already in the codebase (verified in diagnosis.md):
+
+- **Cached producible mana**: `ManaCache` in `game.h:36-44`, invalidated on battlefield/tap changes
+- **Lazy observation creation**: Observation built only when `Game::observation()` called
+- **Zone vector storage**: `Zone::cards` is `std::vector<std::vector<Card*>>`, not map
+- **Battlefield vector storage**: `Battlefield::permanents` is `std::vector<std::vector<unique_ptr<Permanent>>>`
+- **Observation vectors**: `std::vector<CardData>` and `std::vector<PermanentData>` instead of maps
+
+## What's NOT Implemented Yet
+
+Despite diagnosis recommendations:
+
+- **playersStartingWithActive() caching**: Still rebuilds vector on every call (`turn.cpp:182-184`). Called 4x per priority tick = ~350,000 unnecessary vector writes per 200 games.
