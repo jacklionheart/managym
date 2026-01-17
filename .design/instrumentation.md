@@ -43,3 +43,25 @@ Then trivial actions are 300K/(300K+73K) = 80% of all action spaces. The optimiz
 If skip_trivial_count is surprisingly low (<50% of total ticks), investigate:
 - Is `canPlayerAct()` returning true too often?
 - Are combat steps creating many non-trivial action spaces?
+
+## Added: action_execute/skip_trivial profiler scope
+
+**Location**: `Game::tick()` (game.cpp:252-266)
+
+**What it measures**: Time spent executing actions that are auto-executed by the `skip_trivial`
+loop (trivial action spaces with <= 1 action).
+
+**How to read it**:
+```
+env_step/game/tick/action_execute/skip_trivial: total=..., count=...
+```
+Compare this scope to `env_step/game/action_execute` to see how much action time is hidden inside
+the skip-trivial fast path vs. explicit `step()` calls.
+
+**Overhead**: Minimal; a single profiler scope per auto-executed trivial action.
+
+**What to do with the information**:
+- If `action_execute/skip_trivial` is large, the skip-trivial loop is doing real work and should be
+  optimized just like explicit actions.
+- If it is small, the unaccounted gap is likely elsewhere (allocations, zone operations, or
+  action space creation).

@@ -252,7 +252,10 @@ bool Game::tick() {
 
             // Trivial: auto-execute action 0 and continue loop
             skip_trivial_count++;
-            current_action_space->actions[0]->execute();
+            {
+                Profiler::Scope action_scope = profiler->track("action_execute/skip_trivial");
+                current_action_space->actions[0]->execute();
+            }
             current_action_space = nullptr;
             current_observation = nullptr;
             // Loop continues to get next action space
