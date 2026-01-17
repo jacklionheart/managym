@@ -11,9 +11,19 @@
 #include <fmt/format.h>
 
 // Built-ins
+#include <cstddef>
 #include <sstream>
 
 // ------------------- Observation -------------------
+
+static void trackReallocation(Game* game, const std::string& label, size_t before, size_t after) {
+    if (!game || !game->profiler || !game->profiler->isEnabled()) {
+        return;
+    }
+    if (after > before) {
+        Profiler::Scope scope = game->profiler->track(label);
+    }
+}
 
 // Constructor: empty observation with defaults
 Observation::Observation() = default;
@@ -64,6 +74,7 @@ void Observation::populateTurn(Game* game) {
 void Observation::populateActionSpace(Game* game) {
     Profiler::Scope scope = game->profiler->track("populateActionSpace");
 
+    size_t actions_before = action_space.actions.capacity();
     action_space.action_space_type = game->current_action_space->type;
 
     // Copy each available action
@@ -74,6 +85,8 @@ void Observation::populateActionSpace(Game* game) {
         opt.focus = act->focus();
         action_space.actions.push_back(opt);
     }
+    trackReallocation(game, "realloc/action_space/actions", actions_before,
+                      action_space.actions.capacity());
 }
 
 void Observation::populatePlayers(Game* game) {
@@ -120,6 +133,8 @@ void Observation::populatePlayers(Game* game) {
 void Observation::populateCards(Game* game) {
     Profiler::Scope scope = game->profiler->track("populateCards");
 
+    size_t agent_before = agent_cards.capacity();
+    size_t opponent_before = opponent_cards.capacity();
     const Player* agent_player = game->agentPlayer();
     assert(agent_player != nullptr);
 
@@ -154,6 +169,9 @@ void Observation::populateCards(Game* game) {
     for (int i = stack->totalSize() - 1; i >= 0; i--) {
         addCard(stack->objects[i], ZoneType::STACK);
     }
+
+    trackReallocation(game, "realloc/agent_cards", agent_before, agent_cards.capacity());
+    trackReallocation(game, "realloc/opponent_cards", opponent_before, opponent_cards.capacity());
 }
 
 // Helper to add a Card to objects & cards
@@ -192,6 +210,8 @@ void Observation::addCard(const Card* card, ZoneType zone) {
 void Observation::populatePermanents(Game* game) {
     Profiler::Scope scope = game->profiler->track("populatePermanents");
 
+    size_t agent_before = agent_permanents.capacity();
+    size_t opponent_before = opponent_permanents.capacity();
     const Player* agent_player = game->agentPlayer();
     assert(agent_player != nullptr);
 
@@ -203,6 +223,11 @@ void Observation::populatePermanents(Game* game) {
             addPermanent(perm.get());
         }
     }
+
+    trackReallocation(game, "realloc/agent_permanents", agent_before,
+                      agent_permanents.capacity());
+    trackReallocation(game, "realloc/opponent_permanents", opponent_before,
+                      opponent_permanents.capacity());
 }
 
 void Observation::addPermanent(const Permanent* perm) {

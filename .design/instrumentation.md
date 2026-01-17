@@ -86,3 +86,27 @@ Compare totals to identify which phases dominate turn time.
 - If a phase dominates, drill into its `step/<StepType>` scopes to find the specific steps.
 - Large time in `COMBAT` with low action counts suggests combat step logic or blockers/attackers
   enumeration is heavy.
+
+## Added: observation realloc/<vector> profiler scopes
+
+**Location**: `Observation::populateActionSpace`, `populateCards`, `populatePermanents`
+(`managym/agent/observation.cpp`)
+
+**What it measures**: Counts how often observation vectors grow their capacity (reallocate)
+while building an observation. Each scope entry indicates a capacity increase in that vector.
+
+**How to read it**:
+```
+env_step/observation/populateActionSpace/realloc/action_space/actions: total=..., count=...
+env_step/observation/populateCards/realloc/agent_cards: total=..., count=...
+env_step/observation/populateCards/realloc/opponent_cards: total=..., count=...
+env_step/observation/populatePermanents/realloc/agent_permanents: total=..., count=...
+env_step/observation/populatePermanents/realloc/opponent_permanents: total=..., count=...
+```
+Focus on the `count` column. Higher counts mean repeated reallocations and allocation churn.
+
+**Overhead**: Minimal. A scope is created only when capacity increases.
+
+**What to do with the information**:
+- If counts are high, consider pre-sizing with `reserve()` or reusing buffers across steps.
+- If counts are near zero, allocation churn is likely not the observation bottleneck.
