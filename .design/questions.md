@@ -37,6 +37,12 @@
 
 10. **Triggered abilities timeline?** The decision-driven tick loop and static feasibility proposals assume the turn structure is static. If "at beginning of upkeep" triggers are imminent, the feasibility checks become more complex. When are triggered abilities planned?
 
-11. **playersStartingWithActive() caching status?** The function at `turn.cpp:175-186` rebuilds the player order vector on every call (~350,000 times per 200 games). The diagnosis recommended caching based on `active_player_index`, but this hasn't been implemented. Was there a reason to defer this?
+11. ~~**playersStartingWithActive() caching status?**~~ **RESOLVED**: Caching implemented at `turn.cpp:175-188`. Only rebuilds when `active_player_index` changes. Impact: +3.8% throughput.
 
 12. **Combat phase behavior expectations?** Proposal 2 would skip the entire combat phase when there are no creatures. This matches current behavior with skip_trivial=True, but may need flags for future features. Is this acceptable?
+
+## InfoDict Questions (NEW - 2026-01-16)
+
+13. **Why is InfoDict built every step?** `env.cpp:81-82` calls `addProfilerInfo()` and `addBehaviorInfo()` on every step, consuming 54.6% of env_step time. Is there a requirement for per-step profiler/behavior data, or can this be deferred to episode end or explicit request?
+
+14. **Profiler overhead when disabled?** Even with `enable_profiler=false`, Profiler::Scope objects are still created and destroyed. The constructor/destructor check `enabled` flag but still execute. Is this overhead negligible, or should we use preprocessor macros for zero-overhead disabled profiling?
