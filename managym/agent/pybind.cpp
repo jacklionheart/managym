@@ -294,7 +294,7 @@ static void registerDataClasses(py::module& m) {
 
        game_over: bool
            Whether the game has ended
-       won: bool 
+       won: bool
            Whether the observing player won
        turn: Turn
            Current turn information
@@ -302,19 +302,19 @@ static void registerDataClasses(py::module& m) {
            Available actions for the current player
 
        Agent (observing player) data:
-       agent: Player 
+       agent: Player
            The observing player's state
-       agent_cards: dict[int, Card]
+       agent_cards: list[Card]
            Cards owned by the observing player
-       agent_permanents: dict[int, Permanent]
+       agent_permanents: list[Permanent]
            Permanents controlled by the observing player
 
        Opponent data (visible portion):
        opponent: Player
            The opponent's visible state
-       opponent_cards: dict[int, Card] 
+       opponent_cards: list[Card]
            Opponent's visible cards
-       opponent_permanents: dict[int, Permanent]
+       opponent_permanents: list[Permanent]
            Opponent's permanents on the battlefield
    )docstring")
         .def(py::init<>())

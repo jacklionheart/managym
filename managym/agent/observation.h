@@ -104,13 +104,13 @@ struct Observation {
 
     // Agent (observing player) data
     PlayerData agent;
-    std::map<int, CardData> agent_cards; // Objects owned by agent
-    std::map<int, PermanentData> agent_permanents;
+    std::vector<CardData> agent_cards; // Objects owned by agent
+    std::vector<PermanentData> agent_permanents;
 
     // Opponent data (visible portion)
     PlayerData opponent;
-    std::map<int, CardData> opponent_cards; // Visible opponent objects
-    std::map<int, PermanentData> opponent_permanents;
+    std::vector<CardData> opponent_cards; // Visible opponent objects
+    std::vector<PermanentData> opponent_permanents;
 
     // Reads
     bool validate() const;      // Basic consistency checks

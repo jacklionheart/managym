@@ -180,9 +180,9 @@ void Observation::addCard(const Card* card, ZoneType zone) {
 
     // Add to appropriate section based on owner
     if (cdata.owner_id == agent.id) {
-        agent_cards[cdata.id] = cdata;
+        agent_cards.push_back(cdata);
     } else {
-        opponent_cards[cdata.id] = cdata;
+        opponent_cards.push_back(cdata);
     }
 }
 
@@ -212,9 +212,9 @@ void Observation::addPermanent(const Permanent* perm) {
 
     // Add to appropriate section based on controller
     if (pdat.controller_id == agent.id) {
-        agent_permanents[pdat.id] = pdat;
+        agent_permanents.push_back(pdat);
     } else {
-        opponent_permanents[pdat.id] = pdat;
+        opponent_permanents.push_back(pdat);
     }
 
     // Also make sure we have the underlying card
@@ -237,24 +237,24 @@ bool Observation::validate() const {
     }
 
     // Validate card ownership matches section
-    for (const auto& [_, card] : agent_cards) {
+    for (const CardData& card : agent_cards) {
         if (card.owner_id != agent.id) {
             return false;
         }
     }
-    for (const auto& [_, card] : opponent_cards) {
+    for (const CardData& card : opponent_cards) {
         if (card.owner_id != opponent.id) {
             return false;
         }
     }
 
     // Validate permanent control matches section
-    for (const auto& [_, perm] : agent_permanents) {
+    for (const PermanentData& perm : agent_permanents) {
         if (perm.controller_id != agent.id) {
             return false;
         }
     }
-    for (const auto& [_, perm] : opponent_permanents) {
+    for (const PermanentData& perm : opponent_permanents) {
         if (perm.controller_id != opponent.id) {
             return false;
         }
@@ -319,30 +319,12 @@ std::string Observation::toJSON() const {
         out << "]\n  },\n";
     };
 
-    // Helper lambda to serialize a map<int, T>
-    auto serializeMap = [&](const std::string& name, auto& mp, auto formatter) {
-        out << fmt::format(R"(  "{}": {{)", name) << "\n";
-        bool first_item = true;
-        for (typename std::decay<decltype(mp)>::type::const_iterator it = mp.begin();
-             it != mp.end(); ++it) {
-            int the_id = it->first;
-            const auto& val = it->second;
-            if (!first_item) {
-                out << ",\n";
-            }
-            first_item = false;
-            formatter(the_id, val);
-        }
-        out << "\n  }";
-        out << "]\n  },\n";
-    };
-
     // Helper for card data
-    auto writeCards = [&out](const std::string& name, const std::map<int, CardData>& cards) {
-        out << fmt::format("  \"{}\": {{\n", name);
-        size_t i = 0;
-        for (const auto& [id, card] : cards) {
-            out << fmt::format("    \"{}\": {{\n", id);
+    auto writeCards = [&out](const std::string& name, const std::vector<CardData>& cards) {
+        out << fmt::format("  \"{}\": [\n", name);
+        for (size_t i = 0; i < cards.size(); ++i) {
+            const CardData& card = cards[i];
+            out << "    {\n";
             out << fmt::format("      \"id\": {},\n", card.id);
             out << fmt::format("      \"registry_key\": {},\n", card.registry_key);
             out << fmt::format("      \"name\": \"{}\",\n", card.name);
@@ -360,20 +342,20 @@ std::string Observation::toJSON() const {
             out << "],\n";
             out << fmt::format("        \"mana_value\": {}\n", card.mana_cost.mana_value);
             out << "      }\n    }";
-            if (++i < cards.size())
+            if (i + 1 < cards.size())
                 out << ",";
             out << "\n";
         }
-        out << "  },\n";
+        out << "  ],\n";
     };
 
     // Helper for permanent data
     auto writePermanents = [&out](const std::string& name,
-                                  const std::map<int, PermanentData>& perms) {
-        out << fmt::format("  \"{}\": {{\n", name);
-        size_t i = 0;
-        for (const auto& [id, perm] : perms) {
-            out << fmt::format("    \"{}\": {{\n", id);
+                                  const std::vector<PermanentData>& perms) {
+        out << fmt::format("  \"{}\": [\n", name);
+        for (size_t i = 0; i < perms.size(); ++i) {
+            const PermanentData& perm = perms[i];
+            out << "    {\n";
             out << fmt::format("      \"id\": {},\n", perm.id);
             out << fmt::format("      \"card_id\": {},\n", perm.card_id);
             out << fmt::format("      \"controller_id\": {},\n", perm.controller_id);
@@ -382,11 +364,11 @@ std::string Observation::toJSON() const {
             out << fmt::format("      \"is_summoning_sick\": {}\n",
                                perm.is_summoning_sick ? "true" : "false");
             out << "    }";
-            if (++i < perms.size())
+            if (i + 1 < perms.size())
                 out << ",";
             out << "\n";
         }
-        out << "  }";
+        out << "  ]";
         if (name != "opponent_permanents")
             out << ","; // No comma after last field
         out << "\n";
