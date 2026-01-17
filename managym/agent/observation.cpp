@@ -165,7 +165,6 @@ void Observation::addCard(const Card* card, ZoneType zone) {
     ManaCost mc = card->mana_cost.value_or(ManaCost());
     cdata.mana_cost = mc;
 
-    cdata.name = card->name;
     cdata.owner_id = static_cast<int>(card->owner->id);
     cdata.zone = zone;
 
@@ -332,7 +331,6 @@ std::string Observation::toJSON() const {
             out << "    {\n";
             out << fmt::format("      \"id\": {},\n", card.id);
             out << fmt::format("      \"registry_key\": {},\n", card.registry_key);
-            out << fmt::format("      \"name\": \"{}\",\n", card.name);
             out << fmt::format("      \"zone\": {},\n", static_cast<int>(card.zone));
             out << fmt::format("      \"owner_id\": {},\n", card.owner_id);
             out << fmt::format("      \"power\": {},\n", card.power);

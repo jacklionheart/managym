@@ -59,7 +59,6 @@ struct CardTypeData {
 struct CardData {
     ZoneType zone;
     int owner_id;
-    std::string name;
     int id;
     int registry_key;
     int power;

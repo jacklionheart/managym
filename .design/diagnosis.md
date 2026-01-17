@@ -2,7 +2,20 @@
 
 ## Summary
 
-The simulation spends **57% of time in the turn system** and **15% in observation building**. The primary bottleneck is **duplicated work in the priority system**: when a player CAN act, `canPlayerAct()` iterates the hand checking playability, then `availablePriorityActions()` does the same iteration again. Secondary bottlenecks include **`playersStartingWithAgent()` allocating a new vector on every call** (3 calls per observation) and **`playersStartingWithActive()` being copied instead of referenced** in priority.cpp. The tick loop structure itself is sound—the cost is in redundant iterations and allocations within each tick.
+The simulation spends **57% of time in the turn system** and **15% in observation building**.
+
+### Addressed bottlenecks (previous sessions):
+1. ✅ **Fused priority check**: `computePlayerActions()` replaces separate `canPlayerAct()` + `availablePriorityActions()` calls
+2. ✅ **Cached `playersStartingWithAgent()`**: Returns const reference from cache instead of allocating new vector
+3. ✅ **Const-reference in priority.cpp**: All calls use `const std::vector<Player*>&`
+4. ✅ **Fixed `populateActionSpace` profiler scope**: Now correctly tracks as `populateActionSpace`
+
+### Addressed bottlenecks (this session):
+5. ✅ **Removed string copy from CardData**: `CardData.name` field removed (not used by Python API, only debug output)
+
+### Remaining bottlenecks:
+- `std::map<Card*, Zone*>` for card-to-zone lookup (low impact: ~20 zone moves/game)
+- `addCard()` called for every permanent (creates full CardData including ManaCost copy and 12 type checks)
 
 ## Primary bottleneck
 

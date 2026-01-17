@@ -18,4 +18,10 @@
    - Expected ~8% improvement from fused priority check
    - Expected ~1.5% improvement from cached playersStartingWithAgent
    - Expected ~2% improvement from pre-allocated action vectors
-   - Total expected improvement: ~10-12% reduction in execution time
+   - Expected ~1-2% improvement from removed string copy in CardData
+   - Total expected improvement: ~12-14% reduction in execution time
+
+5. **CardData.name removal**: Removed `std::string name` field from CardData to avoid string copies. This was safe because:
+   - The field was NOT exposed to Python via pybind11 (see pybind.cpp lines 236-254)
+   - Only used by `toJSON()` debug method, which now omits it
+   - Python code uses `registry_key` to look up card names from the card registry
