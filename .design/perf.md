@@ -1,64 +1,134 @@
 # perf
 
-Performance optimization branch for managym. Adds profiling infrastructure and implements initial optimizations.
+Performance optimization branch for managym. Adds profiling infrastructure and implements targeted optimizations achieving +164% throughput improvement.
 
 ## Review
 
 **Verdict:** Ready to ship
 
-The branch adds performance command infrastructure and makes two concrete optimizations:
-1. Lazy observation creation (eliminates ~7x redundant observation builds per step)
-2. Maps-to-vectors conversion for observation data (faster iteration, less allocation overhead)
+The branch delivers substantial, measurable performance gains through systematic profiling and targeted fixes. Two major optimizations dominate the improvement:
 
-Both changes are well-tested and maintain API compatibility. The Python binding docstrings correctly reflect the vector-based observation format.
+1. **InfoDict deferred to episode end** (+129%): Eliminates 54.6% of per-step overhead by moving profiler/behavior stat collection from every step to episode end only.
 
-## Changes
+2. **Profiler scope reduction** (+8.7%): Removes `phase` and `step` profiler scopes from the turn hierarchy, eliminating ~700k unnecessary scope operations per 500-game run.
 
-### Performance Commands (`.claude/commands/`)
-Five new LLM-executable commands for performance workflow:
-- `profile.md` - Gather baseline performance data
-- `diagnose.md` - Analyze profiler output for bottlenecks
-- `optimize.md` - Implement targeted fixes
-- `refactor.md` - Propose architectural changes
-- `instrument.md` - Add profiling infrastructure
+Additional infrastructure changes support ongoing optimization work:
+- Profiling command framework for repeatable analysis
+- Baseline comparison API for measuring impact
+- Observation data structures optimized (maps → vectors)
+- Mana and player order caching
 
-### Lazy Observation Creation (`game.cpp`)
-**Before**: Observation created on every tick (~68k times for 9k agent steps)
-**After**: Observation created lazily on first access
+The code is well-tested, maintains API compatibility, and the performance gains are verified with reproducible benchmarks.
 
+## Performance Summary
+
+| Profile | Steps/sec | vs Baseline | Key Change |
+|---------|-----------|-------------|------------|
+| Baseline (20260116-1614) | 16,122 | — | Lazy obs, vectors |
+| 20260116-1631 | 16,607 | +3.0% | Cache playersStartingWithActive |
+| post-infodict | 39,097 | +142% | InfoDict at episode end only |
+| 20260116-2200 | 42,513 | **+164%** | Remove phase/step profiler scopes |
+
+From 16k to 42k steps/sec is a 2.6x improvement.
+
+## Code Changes
+
+### env.cpp:81-86 — InfoDict Deferred
 ```cpp
-Observation* Game::observation() {
-    if (!current_observation) {
-        current_observation = std::make_unique<Observation>(this);
-    }
-    return current_observation.get();
+// Only populate profiler/behavior stats at episode end
+if (done) {
+    addProfilerInfo(info);
+    addBehaviorInfo(info);
 }
 ```
+Previously called on every step, now only when the game ends. Added `env.info()` for explicit access during game if needed.
 
-Removed observation creation from `tick()` - now only built when the API actually needs it.
+### turn.cpp:231, 256 — Profiler Scopes Removed
+`Phase::tick()` and `Step::tick()` no longer create profiler scopes. Only `Turn::tick()` and `PrioritySystem::tick()` retain scopes. Reduces scope operations from ~1.9M to ~1.2M per 500 games.
 
-### Maps to Vectors (`observation.h`, `observation.cpp`)
-**Before**: `std::map<int, CardData>` and `std::map<int, PermanentData>`
-**After**: `std::vector<CardData>` and `std::vector<PermanentData>`
+### turn.cpp:175-188 — Player Order Caching
+```cpp
+if (cached_active_index != active_player_index) {
+    // rebuild players_active_first vector
+    cached_active_index = active_player_index;
+}
+return players_active_first;
+```
+Avoids rebuilding the player order vector on every call.
 
-Rationale: The maps were keyed by ID but never looked up by ID in hot paths. The observation is rebuilt each step anyway, so the O(1) lookup benefit didn't materialize. Vectors have better cache locality and lower allocation overhead.
+### observation.h — Maps to Vectors
+```cpp
+// Before: std::map<int, CardData> agent_cards;
+// After:
+std::vector<CardData> agent_cards;
+std::vector<PermanentData> agent_permanents;
+```
+Better cache locality, fewer allocations. Tests updated with helper functions for lookups.
 
-### Test Updates (`test_observation.cpp`)
-Added helper functions `findCardById()` and `findPermanentById()` to replace map lookups in tests. All tests updated to use the new vector-based API.
+### game.cpp — Mana Cache
+```cpp
+struct ManaCache {
+    Mana producible[2];
+    bool valid[2] = {false, false};
+};
+```
+Avoids recalculating producible mana on every priority check.
+
+### profiler.cpp — Baseline Comparison API
+```cpp
+std::string exportBaseline() const;
+std::string compareToBaseline(const std::string& baseline) const;
+```
+Enables reproducible before/after measurements.
+
+## Remaining Bottlenecks
+
+Current profile (42,513 steps/sec) shows:
+- **Skip-trivial loop**: 69.2% of env_step time (1.098s / 400k iterations)
+- **Turn hierarchy**: 42.3% of env_step time (0.671s / 625k calls)
+- **Priority system**: 14.8% (0.234s / 557k calls)
+- **Observation**: 9.4% (0.149s / 74k calls) — well-optimized
+
+The 5.4x tick amplification (400k trivial iterations for 74k agent steps) and 97.9% trivial priority passes indicate architectural inefficiency. Further gains require the refactors documented in `refactor-proposal.md`:
+- Integrate skip_trivial into tick loop
+- Flat state machine for turn structure
+- Action object pooling
+
+## Files Changed
+
+### New Infrastructure
+- `.claude/commands/{diagnose,instrument,optimize,profile,refactor}.md` — LLM-executable performance commands
+- `scripts/profile.py` — Reproducible benchmarking script
+- `.design/profile-*.md` — Performance baselines and history
+- `.design/diagnosis.md` — Bottleneck analysis
+- `.design/refactor-proposal.md` — Architectural proposals
+
+### Core Optimizations
+- `managym/agent/env.cpp` — InfoDict deferral
+- `managym/flow/turn.cpp` — Profiler scope reduction, player order cache
+- `managym/agent/observation.{h,cpp}` — Map → vector conversion
+- `managym/flow/game.{h,cpp}` — Mana cache, lazy observation
+- `managym/infra/profiler.{h,cpp}` — Baseline comparison API
+
+### Test Updates
+- `tests/agent/test_observation.cpp` — Updated for vector-based API
+- `tests/infra/test_profiler.cpp` — Baseline comparison tests
+
+## Binary Artifacts
+
+The branch includes built binaries that should not be committed:
+- `managym/_managym.cpython-312-darwin.so`
+- `managym/libmanagym_lib.dylib`
+
+Consider adding these to `.gitignore` if not already present.
 
 ## Design Notes
 
-### Baseline Performance
-- 271 games/sec, 12,612 steps/sec
-- 7.3x tick amplification (68k ticks for 9k agent steps)
-- Turn/phase/step hierarchy: 23% of time
-- Observation creation: 17% of time
-- Priority system: 8% of time
+### Manabot Constraint
+Observations are consumed immediately after every `step()`. "Lazy" field population provides no benefit—all fields are used. The optimization that works is avoiding observation creation during internal ticks (skip_trivial loop), which is already implemented.
 
-### Remaining Optimization Opportunities
-1. **Lazy observation creation** was implemented here. Expected to save ~17% of tick overhead.
-2. **Producible mana caching** - not yet implemented. Each priority check iterates all permanents to calculate available mana.
-3. **Turn structure batching** - architectural change to skip empty phases/steps entirely rather than just trivial priority passes.
-
-### Questions Captured
-See `.design/questions.md` for open questions about target throughput, Python-side overhead, and profiling gaps.
+### Open Questions
+See `.design/questions.md`. Key ones:
+1. Target throughput? Current 42k steps/sec—is more needed?
+2. Profiler overhead when disabled?
+3. Python binding overhead (not measured in C++ profiler)?
