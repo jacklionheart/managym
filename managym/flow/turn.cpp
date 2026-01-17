@@ -253,6 +253,9 @@ std::unique_ptr<ActionSpace> Phase::tick() {
 
 Step::Step(Phase* phase) : phase(phase) {}
 std::unique_ptr<ActionSpace> Step::tick() {
+    std::string scope_name = std::string("step/") + toString(stepType());
+    Profiler::Scope scope = game()->profiler->track(scope_name);
+
     log_debug(LogCat::TURN, "Ticking {}", std::string(typeid(*this).name()));
 
     if (!initialized) {
@@ -355,11 +358,11 @@ BeginningPhase::BeginningPhase(Turn* parent_turn) : Phase(parent_turn) {
 }
 
 PrecombatMainPhase::PrecombatMainPhase(Turn* parent_turn) : Phase(parent_turn) {
-    steps.emplace_back(new MainStep(this));
+    steps.emplace_back(new MainStep(this, StepType::PRECOMBAT_MAIN_STEP));
 }
 
 PostcombatMainPhase::PostcombatMainPhase(Turn* parent_turn) : Phase(parent_turn) {
-    steps.emplace_back(new MainStep(this));
+    steps.emplace_back(new MainStep(this, StepType::POSTCOMBAT_MAIN_STEP));
 }
 
 EndingPhase::EndingPhase(Turn* parent_turn) : Phase(parent_turn) {

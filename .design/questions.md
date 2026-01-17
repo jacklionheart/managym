@@ -16,7 +16,7 @@
 
 ### Performance Questions
 
-6. **Profiler overhead when disabled?** `Profiler::Scope` objects are created even with `enable_profiler=false`. The constructor checks `enabled` but the object still exists. Measure overhead of disabled profiler scopes in hot path.
+6. **Profiler overhead when disabled?** `Profiler::Scope` objects are created even with `enable_profiler=false`. The constructor checks `enabled` but the object still exists. Measure overhead of disabled profiler scopes in hot path. Note: New per-step-type instrumentation adds one more scope per step tick—impact should be negligible but worth verifying.
 
 7. **Python binding overhead?** pybind11 marshalling is not measured in C++ profiler. Could explain some unaccounted time. Worth instrumenting the full pipeline including Python side.
 
