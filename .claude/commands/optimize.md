@@ -4,10 +4,14 @@ produces: faster code
 ---
 Fix one bottleneck. Measure improvement. Stop.
 
+## Manabot Usage Context
+
+Observations are consumed IMMEDIATELY after every step()—all fields are used for action selection, validation, and buffer storage. "Lazy" or "deferred" observation creation at the API boundary provides NO benefit. Focus on making observation building FAST, not on when it happens.
+
 ## The two hot paths
 
-1. **Tick loop**: game.cpp:205-241, turn.cpp:147-160
-2. **Observation building**: observation.cpp:22-202
+1. **Tick loop**: game.cpp:205-241, turn.cpp:147-160 (primary target)
+2. **Observation building**: observation.cpp:22-202 (optimize for speed)
 
 If the bottleneck is elsewhere, it's probably not worth optimizing.
 

@@ -4,6 +4,27 @@ produces: .design/diagnosis.md
 ---
 Find the root cause of slowdowns in the tick loop and observation building.
 
+## Manabot Usage Patterns
+
+**Critical context**: manabot consumes observations IMMEDIATELY after every step() and reset() call. There is no opportunity for lazy or deferred observation creation at the API boundary—the observation is always needed right away.
+
+The training loop:
+```python
+obs, reward, done, _, info = env.step(action)
+# obs is IMMEDIATELY used for:
+# - Action selection (neural network forward pass)
+# - Validation
+# - Buffer storage
+# - Actor index extraction
+new_actor_ids = get_agent_indices(obs)  # Uses ALL observation fields
+```
+
+**Implications for optimization:**
+- "Lazy observation" at the API level provides NO benefit
+- "Deferred field population" doesn't help—ALL fields are used
+- Focus on making observation building FAST, not on deferring it
+- The only valid "lazy" optimization is avoiding observation creation during internal ticks (skip_trivial loop), which is already implemented
+
 ## The two hot paths
 
 1. **Tick loop**: `Game::step()` → `_step()` → `tick()` → `TurnSystem::tick()`
@@ -11,7 +32,7 @@ Find the root cause of slowdowns in the tick loop and observation building.
    - game.cpp:225-241 — tick() loops calling TurnSystem::tick() until ActionSpace available
    - turn.cpp:147-160 — TurnSystem::tick() advances turn/phase/step state
 
-2. **Observation building**: Built lazily when `Game::observation()` is called
+2. **Observation building**: Called after every step(), must be fast
    - observation.cpp:22-39 — constructor calls five populate* functions
    - populateTurn (45-62): turn/phase/step/player IDs
    - populateActionSpace (64-77): copies action options

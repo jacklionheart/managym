@@ -230,10 +230,11 @@ Like playersStartingWithActive(), cache and only rebuild when agent changes.
 | Zone vector storage | Already done | N/A |
 | Cache playersStartingWithActive() | 2026-01-16 | +3.8% throughput |
 | action_execute profiler scope | 2026-01-16 | Diagnostic (3.8% of game time) |
+| **InfoDict only at episode end** | 2026-01-16 | **+129% steps/sec** (17k → 39k) |
 
 ## Open Questions
 
-1. **Why is InfoDict built every step?** Is there a requirement for per-step profiler data, or is this an oversight?
+1. ~~**Why is InfoDict built every step?**~~ **RESOLVED**: Changed to only build at episode end. Caller can use `env.info()` explicitly if needed during game. Impact: +129% steps/sec.
 
 2. **Profiler overhead when disabled?** Even with `enable_profiler=false`, Profiler::Scope objects are created. Is this overhead negligible?
 

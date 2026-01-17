@@ -4,12 +4,22 @@ produces: .design/refactor-proposal.md
 ---
 Propose bold architectural changes for maximum performance impact.
 
+## Manabot Usage Patterns
+
+**Critical context**: manabot consumes observations IMMEDIATELY after every step(). The training loop uses ALL observation fields right away for action selection, validation, and buffer storage. There is zero slack—observations cannot be deferred or lazy-loaded at the API boundary.
+
+**What this means for refactoring:**
+- "Defer unused fields" is NOT an option—all fields are used
+- "Lazy observation" at API level provides NO benefit
+- Focus on reducing work INSIDE observation building, not on when it happens
+- The tick loop is the primary target for bold refactoring
+
 ## The two hot paths
 
-1. **Tick loop**: game.cpp:205-241, turn.cpp:147-160
-2. **Observation building**: observation.cpp:22-202
+1. **Tick loop**: game.cpp:205-241, turn.cpp:147-160 (PRIMARY TARGET)
+2. **Observation building**: observation.cpp:22-202 (optimize for speed, not deferral)
 
-Bold means: not "cache this value" but "restructure how the tick loop works" or "change how observations are represented."
+Bold means: not "cache this value" but "restructure how the tick loop works" or "eliminate unnecessary iteration in observations."
 
 ## Workflow
 
@@ -20,19 +30,22 @@ Bold means: not "cache this value" but "restructure how the tick loop works" or 
 
 ## Questions to ask
 
-**Tick loop:**
+**Tick loop (primary target):**
 - Why do we tick multiple times per step? Could we batch?
 - Does TurnSystem need to be so granular? Phases within phases within phases.
 - Is the ActionSpace abstraction costing us? Building it, checking it, clearing it.
+- Can we skip steps/phases that cannot produce decisions?
 
-**Observation building:**
-- Why rebuild from scratch every step? Incremental updates?
+**Observation building (optimize for speed):**
+- Why rebuild from scratch every step? Incremental updates could help.
 - Why copy data? Could Python read C++ memory directly?
-- Why populate everything? Could we defer unused fields?
+- Are we iterating collections multiple times? Single-pass population?
+- Note: ALL fields are used by manabot—cannot defer or skip fields.
 
 **The gap between them:**
-- skip_trivial calls _step repeatedly. Each _step clears observation. Wasteful.
+- skip_trivial calls _step repeatedly—good, avoids observation creation during internal ticks
 - Action execution creates/destroys objects. Pool them?
+- InfoDict construction on every step—should only build when requested
 
 ## What makes a proposal
 
