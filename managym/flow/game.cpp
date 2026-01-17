@@ -219,12 +219,8 @@ bool Game::_step(int action) {
 bool Game::step(int action) {
     Profiler::Scope scope = profiler->track("game");
 
+    // The skip_trivial loop is now inside tick(), so _step handles everything
     bool game_over = _step(action);
-
-    while (!game_over && skip_trivial && actionSpaceTrivial()) {
-        Profiler::Scope skip_scope = profiler->track("skip_trivial");
-        game_over = _step(0);
-    }
 
     if (game_over) {
         if (turn_system->current_turn && !turn_system->current_turn->completed) {
@@ -240,9 +236,9 @@ bool Game::step(int action) {
 bool Game::tick() {
     Profiler::Scope scope = profiler->track("tick");
 
-    // Keep ticking until we have an action space or game ends
-    while (!current_action_space) {
-        // Get next action space
+    // Keep ticking until we have a non-trivial action space or game ends
+    while (true) {
+        // Get next action space from turn system
         current_action_space = turn_system->tick();
 
         // Check for game over
@@ -250,9 +246,21 @@ bool Game::tick() {
             current_action_space = ActionSpace::createEmpty();
             return true;
         }
-    }
 
-    return false;
+        // If we got an action space, check if we should auto-execute
+        if (current_action_space) {
+            // Non-trivial or skip_trivial disabled: return to caller for decision
+            if (!skip_trivial || current_action_space->actions.size() > 1) {
+                return false;
+            }
+
+            // Trivial: auto-execute action 0 and continue loop
+            current_action_space->actions[0]->execute();
+            current_action_space = nullptr;
+            current_observation = nullptr;
+            // Loop continues to get next action space
+        }
+    }
 }
 
 void Game::clearManaPools() {
