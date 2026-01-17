@@ -1,82 +1,77 @@
 # Refactor Proposals
 
 ## Summary
-
-The core architectural problem is **turn-system work that is proportional to ticks, not decisions**.
-We advance through many micro-steps and priority passes that rarely produce a decision, yet we
-rebuild action spaces and re-scan state each time. The observation pipeline then re-walks the same
-state from scratch every step. To get order‑of‑magnitude gains, the engine needs a **decision‑driven
-loop** and **incremental observation state**, not just faster versions of the current loops.
+The core architectural problem is **work proportional to micro‑ticks, not to decisions**. The turn
+loop repeatedly advances tiny step/priority states that usually yield no choices, while the
+observation path rebuilds full state snapshots each step. A 10x path requires a **decision‑driven
+scheduler** that jumps directly between decision points and **incremental state materialization**
+inside the observation boundary (not deferral at the API).
 
 ## Proposals
 
-### 1. Decision-Driven Turn Loop — Impact: ~25–40%
-**Current**: `Game::tick()` loops `TurnSystem::tick()` through phases/steps; most ticks produce no
-ActionSpace but still run priority and bookkeeping. The action loop is time‑based, not decision‑based.
-**Problem**: 311k turn ticks for 73k env steps (profile) means we burn CPU on non‑decision ticks.
-**Proposal**: Replace the per‑tick loop with a *decision scheduler* that advances directly to the
-next decision point (priority or combat declarations) and executes deterministic steps in batches.
+### 1. Decision Scheduler + Fast‑Forwarded Steps — Impact: ~30–50%
+**Current**: `Game::tick()` iterates `TurnSystem::tick()` through phases/steps; each step may run
+priority checks even when no choices exist (`managym/flow/game.cpp:205-241`, `managym/flow/turn.cpp:147-160`).
+**Problem**: ~4.2 turn ticks per env step (profile), so fixed per‑tick overhead dominates even when
+no player decisions are produced.
+**Proposal**: Replace the micro‑tick loop with a **decision scheduler** that advances directly to
+next decision points (priority or combat declarations) and batch‑applies deterministic step effects.
 **Sketch**:
-1. Add `DecisionPoint` enum (`PRIORITY`, `DECLARE_ATTACKER`, `DECLARE_BLOCKER`, `GAME_OVER`).
-2. Give `TurnSystem` a `nextDecision()` method that fast‑forwards over steps with no choices.
-3. Move deterministic step logic into `applyStepEffects()` called during fast‑forward.
-4. `Game::tick()` becomes: `while (!decision) { nextDecision(); } return ActionSpace`.
-**Risk**: Must preserve rule order and ensure no skipped state changes; requires careful auditing
-of step boundaries and state-based actions.
+1. Introduce `DecisionPoint` enum (`PRIORITY`, `DECLARE_ATTACKER`, `DECLARE_BLOCKER`, `GAME_OVER`).
+2. Add `TurnSystem::nextDecision()` that fast‑forwards over steps with no choices, calling
+   `applyStepEffects()` for each skipped step.
+3. Move step logic from `Step::tick()` into `applyStepEffects()` + `decisionRequired()`.
+4. `Game::tick()` becomes a loop over `nextDecision()` until an ActionSpace is produced.
+**Risk**: Must preserve MTG rule order and state‑based action timing; requires careful audit of
+step boundaries and when priority windows open/close.
 
-### 2. Priority Window Consolidation — Impact: ~15–25%
-**Current**: Priority is reevaluated per pass with repeated hand scans and mana checks, even when
-nothing changed since the last pass.
-**Problem**: Same playable set and pass-only cases are recomputed every pass; the pass loop is
-O(hand * battlefield) each time.
-**Proposal**: Treat a priority window as a *stable snapshot* and invalidate only on state changes.
-Compute playable actions once per priority window, reuse across passes until a state mutation occurs.
+### 2. Priority Window Snapshotting — Impact: ~15–30%
+**Current**: Each priority pass recomputes playable actions, rescanning hand and rechecking mana
+(`managym/flow/priority.cpp:20-57`).
+**Problem**: The same pass can recompute identical action sets multiple times across a single
+priority window; O(hand * battlefield) repeats 4–5x per step.
+**Proposal**: Treat each priority window as a **stable snapshot** with invalidation on relevant
+mutations. Reuse playable actions across passes until state changes.
 **Sketch**:
-1. Add `priority_epoch` on `Game` that increments on any state mutation affecting playability
-   (hand changes, battlefield tap/untap, stack changes).
-2. Cache `PriorityWindow` per player: playable actions + `epoch` seen.
-3. In `PrioritySystem::tick()`, if `epoch` unchanged for the player, reuse cached actions.
-4. When an action executes, update `priority_epoch` if it mutates relevant state.
-**Risk**: Incorrect invalidation could allow illegal actions; requires a clear set of mutation hooks.
+1. Add `priority_epoch` on `Game`, incremented on hand/stack/battlefield or tap/untap changes.
+2. Cache `PriorityWindow` per player: `{epoch, actions, can_act}`.
+3. In `PrioritySystem::tick()`, reuse cached actions if `epoch` unchanged.
+4. Centralize invalidation in `Zones::move`, `Battlefield::tap/untap`, stack push/pop.
+**Risk**: Incorrect invalidation permits illegal actions; requires comprehensive mutation hooks.
 
-### 3. Incremental Observation State (Dirty Flags) — Impact: ~10–20%
-**Current**: `Observation` is rebuilt from scratch each step; all zones and permanents are re-walked.
-**Problem**: Most fields are unchanged between steps, but we pay full construction cost.
-**Proposal**: Maintain a persistent `ObservationState` inside `Game` that is *updated incrementally*
-using dirty flags per zone/player and only serialized into the public `Observation` struct each step.
+### 3. Incremental Observation State (Persistent Snapshot) — Impact: ~15–25%
+**Current**: `Observation` fully rebuilt each step; zones and permanents are re‑walked (`managym/agent/observation.cpp:22-202`).
+**Problem**: Most fields are unchanged between steps, but all costs are paid every step.
+**Proposal**: Maintain a **persistent ObservationState** inside `Game` with dirty‑flagged slices
+for players/zones/permanents, and serialize into the public Observation struct each step.
 **Sketch**:
-1. Add `ObservationState` caches for player counts, zone card lists, permanent lists.
-2. Add dirty flags on zones and per‑player caches (e.g., `hand_dirty[player]`).
-3. On mutation (move, destroy, draw, tap/untap), mark dirty and update cached slices.
-4. `Observation::Observation(Game*)` becomes a cheap copy from cached state.
-**Risk**: Stale data if dirty flags are missed; higher code complexity.
+1. Add `ObservationState` in `Game` with cached vectors for agent/opponent cards/permanents.
+2. Add dirty flags per zone/player and per‑battlefield list.
+3. On mutation (move, destroy, draw, tap/untap), update caches and mark dirty.
+4. `Observation::Observation(Game*)` becomes a light copy from cached state.
+**Risk**: Stale data if any mutation path misses a dirty flag; increases complexity.
 
-### 4. ActionSpace Templates + Object Pools — Impact: ~8–15%
-**Current**: Each decision allocates new `Action` objects and vectors, even for common cases like
-`PassPriority` or `DeclareAttacker`.
-**Problem**: High allocation churn in the hottest path; Action lifetimes are extremely short.
-**Proposal**: Pre-build action templates and reuse pooled Action objects for each step type, only
-patching focus targets and player pointers.
+### 4. ActionSpace Templates + Pools — Impact: ~10–20%
+**Current**: New Action objects and vectors are allocated every decision point, even for common
+cases like `PassPriority` (`managym/agent/action.h`, `managym/flow/priority.cpp`).
+**Problem**: Allocation churn in the hottest loop, short lifetimes, and repeated vector growth.
+**Proposal**: Pre‑allocate Action templates and use object pools per action type; reuse immutable
+actions (e.g., pass) and only patch focus for variable actions.
 **Sketch**:
-1. Introduce `ActionPool<T>` per action type; add `reset()` to Action classes.
-2. For fixed patterns (e.g., pass priority), reuse a singleton action per player.
-3. Build `ActionSpace` from pooled actions; return to pool on space destruction.
-4. `Observation::populateActionSpace()` reads pooled focus data without extra copies.
-**Risk**: Pool misuse can lead to use‑after‑free if actions outlive the action space; needs strict
-ownership rules.
+1. Add `ActionPool<T>` per action type; add `reset()` to actions with mutable fields.
+2. Cache singleton `PassPriority` actions per player.
+3. Build `ActionSpace` using pooled actions and reserved capacity.
+4. Return actions to pools when ActionSpace is destroyed.
+**Risk**: Lifetime errors if actions escape ActionSpace scope; requires strict ownership discipline.
 
 ## Sequence
-
-1. **Decision-Driven Turn Loop** — biggest win; unlocks fewer priority passes.
-2. **Priority Window Consolidation** — pairs with decision loop to cut repeated scanning.
-3. **Incremental Observation State** — isolates observation cost after tick loop gains.
-4. **ActionSpace Templates + Pools** — allocation cut once behavior is stable.
+1. Decision Scheduler + Fast‑Forwarded Steps
+2. Priority Window Snapshotting (pairs with decision scheduler)
+3. Incremental Observation State
+4. ActionSpace Templates + Pools
 
 ## Open questions
-
-1. Which step transitions are guaranteed to have no choices (e.g., cleanup, untap) for *all*
-current cardsets, and can we codify them for fast‑forward?
-2. What are the minimal mutation hooks needed to safely invalidate cached priority windows?
-3. Can we keep the public Observation API intact while adding a cached internal representation,
-or do we need a versioned Observation struct?
-4. Are Action objects ever referenced outside the action space lifetime (e.g., in logs or trackers)?
+1. Which step transitions are guaranteed to have no decisions for the current card sets?
+2. What is the minimal mutation set required to invalidate a priority window?
+3. Can ObservationState be added without changing the Python API, or do we need a versioned struct?
+4. Are Action objects referenced outside ActionSpace lifetime (logging, trackers, debug tools)?
