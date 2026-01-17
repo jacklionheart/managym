@@ -205,7 +205,10 @@ bool Game::_step(int action) {
     log_debug(LogCat::AGENT, "Available actions: {}", current_action_space->toString());
     log_debug(LogCat::AGENT, "Executing action: {}",
               current_action_space->actions[action]->toString());
-    current_action_space->actions[action]->execute();
+    {
+        Profiler::Scope action_scope = profiler->track("action_execute");
+        current_action_space->actions[action]->execute();
+    }
     current_action_space = nullptr;
     current_observation = nullptr;
 
