@@ -65,6 +65,9 @@ public:
     Player* cached_agent_player = nullptr;
     std::vector<Player*> players_agent_first;
 
+    // Instrumentation: count of trivial action spaces auto-executed via skip_trivial
+    int skip_trivial_count = 0;
+
     // Reads
 
     ActionSpace* actionSpace() const;
