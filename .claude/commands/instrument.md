@@ -1,117 +1,94 @@
 ---
-requires: diff vs main
 produces: profiling infrastructure
 ---
 Build tooling to make future simulation performance investigation easier.
 
-## Scope
+## The two hot paths
 
-Instrumentation for the simulation loop: env step timing, observation encoding, inference latency.
+1. **Tick loop**: game.cpp:205-241, turn.cpp:147-160
+2. **Observation building**: observation.cpp:22-202
 
-NOT in scope: training loop profiling (already has wandb integration). Focus on `manabot/sim/` and `manabot/env/`.
+Instrumentation should reveal what's happening inside these, not around them.
 
-## Goal
+## Current profiler coverage
 
-Add instrumentation, benchmarks, or profiling infrastructure that will help identify the NEXT bottleneck. After optimizing the obvious problems, you need better tools to find the subtle ones.
+The profiler (infra/profiler.h) already tracks:
+- `env_step`, `env_reset` — top-level
+- `game`, `tick` — game.cpp
+- `observation`, `populateTurn`, `populatePlayers`, `populateCards`, `populatePermanents` — observation.cpp
+- `turn`, `phase`, `step`, `priority` — turn.cpp
 
-This is infrastructure work—the output is tooling, not performance gains.
+What's missing:
+- Action execution time (game.cpp:197)
+- Time inside skip_trivial loop vs single step
+- Which phase/step types are slowest
+- Memory allocation patterns
 
 ## Workflow
 
-1. Review what profiling exists (check `manabot/infra/profiler.py` and sim output)
-2. Identify gaps: what can't you measure today that you wish you could?
-3. Add ONE piece of instrumentation
-4. Verify it works and doesn't add significant overhead
-5. Document how to use it
+1. Identify a gap in current profiling
+2. Add ONE piece of instrumentation
+3. Verify it works and overhead is low
+4. Document how to use it
 
-## Types of instrumentation
+## Instrumentation options
 
-**Finer-grained profiling:**
-```python
-# Add tracking to a hot function
-with self.profiler.track("encode/cards"):
-    self._encode_cards(obs)
-with self.profiler.track("encode/actions"):
-    self._encode_actions(obs)
+**Finer profiler scopes:**
+```cpp
+// game.cpp:197
+{
+    Profiler::Scope scope = profiler->track("action_execute");
+    current_action_space->actions[action]->execute();
+}
+```
+
+**Skip-trivial breakdown:**
+```cpp
+// game.cpp:210-212
+int skip_count = 0;
+while (!game_over && skip_trivial && actionSpaceTrivial()) {
+    skip_count++;
+    game_over = _step(0);
+}
+// Log skip_count or add to profiler
+```
+
+**Per-phase timing:**
+```cpp
+// turn.cpp - track which phase types take longest
+profiler->track(fmt::format("phase/{}", phaseTypeName(type)));
 ```
 
 **Memory tracking:**
-```python
-# Track allocations in critical paths
-import tracemalloc
-tracemalloc.start()
-# ... code ...
-snapshot = tracemalloc.take_snapshot()
+```cpp
+// observation.cpp - track vector allocations
+size_t cards_before = agent_cards.capacity();
+populateCards(game);
+size_t cards_after = agent_cards.capacity();
+// Log if capacity changed (indicates reallocation)
 ```
 
-**Micro-benchmarks:**
-```python
-# tests/benchmarks/test_encode_perf.py
-def test_encode_throughput(benchmark):
-    encoder = ObservationEncoder(hypers)
-    obs = create_test_observation()
-    benchmark(encoder.encode, obs)
-```
+## Principles
 
-**Comparison tooling:**
-```python
-# Script to compare two simulation runs
-def compare_profiles(baseline: Path, current: Path) -> dict:
-    """Return percentage changes for key metrics."""
-```
+**Low overhead.** Profiler scopes are cheap. Logging every call is not.
 
-## What makes good instrumentation
+**Actionable.** Numbers should point to code locations.
 
-**Low overhead.** Instrumentation that slows things down defeats the purpose. Use sampling, not logging every call.
-
-**Easy to enable/disable.** A flag or environment variable to turn it on. Off by default in production.
-
-**Actionable output.** Numbers that point to specific code locations, not just "it's slow."
-
-**Reproducible.** Same inputs should give similar numbers. Control for variance.
-
-## Manabot-specific opportunities
-
-**Profiler hierarchy gaps:** The existing profiler tracks high-level operations. Consider adding:
-- Per-encoder-type timing (player vs card vs action encoding)
-- Attention mechanism breakdown
-- Action masking time
-
-**Simulation statistics:**
-- Distribution of game lengths
-- Action type frequencies
-- Steps where model inference is slowest
-
-**Comparative tooling:**
-- Script to run same simulation with different configs and compare
-- Automatic baseline tracking in CI
+**Optional.** New instrumentation should be behind a flag or compile-time option if it adds overhead.
 
 ## Output
 
-The instrumentation itself, plus a brief note in `.design/` explaining:
+The code change, plus a note in `.design/` explaining:
 - What it measures
-- How to enable it
-- How to interpret the output
+- How to read the output
+- What to do with the information
 
 Example:
 ```markdown
-## New: Per-encoder profiling
+## Added: action_execute profiler scope
 
-Enable with `MANABOT_PROFILE_ENCODERS=1`
+Shows time spent in Action::execute() per step.
 
-Output shows time breakdown:
-- encode/player: X.XXms
-- encode/cards: X.XXms
-- encode/permanents: X.XXms
-- encode/actions: X.XXms
-
-Use this when encode() shows up as a bottleneck to identify which object type dominates.
+If this dominates, look at the specific action types being executed.
+Most common: PassPriority, PlayLand, CastSpell.
 ```
-
-## What to avoid
-
-**Instrumentation that requires code changes to use.** Good tooling works via flags or config, not editing source.
-
-**Logging instead of profiling.** Print statements are not instrumentation. They add overhead and require parsing output.
-
-**Over-engineering.** A simple timing decorator is better than a complex tracing framework. Build what you need now.

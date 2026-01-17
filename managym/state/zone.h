@@ -4,7 +4,6 @@
 #include "managym/state/player.h"
 
 #include <functional>
-#include <map>
 #include <random>
 #include <vector>
 
@@ -21,7 +20,8 @@ public:
     Zone(Zones* zones, std::vector<Player*>& players);
 
     // Data
-    std::map<const Player*, std::vector<Card*>> cards;
+    // Cards indexed by player->index (0 or 1 for 2-player game)
+    std::vector<std::vector<Card*>> cards;
 
     // Reads
 

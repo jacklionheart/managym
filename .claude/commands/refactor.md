@@ -4,103 +4,90 @@ produces: .design/refactor-proposal.md
 ---
 Propose bold architectural changes for maximum performance impact.
 
-## Scope
+## The two hot paths
 
-The simulation hot path: environment step, observation encoding, game state updates.
+1. **Tick loop**: game.cpp:205-241, turn.cpp:147-160
+2. **Observation building**: observation.cpp:22-202
 
-NOT in scope: training loop, PPO updates, API surface changes that break manabot compatibility.
-
-## Goal
-
-Think big. The `optimize` command makes careful, incremental fixes. This command asks: what would we rewrite from scratch? What abstractions are costing us? What would a 10x improvement require?
-
-Output a proposal document with specific changes ranked by impact. The human decides which (if any) to pursue.
+Bold means: not "cache this value" but "restructure how the tick loop works" or "change how observations are represented."
 
 ## Workflow
 
-1. Read `.design/diagnosis.md` to understand current bottlenecks
-2. Read the hot path code identified in the diagnosis
-3. Step back and ask: what's the root cause behind these symptoms?
-4. Propose 2-4 bold changes, ranked by expected impact
-5. Write `.design/refactor-proposal.md`
+1. Read `.design/diagnosis.md`
+2. Read the hot path code
+3. Ask: what would make this 10x faster?
+4. Write 2-4 concrete proposals to `.design/refactor-proposal.md`
 
-## What makes a "bold" change
+## Questions to ask
 
-**Architectural rewrites.** Not "cache this result" but "restructure how we represent game state."
+**Tick loop:**
+- Why do we tick multiple times per step? Could we batch?
+- Does TurnSystem need to be so granular? Phases within phases within phases.
+- Is the ActionSpace abstraction costing us? Building it, checking it, clearing it.
 
-**Removing abstractions.** Layers of indirection that made sense for correctness but cost performance.
+**Observation building:**
+- Why rebuild from scratch every step? Incremental updates?
+- Why copy data? Could Python read C++ memory directly?
+- Why populate everything? Could we defer unused fields?
 
-**Changing data layouts.** Struct-of-arrays instead of array-of-structs. Flat buffers instead of nested objects.
+**The gap between them:**
+- skip_trivial calls _step repeatedly. Each _step clears observation. Wasteful.
+- Action execution creates/destroys objects. Pool them?
 
-**Eliminating work entirely.** Question whether features are needed. Lazy vs eager computation. Incremental updates vs full rebuilds.
+## What makes a proposal
 
-**Moving computation.** C++ instead of Python. Compile-time instead of runtime. GPU instead of CPU.
-
-## Analysis approach
-
-For each bottleneck in the diagnosis, ask:
-
-1. **Why does this exist?** What problem was it solving?
-2. **Is that problem still relevant?** Requirements change.
-3. **What's the simplest possible solution?** Ignore the current implementation.
-4. **What's the fastest possible solution?** Ignore maintainability.
-5. **Where's the sweet spot?** Simple AND fast.
-
-Example analysis:
-```
-Bottleneck: Observation encoding takes 40% of step time
-
-Current: Build Python dict → convert to numpy → copy to tensor
-Root cause: The abstraction serves Python flexibility, not performance
-
-Bold proposal: Pre-allocate a fixed observation buffer in C++.
-Update it incrementally as game state changes. Zero-copy to Python.
-Expected impact: ~10x faster observation, saves 35% of step time.
-Risk: Significant C++ work, harder to modify observation format.
-```
-
-## Output: .design/refactor-proposal.md
+A proposal is specific enough to implement:
 
 ```markdown
-# Refactor Proposal
+### Incremental observation updates
+**Current**: Observation rebuilt from scratch every step (observation.cpp:22-39)
+**Problem**: Most state doesn't change between steps
+**Proposal**: Track dirty flags on game state. Only rebuild changed sections.
+**Sketch**:
+1. Add dirty bits to Player, Zones, TurnSystem
+2. Observation caches previous values
+3. populate* checks dirty flag, skips if clean
+**Impact**: ~15% of step time (observation is 18%, most is redundant)
+**Risk**: Dirty tracking bugs cause stale observations
+```
+
+Not a proposal: "Use caching." "Optimize the hot path." "Consider incremental updates."
+
+## Output
+
+`.design/refactor-proposal.md`:
+
+```markdown
+# Refactor Proposals
 
 ## Summary
-<What's the core insight? What big change would unlock performance?>
+<Core insight: what's fundamentally wrong with current design?>
 
 ## Proposals
 
-### 1. <Name> — Expected impact: XX%
-**Current state:** <What exists now>
-**Problem:** <Why it's slow>
-**Proposal:** <What to change>
-**Implementation sketch:** <Key steps, not full design>
-**Risks:** <What could go wrong>
+### 1. <Name> — Impact: ~X%
+**Current**: ...
+**Problem**: ...
+**Proposal**: ...
+**Sketch**: ...
+**Risk**: ...
 
-### 2. <Name> — Expected impact: XX%
+### 2. <Name> — Impact: ~X%
 ...
 
-## Recommended sequence
-<Which to do first, dependencies between proposals>
+## Sequence
+<Which first? Dependencies?>
 
-## Questions
-<Unknowns that affect feasibility>
+## Open questions
+<What would you need to know before committing?>
 ```
 
 ## What to avoid
 
-**Incremental improvements.** Those belong in `optimize`. This is for changes you'd need to think about before committing to.
+**Incremental fixes.** Those go in `optimize`.
 
-**Vague suggestions.** "Use caching" isn't a proposal. "Cache the legal action mask and invalidate on state change" is.
+**Vague ideas.** Every proposal needs a sketch.
 
-**Ignoring constraints.** The API to manabot must remain stable. Python bindings are required. Don't propose changes that break the project's purpose.
+**Breaking constraints.** Python bindings must work. The Observation struct is the API.
 
-**Analysis paralysis.** Propose 2-4 concrete changes, not an exhaustive list of possibilities. Pick the highest-impact ideas.
-
-## After this command
-
-The human reviews the proposal and decides:
-- Pursue a proposal → switch to `optimize` or dedicated implementation
-- Need more data → run `profile` with different config
-- Proposal is too risky → continue with incremental `optimize`
-
-This command produces a document, not code. The decision to act is human.
+This produces a document. Implementation happens in `implement` after human review.

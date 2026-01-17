@@ -8,12 +8,10 @@
 // TurnSystem implementation
 
 TurnSystem::TurnSystem(Game* game) : game(game) {
-    for (std::unique_ptr<Player>& player : game->players) {
-        turn_counts[player.get()] = 0;
-    }
-
     global_turn_count = 0;
     active_player_index = 0;
+    // Note: players_active_first and players_nap_first are lazily initialized
+    // in playersStartingWithActive() because game->players is empty at this point
 }
 
 const Phase* TurnSystem::currentPhase() const {
@@ -174,15 +172,17 @@ void TurnSystem::startNextTurn() {
     global_turn_count++;
 }
 
-std::vector<Player*> TurnSystem::playersStartingWithActive() {
-
+const std::vector<Player*>& TurnSystem::playersStartingWithActive() {
     int num_players = game->players.size();
-    std::vector<Player*> order;
-    for (int i = 0; i < num_players; i++) {
-        order.push_back(game->players[(active_player_index + i) % num_players].get());
+    // Lazy initialization - vectors are empty when TurnSystem is constructed
+    // because game->players hasn't been populated yet
+    if (players_active_first.size() != num_players) {
+        players_active_first.resize(num_players);
     }
-
-    return order;
+    for (int i = 0; i < num_players; i++) {
+        players_active_first[i] = game->players[(active_player_index + i) % num_players].get();
+    }
+    return players_active_first;
 }
 
 Player* TurnSystem::activePlayer() { return game->players.at(active_player_index).get(); }

@@ -1,108 +1,71 @@
 ---
-interactive: false
 requires: .design/profile-*.md
 produces: .design/diagnosis.md
 ---
-Identify the hottest paths and root causes of simulation performance bottlenecks.
+Find the root cause of slowdowns in the tick loop and observation building.
 
-## Scope
+## The two hot paths
 
-Focus on the simulation loop: environment step, observation encoding, model inference, action selection.
+1. **Tick loop**: `Game::step()` → `_step()` → `tick()` → `TurnSystem::tick()`
+   - game.cpp:205-241 — step() calls _step(), which executes the action and calls tick()
+   - game.cpp:225-241 — tick() loops calling TurnSystem::tick() until ActionSpace available
+   - turn.cpp:147-160 — TurnSystem::tick() advances turn/phase/step state
 
-NOT in scope: training loop, PPO updates, gradient computation. Those are separate optimization targets.
-
-## Goal
-
-Turn raw profiler data into actionable insights. Find where time actually goes, not where you assume it goes. The output is a diagnosis document that identifies specific functions, patterns, or architectural choices causing slowdowns.
+2. **Observation building**: Built lazily when `Game::observation()` is called
+   - observation.cpp:22-39 — constructor calls five populate* functions
+   - populateTurn (45-62): turn/phase/step/player IDs
+   - populateActionSpace (64-77): copies action options
+   - populatePlayers (79-117): player state and zone counts
+   - populateCards (119-153): hand, graveyard, exile, stack
+   - populatePermanents (189-202): battlefield state
 
 ## Workflow
 
-1. Read the most recent profile data in `.design/profile-*.md`
-2. Identify the dominant time sinks
-3. Drill into the code to understand WHY those paths are slow
-4. Document findings in `.design/diagnosis.md`
+1. Read the latest `.design/profile-*.md`
+2. Identify where time goes: tick loop vs observation vs unaccounted
+3. Read the relevant code and find WHY it's slow
+4. Write `.design/diagnosis.md`
 
-## Analysis approach
+## What to look for
 
-**Follow the numbers.** Start with whatever takes the most time. If env.step is 80% of runtime, that's where to look. If model inference dominates, focus there.
+**In the tick loop:**
+- How many ticks per step? (profile shows tick count vs step count)
+- What happens in each tick? Phase transitions? Priority checks?
+- Is skip_trivial doing too much work? (game.cpp:210-212)
 
-**Distinguish symptoms from causes:**
-- Symptom: "env.step takes 50ms"
-- Cause: "observation encoding converts dict to tensor every step, allocating 10KB"
+**In observation building:**
+- Which populate* function dominates?
+- Are we copying data that could be referenced?
+- Are we iterating collections multiple times?
 
-**Look for these patterns:**
+**In the unaccounted gap:**
+- Action execution time (game.cpp:197)
+- The skip_trivial loop (game.cpp:210-212 calls _step repeatedly)
+- Zone lookups, player iteration, other per-step overhead
 
-1. **Unnecessary work per step**
-   - Repeated tensor allocations
-   - Redundant conversions (numpy ↔ torch)
-   - Validation that could happen once
+## Output
 
-2. **Python overhead in hot paths**
-   - Dict lookups in inner loops
-   - Function call overhead
-   - Type checking at runtime
-
-3. **Memory allocation patterns**
-   - Creating new tensors instead of reusing
-   - Growing lists instead of pre-allocating
-   - Copying data unnecessarily
-
-4. **Architectural bottlenecks**
-   - Single-threaded where parallelism possible
-   - Synchronous where async would help
-   - Full observations when partial would suffice
-
-## Drilling into code
-
-For each suspected bottleneck:
-
-1. Find the exact function/method
-2. Read it and understand the implementation
-3. Identify the specific inefficiency
-4. Note the file and line number
-
-Example:
-```
-## Bottleneck: Observation Encoding
-
-**Location**: manabot/env/observation.py:ObservationEncoder.encode()
-**Time**: ~40% of simulation time
-**Root cause**: Creates new numpy arrays for every field on every step.
-The encoder allocates max_cards_per_player * card_dim floats per call,
-even when most slots are empty.
-
-**Evidence**: Profile shows 10KB allocation per encode() call
-```
-
-## Output: .design/diagnosis.md
+`.design/diagnosis.md`:
 
 ```markdown
-# Performance Diagnosis
+# Diagnosis
 
 ## Summary
 <One paragraph: what's slow and why>
 
-## Primary Bottleneck
-**Component**: <name>
-**Location**: <file:line>
-**Time share**: XX%
-**Root cause**: <specific explanation>
+## Primary bottleneck
+**Where**: <file:line>
+**Time**: X% of step
+**Why**: <specific cause>
 
-## Secondary Bottlenecks
-<Same format, ranked by impact>
+## Secondary bottlenecks
+<Same format, in order of impact>
 
-## Quick Wins
-<Low-effort changes with measurable impact>
+## Unaccounted time
+<What's in the gap? What instrumentation would reveal it?>
 
-## Architectural Issues
-<Changes that require design work>
-
-## Questions
-<Uncertainties that need profiling or investigation>
+## Recommendations
+<Ordered by impact, with specific file:line targets>
 ```
 
-## When uncertain
-
-If the profile data is incomplete, note what's missing in `.design/questions.md` and proceed with best-effort analysis.
-
-Don't guess—but don't block either. If a bottleneck is ambiguous, note the uncertainty and suggest experiments for the next `profile` pass.
+Be specific. "Observation is slow" is useless. "populatePermanents iterates battlefield twice (observation.cpp:197, 221)" is actionable.

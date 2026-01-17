@@ -124,14 +124,14 @@ void Observation::populateCards(const Game* game) {
 
     // 1) HAND: visible only to the owner
     const Hand* hand = game->zones->constHand();
-    for (const Card* card : hand->cards.at(agent_player)) {
+    for (const Card* card : hand->cards[agent_player->index]) {
         addCard(card, ZoneType::HAND);
     }
 
     // 2) GRAVEYARD: gather for all players (public info)
     const Graveyard* gy = game->zones->constGraveyard();
     for (const Player* player : game->playersStartingWithAgent()) {
-        for (const Card* card : gy->cards.at(player)) {
+        for (const Card* card : gy->cards[player->index]) {
             addCard(card, ZoneType::GRAVEYARD);
         }
     }
@@ -139,7 +139,7 @@ void Observation::populateCards(const Game* game) {
     // 3) EXILE: gather for all players (public info)
     const Exile* ex = game->zones->constExile();
     for (const Player* player : game->playersStartingWithAgent()) {
-        for (const Card* card : ex->cards.at(player)) {
+        for (const Card* card : ex->cards[player->index]) {
             addCard(card, ZoneType::EXILE);
         }
     }
@@ -195,7 +195,7 @@ void Observation::populatePermanents(const Game* game) {
     // Gather from battlefield (all public info)
     const Battlefield* bf = game->zones->constBattlefield();
     for (const Player* player : game->playersStartingWithAgent()) {
-        for (const auto& perm : bf->permanents.at(player)) {
+        for (const auto& perm : bf->permanents[player->index]) {
             addPermanent(perm.get());
         }
     }

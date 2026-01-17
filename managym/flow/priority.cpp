@@ -69,7 +69,7 @@ std::vector<std::unique_ptr<Action>> PrioritySystem::availablePriorityActions(Pl
     log_debug(LogCat::PRIORITY, "Generating priority actions for player {}", player->name);
 
     // Get cards in hand
-    const std::vector<Card*> hand_cards = game->zones->constHand()->cards.at(player);
+    const std::vector<Card*>& hand_cards = game->zones->constHand()->cards[player->index];
 
     for (Card* card : hand_cards) {
         if (card == NULL) {
@@ -132,6 +132,7 @@ void PrioritySystem::performStateBasedActions() {
     for (Permanent* permanent : permanents_to_destroy) {
         log_info(LogCat::PRIORITY, "{} has lethal damage and is destroyed",
                  permanent->card->toString());
+        game->invalidateManaCache(permanent->controller);
         game->zones->destroy(permanent);
     }
 }
@@ -145,6 +146,7 @@ void PrioritySystem::resolveTopOfStack() {
     log_info(LogCat::PRIORITY, "Resolving {}", card->toString());
     if (card->types.isPermanent()) {
         game->zones->move(card, ZoneType::BATTLEFIELD);
+        game->invalidateManaCache(card->owner);
     } else {
         // TODO: Handle non-permanent spells
     }

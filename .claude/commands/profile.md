@@ -1,88 +1,76 @@
 ---
-interactive: false
 produces: .design/profile-<timestamp>.md
 ---
-Gather performance data for simulation throughput (environment + inference, NOT training).
+Measure simulation throughput. Raw numbers only.
 
-## Scope
+## The two hot paths
 
-We're optimizing the simulation loop: `env.reset()` → `env.step()` → `player.get_action()` → repeat.
+1. **Tick loop**: `Game::step()` → `_step()` → `tick()` → `TurnSystem::tick()`
+   - game.cpp:205-241 (step and tick)
+   - turn.cpp:147-160 (TurnSystem::tick)
 
-NOT in scope: PPO training, gradient computation, buffer management. Those are separate concerns.
+2. **Observation building**: `Observation` constructor and populate* functions
+   - observation.cpp:22-39 (constructor)
+   - observation.cpp:45-202 (populateTurn, populateActionSpace, populatePlayers, populateCards, populatePermanents)
 
-## Goal
+Everything else is noise.
 
-Run simulations and collect profiler data to establish a performance baseline. The output is raw numbers—games per second, time breakdown by component, memory usage. No analysis yet; that happens in `diagnose`.
-
-## Workflow
-
-1. Run a simulation with profiling enabled and capture the output
-2. Record the key metrics in `.design/profile-<timestamp>.md`
-3. If previous profile data exists in `.design/`, note the comparison
-4. Commit the profile data
-
-## What to capture
-
-**Throughput metrics:**
-- Games per second (overall)
-- Steps per second
-- Total games run, total wall time
-
-**Time breakdown (from profiler):**
-- Environment step time (`env.step()`)
-- Model inference time (forward pass, action selection)
-- Observation encoding time
-- Any other significant contributors
-
-**Resource usage:**
-- Peak memory (if available)
-- CPU/GPU utilization observations
-
-## Running the simulation
-
-Use the sim module with profiling:
+## Run the benchmark
 
 ```bash
-python -m manabot.sim.sim sim.hero=simple sim.villain=random sim.num_games=100 sim.num_threads=1
+python scripts/profile.py --games 500 --seed 42
 ```
 
-Single-threaded first to get clean profiler data. Note the profiler output in the logs.
+Grey Ogre mirror, random policy, single thread, profiler enabled.
 
-For model vs model:
-```bash
-python -m manabot.sim.sim sim.hero=<model_name> sim.villain=random sim.num_games=50 sim.num_threads=1
-```
+## Record these numbers
 
-## Output format
+**Throughput:**
+- Games/sec
+- Steps/sec
+- Avg steps/game
 
-Create `.design/profile-<YYYYMMDD-HHMM>.md`:
+**Profiler breakdown:**
+- `env_step` total
+- `env_step/game` — the tick loop wrapper
+- `env_step/game/tick/observation` — observation building
+- `env_step/game/tick/turn` — turn system logic
+- Each populate* function under observation
+
+**Derived:**
+- % in observation building
+- % in turn logic
+- % unaccounted (the gap between game and tick+observation)
+
+## Output
+
+`.design/profile-<YYYYMMDD-HHMM>.md`:
 
 ```markdown
 # Profile: <date>
 
-## Configuration
-- Hero: <player type>
-- Villain: <player type>
-- Games: <N>
-- Threads: 1
+## Config
+Games: 500, Seed: 42, Threads: 1
+Deck: Grey Ogre mirror, Policy: random
 
-## Results
-- **Throughput**: X.XX games/sec
-- **Avg steps/game**: XX
+## Throughput
+- X games/sec
+- Y steps/sec
+- Z steps/game avg
 
-## Time Breakdown
-| Component | Avg Time | % of Total |
-|-----------|----------|------------|
-| env.step  | X.XXXs   | XX%        |
-| inference | X.XXXs   | XX%        |
-| encoding  | X.XXXs   | XX%        |
+## Breakdown
+| Scope | Total | Count | % |
+|-------|-------|-------|---|
+| env_step | | | 100% |
+| → game | | | |
+| → tick/observation | | | |
+| → tick/turn | | | |
+| (unaccounted) | | | |
 
-## Notes
-<Any observations about the run>
+## Raw
+<profiler dump>
 ```
 
-## What NOT to do
+Don't analyze. Don't suggest fixes. Record numbers.
 
-- Don't analyze or interpret yet—just record
-- Don't change code to "fix" things you notice
-- Don't run multi-threaded yet (confounds profiling)
+Note delta vs previous profile if one exists.

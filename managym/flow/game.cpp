@@ -95,7 +95,7 @@ Player* Game::activePlayer() const { return turn_system->activePlayer(); }
 
 Player* Game::nonActivePlayer() const { return turn_system->nonActivePlayer(); }
 
-std::vector<Player*> Game::playersStartingWithActive() const {
+const std::vector<Player*>& Game::playersStartingWithActive() {
     return turn_system->playersStartingWithActive();
 }
 
@@ -131,9 +131,20 @@ bool Game::canCastSorceries(Player* player) const {
            turn_system->current_turn->currentPhase()->canCastSorceries();
 }
 
-bool Game::canPayManaCost(Player* player, const ManaCost& mana_cost) const {
-    return zones->constBattlefield()->producibleMana(player).canPay(mana_cost);
+bool Game::canPayManaCost(Player* player, const ManaCost& mana_cost) {
+    return cachedProducibleMana(player).canPay(mana_cost);
 }
+
+const Mana& Game::cachedProducibleMana(Player* player) {
+    int idx = player->index;
+    if (!mana_cache.valid[idx]) {
+        mana_cache.producible[idx] = zones->constBattlefield()->producibleMana(player);
+        mana_cache.valid[idx] = true;
+    }
+    return mana_cache.producible[idx];
+}
+
+void Game::invalidateManaCache(Player* player) { mana_cache.invalidate(player->index); }
 
 bool Game::isPlayerAlive(Player* player) const { return player->alive; }
 
@@ -253,6 +264,7 @@ void Game::clearDamage() {
 
 void Game::untapAllPermanents(Player* player) {
     zones->forEachPermanent([&](Permanent* permanent) { permanent->untap(); }, player);
+    invalidateManaCache(player);
 }
 
 void Game::markPermanentsNotSummoningSick(Player* player) {
@@ -303,4 +315,5 @@ void Game::playLand(Player* player, Card* card) {
     turn_system->current_turn->lands_played += 1;
     log_debug(LogCat::AGENT, "{} plays a land {}", player->name, card->toString());
     zones->move(card, ZoneType::BATTLEFIELD);
+    invalidateManaCache(player);
 }

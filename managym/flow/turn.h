@@ -98,6 +98,10 @@ public:
     std::map<Player*, int> turn_counts;
     Game* game;
 
+    // Pre-allocated player order vectors (reused to avoid allocations)
+    std::vector<Player*> players_active_first;
+    std::vector<Player*> players_nap_first;
+
     TurnSystem(Game* game);
 
     // Reads
@@ -112,8 +116,8 @@ public:
     bool isInPhase(PhaseType phase) const;
     // Check if game is in a specific step
     bool isInStep(StepType step) const;
-    // Get controlling player's order for priority
-    std::vector<Player*> playersStartingWithActive();
+    // Get controlling player's order for priority (returns reference to internal buffer)
+    const std::vector<Player*>& playersStartingWithActive();
     // Get current active player
     Player* activePlayer();
     // Get non-active player

@@ -188,7 +188,7 @@ void BehaviorTracker::onMainPhaseStart(Game* game, Player* player) {
     bool has_castable_spell = false;
     
     // Check cards in hand for lands and castable spells
-    for (Card* card : game->zones->constHand()->cards.at(player)) {
+    for (Card* card : game->zones->constHand()->cards[player->index]) {
         if (card->types.isLand()) {
             lands_in_hand_count++;
         } else if (card->types.isCastable() && game->canPayManaCost(player, card->mana_cost.value())) {
