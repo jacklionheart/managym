@@ -6,6 +6,7 @@
 2. **Build tools missing**: `cmake` and `python` are not available in this environment, so `make run_tests` and `scripts/profile.py` could not be run.
 3. **Profile run blocked**: `python3 scripts/profile.py --games 500 --seed 42` failed with `ModuleNotFoundError: No module named 'managym'`. Need an environment with the `managym` module installed (or a local build) to capture throughput/profiler numbers.
 4. **Profile run blocked (2026-01-16)**: `python scripts/profile.py --games 500 --seed 42` failed because `python` is not available; `python3` exists but cannot import `managym` (`ModuleNotFoundError`). Need a built/installed `managym` module to capture the requested profile.
+5. **Profile run blocked (current)**: `/usr/bin/python3` is Python 3.9.6 and cannot import `managym`. `python` is not available. `CMakeLists.txt` requires Python 3.12 EXACT, so local build/install is blocked. Need a Python 3.12 environment with `managym` built/installed to run `scripts/profile.py --games 500 --seed 42`.
 
 ## Design Inputs
 
