@@ -47,4 +47,18 @@
 
 13. **Why is InfoDict built every step?** `env.cpp:81-82` calls `addProfilerInfo()` and `addBehaviorInfo()` on every step, consuming 54.6% of env_step time. Is there a requirement for per-step profiler/behavior data, or can this be deferred to episode end or explicit request?
 
-14. **Profiler overhead when disabled?** Even with `enable_profiler=false`, Profiler::Scope objects are still created and destroyed. The constructor/destructor check `enabled` flag but still execute. Is this overhead negligible, or should we use preprocessor macros for zero-overhead disabled profiling?
+14. ~~**Profiler overhead when disabled?**~~ Partially addressed: Phase/step scopes removed. Turn scope remains for useful profiling data. Full zero-overhead disabled profiling would require preprocessor macros.
+
+## Resolved (2026-01-16)
+
+13. ~~**Why is InfoDict built every step?**~~ **RESOLVED**: Changed to only build at episode end. Impact: +129% steps/sec.
+
+6. ~~**Why create observations on every tick?**~~ **RESOLVED**: Lazy observation creation implemented. Observations only built when `Game::observation()` called, not during internal ticks.
+
+## New Questions (Post-Optimization)
+
+15. **Vector copy in priority.cpp**: `priority.cpp:32, 52, 97` copies the cached player vector into a local variable on every call. Should use `const std::vector<Player*>&` reference instead. Minor impact (~1-2%) but easy fix.
+
+16. **Action allocation still high**: 556,702 PassPriority allocations per 500 games. The flyweight/pool pattern in refactor-proposal.md would eliminate these, but changes Action ownership semantics. Is the API change acceptable?
+
+17. **Should skip_trivial integrate into PrioritySystem?**: Currently skip_trivial is a loop in `game.cpp:224-227` that calls `_step(0)` repeatedly. Integrating the trivial-check into `PrioritySystem::tick()` could avoid building ActionSpaces entirely for 97.9% of priority passes. Risk: must be 100% correct or real decisions get skipped.

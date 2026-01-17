@@ -2,264 +2,254 @@
 
 ## Summary
 
-The **primary bottleneck is InfoDict construction on every step**, consuming 54.6% of env_step time. Lines 81-82 of `env.cpp` call `addProfilerInfo()` and `addBehaviorInfo()` which iterate all profiler nodes and format strings on every single step—73,652 times in a 500-game run. The tick loop hierarchy (turn/phase/step) accounts for 26% and observation for 4%. After eliminating InfoDict overhead, the next target is the 9.5x tick amplification where 699,093 internal ticks service only 73,652 agent steps.
+After significant optimizations (+164% throughput since baseline), the **primary bottleneck is now the skip_trivial loop consuming 69.2% of env_step time**. Within that loop, the Turn hierarchy traversal accounts for 42.3% of total time—625,441 turn ticks service only 12,839 actual player decisions (2.1%). The architecture is fundamentally inefficient: it builds complete ActionSpace objects 556,702 times, yet 97.9% are trivial (single PassPriority action). The remaining opportunities are architectural: integrating skip-trivial into the tick loop and flattening the Turn/Phase/Step hierarchy.
 
-## Primary Bottleneck: InfoDict Construction (54.6%)
+## Current Performance State
 
-**Where**: `env.cpp:81-82` and `env.cpp:94-132`
-**Time**: 2.13s of 3.9s total (54.6%)
-**Root cause**: `addProfilerInfo()` and `addBehaviorInfo()` called on every step
+**Profile: 2026-01-16-2200** (latest after all optimizations)
+
+| Metric | Value |
+|--------|-------|
+| Steps/sec | 42,513 |
+| Per-step time | 21.5μs |
+| Games/sec | 288.60 |
+| Avg steps/game | 147.3 |
+
+**Cumulative improvements from baseline:**
+- Baseline: 16,122 steps/sec
+- Current: 42,513 steps/sec
+- **Total improvement: +164%**
+
+## Primary Bottleneck: Skip-Trivial Loop (69.2%)
+
+**Where**: `game.cpp:224-227`
+```cpp
+while (!game_over && skip_trivial && actionSpaceTrivial()) {
+    Profiler::Scope skip_scope = profiler->track("skip_trivial");
+    game_over = _step(0);
+}
+```
+
+**Time**: 1.098s of 1.586s env_step (69.2%)
+**Iterations**: 400,128 for 73,652 agent steps (5.4x amplification)
+
+### Why It's Slow
+
+The skip_trivial loop does the same work as a normal step—it just auto-selects action 0:
+
+1. **Builds complete ActionSpace** (`priority.cpp:51-58`) — creates vector of Action unique_ptrs
+2. **Allocates PassPriority every time** (`priority.cpp:90`) — 400k+ allocations
+3. **Checks `actionSpaceTrivial()`** (`game.cpp:76-78`) — after building the whole ActionSpace
+4. **Traverses Turn→Phase→Step→Priority hierarchy** — 625,441 times
 
 ### Evidence from Profile
 
 ```
-env_step:      3.899s (100%)
-env_step/game: 1.614s (41.4%)
-env_step/observation: 0.155s (4.0%)
-(unaccounted): 2.130s (54.6%)  ← This is InfoDict construction
+env_step/game/skip_trivial: total=1.098s, count=400,128 (69.2%)
+├── env_step/game/skip_trivial/tick: total=0.777s, count=400,128 (49.0%)
+│   └── env_step/game/skip_trivial/tick/turn: total=0.671s, count=625,441 (42.3%)
+│       └── env_step/game/skip_trivial/tick/turn/priority: total=0.234s, count=556,702 (14.8%)
+│           └── ...priority/priority: total=0.019s, count=12,839 (1.2%) ← actual decisions
+└── env_step/game/skip_trivial/action_execute: total=0.055s, count=400,128 (3.5%)
 ```
+
+**Key insight**: 556,702 priority ticks produce only 12,839 actual decisions (2.3%). The other 97.7% are trivial (PassPriority only).
+
+## Secondary Bottleneck: Turn Hierarchy Inside Skip-Trivial (42.3%)
+
+**Where**: `turn.cpp:207-227` (Turn::tick) → `turn.cpp:231-250` (Phase::tick) → `turn.cpp:255-304` (Step::tick)
+**Time**: 0.671s for 625,441 calls (42.3% of env_step)
+**Per-call**: 1.07μs
+
+### Call Flow Analysis
+
+For every game tick inside skip_trivial:
+```
+Game::_step(0)                          // game.cpp:180
+  └── tick()                            // game.cpp:240
+      └── turn_system->tick()           // turn.cpp:151
+          └── current_turn->tick()      // turn.cpp:207 (Turn::tick)
+              └── phase->tick()         // turn.cpp:231 (Phase::tick)
+                  └── step->tick()      // turn.cpp:255 (Step::tick)
+                      └── priority_system->tick()  // priority.cpp:20
+                          └── makeActionSpace()    // priority.cpp:51
+                              └── availablePriorityActions() // priority.cpp:67
+```
+
+Each Turn creates 5 Phase objects, each Phase creates 1-5 Step objects (`turn.cpp:198-205`, `351-368`).
+
+### Overhead Sources
+
+1. **Object allocation per turn**: `turn.cpp:169` creates new Turn with 5 Phases, ~12 Steps
+   - 9,705 turns × (5 Phase + ~12 Step) = ~165,000 object allocations per 500 games
+
+2. **Profiler scope in Turn::tick**: `turn.cpp:208` creates scope 625,441 times
+   - 0.671s for turn scope (vs 0.234s for priority = 0.437s turn overhead)
+
+3. **Virtual dispatch chain**: 4 levels of `->tick()` calls with pointer chasing
+
+4. **Step state machine**: Each Step tracks `initialized`, `turn_based_actions_complete`, `has_priority_window`, `completed` flags checked on every tick
+
+## Tertiary Bottleneck: Priority ActionSpace Construction (14.8%)
+
+**Where**: `priority.cpp:67-93`
+**Time**: 0.234s for 556,702 calls (14.8% of env_step)
+**Per-call**: 0.42μs
 
 ### Why It's Slow
 
-Looking at `env.cpp:42-85`, the `step()` method:
+Every priority tick:
+1. **Iterates hand cards** (`priority.cpp:72-87`): Checks each card for playability
+2. **Allocates Action objects** (`priority.cpp:79, 83, 90`): `new PlayLand`, `new CastSpell`, `new PassPriority`
+3. **Creates ActionSpace** (`priority.cpp:57`): Wraps actions in unique_ptr vector
+
+**PassPriority allocation is the worst offender**: 556,702 allocations, 97.7% are the only action returned.
+
+### Redundant Work
+
 ```cpp
-std::tuple<Observation*, double, bool, bool, InfoDict> Env::step(int action, bool skip_trivial) {
-    Profiler::Scope scope = profiler->track("env_step");  // Line 43
-
-    // ...game logic is inside "game" scope...
-    bool done = game->step(action);           // Line 53 - creates "game" scope
-    Observation* obs = game->observation();   // Line 54 - creates "observation" scope
-
-    // EVERYTHING BELOW is OUTSIDE all tracked scopes but INSIDE env_step
-    double reward = 0.0;
-    bool terminated = false;
-    // ... lines 56-65 ...
-
-    InfoDict info = create_empty_info_dict(); // Line 65
-
-    // THESE ARE THE PROBLEM - called on EVERY step:
-    addProfilerInfo(info);                    // Line 81
-    addBehaviorInfo(info);                    // Line 82
-
-    return std::make_tuple(obs, reward, terminated, truncated, info);
-}
+// priority.cpp:32 - creates new vector every call
+std::vector<Player*> players = game->playersStartingWithActive();
 ```
+This calls `playersStartingWithActive()` which now returns a cached reference, but the assignment copies it into a new local vector.
 
-`addProfilerInfo()` at lines 94-107:
-```cpp
-void Env::addProfilerInfo(InfoDict& info) {
-    InfoDict profiler_info = create_empty_info_dict();
-    if (profiler && profiler->isEnabled()) {
-        std::unordered_map<std::string, Profiler::Stats> stats = profiler->getStats();
-        // Iterates ALL timing nodes (~15+), formats strings for each
-        for (it = stats.begin(); it != stats.end(); ++it) {
-            std::ostringstream oss;
-            oss << "total=" << it->second.total_time << "s, count=" << it->second.count;
-            insert_info(profiler_info, it->first, oss.str());
-        }
-    }
-    insert_info(info, "profiler", profiler_info);
-}
-```
-
-`addBehaviorInfo()` at lines 109-133:
-```cpp
-void Env::addBehaviorInfo(InfoDict& info) {
-    InfoDict behavior_info = create_empty_info_dict();
-    // Gets stats map, creates nested InfoDict, inserts each stat
-    if (hero_tracker && hero_tracker->isEnabled()) {
-        std::map<std::string, std::string> hero_stats = hero_tracker->getStats();
-        InfoDict hero_info = create_empty_info_dict();
-        for (hit = hero_stats.begin(); hit != hero_stats.end(); ++hit) {
-            insert_info(hero_info, hit->first, hit->second);
-        }
-        insert_info(behavior_info, "hero", hero_info);
-    }
-    // Same for villain...
-}
-```
-
-With 73,652 steps:
-- `profiler->getStats()` called 73,652 times (iterates all nodes, computes percentiles)
-- String formatting with `ostringstream` for ~15 stats × 73,652 = ~1.1M string operations
-- InfoDict map insertions: ~20 per step × 73,652 = ~1.5M insertions
-- `BehaviorTracker::getStats()` called 2× per step × 73,652 = 147,304 times
-
-**This work is completely wasted** because the profiler stats during a game are meaningless—only the final stats matter.
-
-## Secondary Bottleneck: Turn Hierarchy (26%)
-
-**Where**: `turn.cpp:207-226` (Turn::tick → Phase::tick → Step::tick cascade)
-**Time**: 1.014s for 699,093 calls (26% of env_step)
-**Per-call**: 1.45μs
-
-### Tick Amplification
-
-| Level | Calls | Ratio to Agent Steps |
-|-------|-------|---------------------|
-| Agent steps | 73,652 | 1.0x |
-| Game ticks | 473,780 | 6.4x |
-| Turn/Phase/Step ticks | 699,093 | 9.5x |
-| Priority ticks | 615,234 | 8.4x |
-| Inner priority (decisions) | 12,839 | 0.17x |
-
-Only 12,839 of 615,234 priority ticks (2.1%) produce actual player decisions.
-
-### Why It's Slow
-
-1. **Profiler scope creation/destruction**: 4 Profiler::Scope objects × 699,093 calls = 2,796,372 scope operations
-
-2. **Virtual dispatch and pointer chasing**: Each tick follows:
-   ```
-   TurnSystem::tick() → current_turn->tick() → phases[i]->tick() → steps[j]->tick() → priority->tick()
-   ```
-
-3. **Turn/Phase/Step object allocation**: Each Turn allocates 5 Phases, each Phase 1-5 Steps.
-   With 19.4 turns/game × 500 games = 9,705 Turns = ~48,525 Phase allocations + ~97,050 Step allocations
-
-### Evidence
-
-The profiler shows cascading overhead:
-- `turn`: 1.014s for 699,093 calls
-- `phase`: 0.901s for 699,093 calls (0.113s = 11% lost between turn→phase)
-- `step`: 0.735s for 699,093 calls (0.166s = 16% lost between phase→step)
-- `priority`: 0.282s for 615,234 calls
-
-## Tertiary Bottleneck: Priority System (7.2%)
-
-**Where**: `priority.cpp:20-49`
-**Time**: 0.282s for 615,234 calls (7.2% of env_step)
-**Per-call**: 0.46μs
-
-### Why It's Slow
-
-1. **PassPriority allocation on every priority check** (`priority.cpp:90`)
-   - `actions.emplace_back(new PassPriority(player, game));` runs 615,234 times
-   - 97.9% of these are the only action (trivial action space)
-
-2. **playersStartingWithActive() already cached** (`turn.cpp:175-188`)
-   - Fixed in previous optimization: only rebuilds when active_player_index changes
-
-## Observation: Efficient (4%)
+## Observation: Now Efficient (9.4%)
 
 **Where**: `observation.cpp:22-39`
-**Time**: 0.155s for 73,652 calls (4% of env_step)
-**Per-call**: 2.1μs
+**Time**: 0.149s for 73,652 calls (9.4% of env_step)
+**Per-call**: 2.0μs
 
-Observation is efficient after previous optimizations. Breakdown:
-- populatePermanents: 0.058s (1.5%)
-- populateCards: 0.039s (1.0%)
-- populateTurn: 0.011s (0.3%)
-- populatePlayers: 0.005s (0.1%)
+Breakdown:
+- populatePermanents: 0.056s (3.5%)
+- populateCards: 0.037s (2.3%)
+- populateTurn: 0.010s (0.6%) — called 2x per step
+- populatePlayers: 0.005s (0.3%)
 
-## Time Breakdown (Profile 20260116-1800)
+Observation is well-optimized. Further gains require architectural changes (incremental updates, direct memory access from Python).
 
-| Component | Time | % | Calls | Per-call | Notes |
-|-----------|------|---|-------|----------|-------|
-| env_step | 3.899s | 100% | 73,652 | 52.9μs | Total step time |
-| → (unaccounted) | 2.130s | **54.6%** | - | - | **InfoDict construction** |
-| → game | 1.614s | 41.4% | 73,652 | 21.9μs | Tick loop wrapper |
-| → → action_execute | 0.148s | 3.8% | 473,780 | 0.3μs | Action execution |
-| → → tick | 1.126s | 28.9% | 473,780 | 2.4μs | Game ticks (6.4x) |
-| → → → turn | 1.014s | 26.0% | 699,093 | 1.5μs | Turn hierarchy |
-| → → → → phase | 0.901s | 23.1% | 699,093 | 1.3μs | Phase traversal |
-| → → → → → step | 0.735s | 18.9% | 699,093 | 1.1μs | Step logic |
-| → → → → → → priority | 0.282s | 7.2% | 615,234 | 0.5μs | Priority system |
-| → observation | 0.155s | 4.0% | 73,652 | 2.1μs | Observation building |
+## Unaccounted Time: Minimal (2.2%)
+
+**Gap**: 0.035s (2.2% of env_step)
+
+This is likely:
+- ActionSpace creation/destruction overhead
+- Vector operations for action storage
+- Python binding overhead (not measured in C++ profiler)
+
+The profiler now captures 97.8% of step time.
+
+## Time Breakdown (Profile 2026-01-16-2200)
+
+| Component | Time | % | Calls | Per-call |
+|-----------|------|---|-------|----------|
+| env_step | 1.586s | 100% | 73,652 | 21.5μs |
+| → game | 1.402s | 88.4% | 73,652 | 19.0μs |
+| → → skip_trivial | **1.098s** | **69.2%** | 400,128 | 2.7μs |
+| → → → tick | 0.777s | 49.0% | 400,128 | 1.9μs |
+| → → → → turn | **0.671s** | **42.3%** | 625,441 | 1.07μs |
+| → → → → → priority | 0.234s | 14.8% | 556,702 | 0.42μs |
+| → → → → → → inner priority | 0.019s | 1.2% | 12,839 | 1.5μs |
+| → → → action_execute | 0.055s | 3.5% | 400,128 | 0.14μs |
+| → → tick (non-trivial) | 0.087s | 5.5% | 73,652 | 1.2μs |
+| → → action_execute (non-trivial) | 0.085s | 5.4% | 73,652 | 1.2μs |
+| → observation | 0.149s | 9.4% | 73,652 | 2.0μs |
+| → (unaccounted) | 0.035s | 2.2% | - | - |
+
+## Tick Amplification Analysis
+
+| Level | Calls | Ratio to Agent Steps | % Trivial |
+|-------|-------|---------------------|-----------|
+| Agent steps | 73,652 | 1.0x | 0% (by definition) |
+| Skip trivial iterations | 400,128 | 5.4x | 100% |
+| Turn ticks (total) | 699,093 | 9.5x | ~90% |
+| Turn ticks (in skip_trivial) | 625,441 | 8.5x | ~100% |
+| Priority ticks (total) | 615,234 | 8.4x | 97.9% |
+| Actual decisions | 12,839 | 0.17x | 0% |
+
+**Only 1.8% of priority ticks produce non-trivial ActionSpaces**.
 
 ## Recommendations
 
-### 1. Don't build InfoDict on every step (CRITICAL)
-**Impact**: ~50% improvement (eliminates 54.6% overhead)
-**Location**: `env.cpp:81-82`
+### 1. Integrate skip_trivial into tick loop (HIGH IMPACT)
+**Impact**: ~40-50% improvement
+**Location**: `game.cpp:224-227`, `priority.cpp:20-49`
 
-Only populate profiler/behavior stats when explicitly requested or at episode end:
+Don't build ActionSpace for trivial actions. Check feasibility before allocating:
 
 ```cpp
-std::tuple<Observation*, double, bool, bool, InfoDict> Env::step(int action, bool skip_trivial) {
-    Profiler::Scope scope = profiler->track("env_step");
-    // ...
-    InfoDict info = create_empty_info_dict();
-
-    if (done) {
-        // Only add stats at end of episode
-        addProfilerInfo(info);
-        addBehaviorInfo(info);
+// In PrioritySystem::tick() or a new fast-path
+bool canPlayerAct(Player* player) {
+    // Quick check before building full ActionSpace
+    if (game->zones->constHand()->cards[player->index].empty()) {
+        return false;  // Can only pass priority
     }
-
-    return std::make_tuple(obs, reward, terminated, truncated, info);
+    // Check for playable lands/spells...
 }
 ```
 
-Or simpler: return empty InfoDict always, let caller use `env.info()` explicitly.
+Skip the ActionSpace construction entirely when only PassPriority is available.
 
-### 2. ~~Reduce profiler scope nesting~~ **DONE**
-**Impact**: **+18% steps/sec** (36k → 42k)
-**Location**: `turn.cpp:231, 256`
-
-Removed `phase` and `step` profiler scopes. Now only `turn` and `priority` scopes remain. Reduces scope creations from ~1.9M to ~1.2M per 500 games.
-
-### 3. Pre-allocate PassPriority action
-**Impact**: ~3-5%
+### 2. Pool or flyweight PassPriority objects
+**Impact**: ~5-10%
 **Location**: `priority.cpp:90`
 
-Use flyweight pattern - single PassPriority per player, reuse instead of allocating.
+556,702 PassPriority allocations. Use one per player, reuse:
 
-### 4. Skip steps without possible decisions
-**Impact**: ~15-25%
-**Location**: `turn.cpp:151-163`
+```cpp
+// In PrioritySystem or TurnSystem
+PassPriority pass_actions[2];  // One per player
 
-Before entering a step, check if it can produce non-trivial actions:
-- Untap/cleanup: no priority window
-- No hand + no abilities = skip main phase priority
-- No creatures = skip combat steps entirely
+// In availablePriorityActions:
+actions.push_back(&pass_actions[player->index]);  // Raw pointer, not unique_ptr
+```
 
-### 5. Cache playersStartingWithAgent()
+### 3. Avoid copying player vector in priority.cpp
 **Impact**: ~1-2%
-**Location**: `game.cpp:103-121`
+**Location**: `priority.cpp:32, 52, 97`
 
-Like playersStartingWithActive(), cache and only rebuild when agent changes.
+```cpp
+// Current (copies vector):
+std::vector<Player*> players = game->playersStartingWithActive();
 
-## Manabot Usage Context
+// Better (use reference):
+const std::vector<Player*>& players = game->playersStartingWithActive();
+```
 
-**Critical insight**: manabot consumes observations IMMEDIATELY after every step() and reset() call. The training loop uses ALL observation fields right away for action selection, validation, and buffer storage. There is zero slack—observations cannot be deferred or lazy-loaded at the API boundary.
+### 4. Remove Turn::tick profiler scope for non-debug builds
+**Impact**: ~5-8%
+**Location**: `turn.cpp:208`
 
-This means:
-- "Lazy observation" at the API level provides NO benefit
-- "Deferred field population" doesn't help—ALL fields are used
-- Focus should be on making observation building FAST, not on when it happens
-- The only valid "lazy" optimization was avoiding observation creation during internal ticks (skip_trivial loop)
+625,441 profiler scope creations. Either:
+- Use `#ifdef DEBUG` around profiler calls
+- Make profiler scopes completely zero-overhead when disabled
 
-## Addressed (Previous Optimizations)
+### 5. Consider flat state machine (ARCHITECTURAL)
+**Impact**: ~30-50%
+**Location**: `turn.cpp:198-368`
 
-| Optimization | When | Impact |
-|--------------|------|--------|
-| Skip observation during internal ticks* | 2026-01-16 | 17% → 4% |
-| Map → vector in Observation | 2026-01-16 | Part of above |
-| Cached producible mana | 2026-01-16 | Removed mana iteration from hot path |
-| Zone vector storage | Already done | N/A |
-| Cache playersStartingWithActive() | 2026-01-16 | +3.8% throughput |
-| action_execute profiler scope | 2026-01-16 | Diagnostic (3.8% of game time) |
-| **InfoDict only at episode end** | 2026-01-16 | **+129% steps/sec** (17k → 39k) |
-| **Remove phase/step profiler scopes** | 2026-01-16 | **+18% steps/sec** (36k → 42k) |
+Replace Turn/Phase/Step object hierarchy with switch-based state machine. See `.design/refactor-proposal.md` for full proposal.
 
-*Note: "lazy observation creation" is misleading. The optimization avoids building observations during the skip_trivial internal tick loop where observations are never returned to Python. This is NOT about deferring observation creation at the API boundary.
+## Addressed Optimizations
 
-**Profiler scope reduction**: Removed nested `phase` and `step` profiler scopes from `turn.cpp:231` and `turn.cpp:256`. Each tick was creating 4 scopes (turn/phase/step/priority). With 625k+ ticks, this was ~1.9M scope creations. Now only 2 scopes (turn/priority), reducing overhead by ~0.27s (14% of tick loop time).
+| Optimization | Profile | Impact |
+|--------------|---------|--------|
+| Lazy observation (skip during internal ticks) | 20260116-1614 | 17% → 4% observation |
+| Map → vector in Observation | 20260116-1614 | Part of above |
+| Cached producible mana | 20260116-1614 | Removed mana iteration |
+| Cache playersStartingWithActive() | 20260116-1631 | +3.0% steps/sec |
+| InfoDict only at episode end | post-infodict | **+129% steps/sec** |
+| Remove phase/step profiler scopes | 20260116-2200 | **+8.7% steps/sec** |
 
 ## Open Questions
 
-1. ~~**Why is InfoDict built every step?**~~ **RESOLVED**: Changed to only build at episode end. Caller can use `env.info()` explicitly if needed during game. Impact: +129% steps/sec.
+1. **Profiler overhead when disabled?** `Profiler::Scope` objects are created even with `enable_profiler=false`. Constructor checks `enabled` but still runs. Verify this is negligible.
 
-2. **Profiler overhead when disabled?** Even with `enable_profiler=false`, Profiler::Scope objects are created. Is this overhead negligible?
+2. **Python binding overhead?** pybind11 marshalling not measured. Could explain some unaccounted time in full pipeline.
 
-3. **Python binding overhead?** How much time is pybind11 marshalling between C++ and Python? This could explain some unaccounted time.
+3. **Target throughput?** Current 42k steps/sec. Is 50k? 100k? Determines whether architectural refactors are worth the risk.
 
 ## Related Documents
 
-See `.design/refactor-proposal.md` for bold architectural changes targeting the turn hierarchy (26%) and priority system (7.2%) bottlenecks:
-
-1. **Flat State Machine** - Replace Turn/Phase/Step object hierarchy with switch-based state machine (40-60% impact)
-2. **Integrated Skip-Trivial** - Eliminate 6.9x tick amplification by integrating skip logic into tick loop (25-35% impact)
-3. **ActionSpace Object Pool** - Pool Action objects to eliminate 90k+ allocations per 200 games (10-15% impact)
-4. **Combat Phase Skip** - Short-circuit entire combat phase when no creatures (5-10% impact)
+- `.design/refactor-proposal.md` — Bold architectural changes (flat state machine, integrated skip-trivial)
+- `.design/profile-20260116-2200.md` — Latest profile data
+- `.design/questions.md` — Open questions about performance targets
