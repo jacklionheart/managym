@@ -378,7 +378,26 @@ static void registerAPI(py::module& m) {
                 return convertInfoDict(env.info());
             },
             "Get a dictionary of information about the environment. "
-            "Includes nested 'profiler' and 'behavior' sub-dictionaries.");
+            "Includes nested 'profiler' and 'behavior' sub-dictionaries.")
+        .def(
+            "export_profile_baseline",
+            [](Env& env) {
+                if (env.profiler && env.profiler->isEnabled()) {
+                    return env.profiler->exportBaseline();
+                }
+                return std::string("");
+            },
+            "Export profiler stats to a tab-separated baseline format for later comparison.")
+        .def(
+            "compare_profile",
+            [](Env& env, const std::string& baseline) {
+                if (env.profiler && env.profiler->isEnabled()) {
+                    return env.profiler->compareToBaseline(baseline);
+                }
+                return std::string("Profiler not enabled");
+            },
+            py::arg("baseline"),
+            "Compare current profiler stats against a baseline and return a diff report.");
 }
 
 // -----------------------------------------------------------------------------

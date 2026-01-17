@@ -56,18 +56,81 @@ Observation construction dominated the simulation loop. The original implementat
 
 ## Remaining Bottlenecks
 
-### 1. Turn/Phase/Step Hierarchy
+### 1. Turn/Phase/Step Hierarchy (Primary)
 **Location**: `managym/flow/turn.cpp`
-**Time share**: ~24% of simulation time
-**Issue**: Deep call hierarchy with 10x tick amplification from agent steps
+**Time share**: ~31% of simulation time (0.130-0.169s)
+**Calls**: 98,502 turn/phase/step ticks for 9,779 agent steps (10.1x amplification)
 
-### 2. Priority System
+**Root cause**: Deep object hierarchy with per-tick allocations
+
+Each turn creates:
+- 1 Turn object with 5 Phase objects (`turn.cpp:196-203`)
+- Each Phase creates 1-5 Step objects (`turn.cpp:351-368`)
+- Every tick traverses Turn→Phase→Step→Priority with profiler scopes at each level
+
+The structure is correct for Magic rules but introduces overhead:
+1. **Profiler overhead**: 4 nested `Profiler::Scope` objects per tick chain (`turn.cpp:206`, `229`, `255`, `priority.cpp:21`)
+2. **Virtual dispatch**: Each step type has virtual methods (`performTurnBasedActions`, `onStepStart`, `onStepEnd`)
+3. **Repeated player vector creation**: `playersStartingWithActive()` allocates a new vector every call (`turn.cpp:177-186`)
+
+**Evidence**: Profile shows 98,502 calls at turn/phase/step levels but only 9,779 agent steps. The 10x amplification comes from Magic's turn structure (12 steps per turn × ~7 turns avg = ~84 internal ticks per game, plus priority passes).
+
+### 2. Priority System (Secondary)
 **Location**: `managym/flow/priority.cpp`
-**Time share**: ~8% of simulation time
-**Issue**: Action generation iterates hand cards and checks mana affordability per castable card
+**Time share**: ~11.5% of simulation time (0.063s)
+**Calls**: 87,590 priority ticks for 9,779 agent steps
+
+**Root cause**: Repeated mana affordability checks
+
+For each priority pass, `availablePriorityActions()` (`priority.cpp:67-94`):
+1. Creates new `std::vector<std::unique_ptr<Action>>` (allocation)
+2. Iterates all hand cards
+3. For each castable card, calls `game->canPayManaCost()` which calls `producibleMana()` (`battlefield.cpp:133-142`)
+4. `producibleMana()` iterates all permanents and their mana abilities
+
+With ~90k priority checks and ~10 cards in hand average, that's ~900k mana affordability calculations.
+
+**Evidence**: The inner priority tracking (`env_step/game/tick/turn/phase/step/priority/priority`) only shows 2,669 calls (actual agent decisions) vs 87,590 total priority ticks. Most ticks are pass-through.
+
+### 3. Action Allocation Churn
+**Location**: `managym/flow/priority.cpp:67-94`, `managym/agent/action_space.h`
+**Time share**: Part of priority system overhead
+
+**Root cause**: New allocations per priority pass
+
+Every `availablePriorityActions()` call:
+- Allocates `std::vector<std::unique_ptr<Action>>`
+- Creates new Action objects via `new PlayLand`, `new CastSpell`, `new PassPriority`
+- Creates new `ActionSpace` object
+
+With 87,590 priority ticks, this is significant allocation churn even if most action spaces are trivial (just PassPriority).
+
+### 4. Zone Map Lookups
+**Location**: `managym/state/zone.cpp`, `managym/state/battlefield.cpp`
+**Time share**: Distributed across turn/priority
+
+**Root cause**: Using `std::map<const Player*, ...>` for 2-player lookups
+
+The zone structures use maps:
+- `Zone::cards` is `std::map<const Player*, std::vector<Card*>>` (`zone.cpp:11-14`)
+- `Battlefield::permanents` is `std::map<const Player*, std::vector<std::unique_ptr<Permanent>>>` (`battlefield.h:61`)
+
+For 2 players, map lookups (O(log n)) are slower than direct index access. The pattern `cards.at(player)` appears throughout hot paths.
 
 ## Quick Wins for Next Pass
 
-1. **Cache producible mana**: Mana production only changes on battlefield/tap state changes
-2. **Pre-allocate action vectors**: Reuse action storage instead of allocating new vectors
-3. **Batch-skip empty phases**: Pre-compute which phases have no decisions based on board state
+1. **Cache producible mana**: Invalidate only on battlefield enter/exit/tap/untap. Could eliminate ~90% of mana calculations.
+
+2. **Pre-allocate player order vector**: `playersStartingWithActive()` returns a new vector every call. Store and reuse in TurnSystem.
+
+3. **Replace zone maps with vectors**: Use `player->index` for direct indexing into `std::vector<std::vector<Card*>>` instead of map lookups.
+
+4. **Pool Action objects**: Reuse PassPriority/PlayLand/CastSpell objects instead of allocating new ones per priority pass.
+
+5. **Batch profiler scopes**: Consider a single profiler scope for the full tick chain instead of nested scopes at each level.
+
+## Architectural Issues
+
+1. **Turn structure amplification**: The 10x tick ratio is inherent to Magic's turn structure. Could potentially skip entire phases when no decisions are possible (empty hand + no permanents with activated abilities = skip main phase priority).
+
+2. **Eager ActionSpace creation**: ActionSpaces are created even when the game will immediately skip them (trivial actions). Consider lazy ActionSpace creation.

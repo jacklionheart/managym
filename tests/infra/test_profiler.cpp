@@ -103,3 +103,101 @@ TEST(ProfilerTest, SampleOutput) {
     std::string output = env.profiler->toString();
     std::cout << "Pretty Printed Profiler Info:\n" << output << std::endl;
 }
+
+TEST(ProfilerTest, ExportBaseline) {
+    Profiler profiler(true, 50);
+
+    {
+        Profiler::Scope scopeA = profiler.track("A");
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        {
+            Profiler::Scope scopeB = profiler.track("B");
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    }
+
+    std::string baseline = profiler.exportBaseline();
+
+    // Baseline should be tab-separated lines
+    ASSERT_FALSE(baseline.empty());
+    EXPECT_TRUE(baseline.find("A\t") != std::string::npos);
+    EXPECT_TRUE(baseline.find("A/B\t") != std::string::npos);
+    EXPECT_TRUE(baseline.find("\n") != std::string::npos);
+}
+
+TEST(ProfilerTest, ParseBaseline) {
+    std::string baseline = "A\t0.15\t1\nA/B\t0.10\t1\n";
+
+    std::unordered_map<std::string, std::pair<double, int>> parsed =
+        Profiler::parseBaseline(baseline);
+
+    ASSERT_EQ(parsed.size(), 2);
+    EXPECT_NEAR(parsed["A"].first, 0.15, 0.001);
+    EXPECT_EQ(parsed["A"].second, 1);
+    EXPECT_NEAR(parsed["A/B"].first, 0.10, 0.001);
+    EXPECT_EQ(parsed["A/B"].second, 1);
+}
+
+TEST(ProfilerTest, CompareToBaseline) {
+    // Create and run first profiler (baseline)
+    Profiler profiler1(true, 50);
+    {
+        Profiler::Scope scopeA = profiler1.track("A");
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        {
+            Profiler::Scope scopeB = profiler1.track("B");
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+    }
+    std::string baseline = profiler1.exportBaseline();
+
+    // Create and run second profiler (current)
+    Profiler profiler2(true, 50);
+    {
+        Profiler::Scope scopeA = profiler2.track("A");
+        std::this_thread::sleep_for(std::chrono::milliseconds(150)); // Slower
+        {
+            Profiler::Scope scopeB = profiler2.track("B");
+            std::this_thread::sleep_for(std::chrono::milliseconds(25)); // Faster
+        }
+    }
+
+    std::string comparison = profiler2.compareToBaseline(baseline);
+
+    // Comparison output should contain headers and data
+    EXPECT_TRUE(comparison.find("Profile Comparison") != std::string::npos);
+    EXPECT_TRUE(comparison.find("Baseline") != std::string::npos);
+    EXPECT_TRUE(comparison.find("Current") != std::string::npos);
+    EXPECT_TRUE(comparison.find("Change") != std::string::npos);
+
+    // Should contain the paths we tracked
+    EXPECT_TRUE(comparison.find("A") != std::string::npos);
+    EXPECT_TRUE(comparison.find("A/B") != std::string::npos);
+
+    std::cout << "Comparison output:\n" << comparison << std::endl;
+}
+
+TEST(ProfilerTest, CompareWithNewAndRemovedPaths) {
+    // Baseline has A and A/B
+    std::string baseline = "A\t0.10\t1\nA/B\t0.05\t1\n";
+
+    // Current has A and A/C (B removed, C added)
+    Profiler profiler(true, 50);
+    {
+        Profiler::Scope scopeA = profiler.track("A");
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        {
+            Profiler::Scope scopeC = profiler.track("C");
+            std::this_thread::sleep_for(std::chrono::milliseconds(25));
+        }
+    }
+
+    std::string comparison = profiler.compareToBaseline(baseline);
+
+    // Should show A/B as removed and A/C as new
+    EXPECT_TRUE(comparison.find("(removed)") != std::string::npos);
+    EXPECT_TRUE(comparison.find("(new)") != std::string::npos);
+    EXPECT_TRUE(comparison.find("+NEW") != std::string::npos);
+
+    std::cout << "Comparison with changes:\n" << comparison << std::endl;
+}
