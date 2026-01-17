@@ -27,3 +27,7 @@
    - Python code uses `registry_key` to look up card names from the card registry
 
 6. **Profiler missing populateActionSpace**: The latest profiler output did not include an `env_step/observation/populateActionSpace` entry. Should this scope be present, or is it intentionally disabled/filtered?
+
+7. **Profile-20260116-1750 anomaly**: That run shows 55% unaccounted time and `action_execute`
+count (473,780) far above `env_step` count (73,652). Was this captured with different
+instrumentation or a different branch/config?
