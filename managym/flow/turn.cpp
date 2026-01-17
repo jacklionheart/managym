@@ -173,14 +173,16 @@ void TurnSystem::startNextTurn() {
 }
 
 const std::vector<Player*>& TurnSystem::playersStartingWithActive() {
-    int num_players = game->players.size();
-    // Lazy initialization - vectors are empty when TurnSystem is constructed
-    // because game->players hasn't been populated yet
-    if (players_active_first.size() != num_players) {
-        players_active_first.resize(num_players);
-    }
-    for (int i = 0; i < num_players; i++) {
-        players_active_first[i] = game->players[(active_player_index + i) % num_players].get();
+    // Only rebuild when active_player_index changes
+    if (cached_active_index != active_player_index) {
+        int num_players = game->players.size();
+        if (players_active_first.size() != num_players) {
+            players_active_first.resize(num_players);
+        }
+        for (int i = 0; i < num_players; i++) {
+            players_active_first[i] = game->players[(active_player_index + i) % num_players].get();
+        }
+        cached_active_index = active_player_index;
     }
     return players_active_first;
 }

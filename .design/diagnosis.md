@@ -132,26 +132,20 @@ while (!game_over && skip_trivial && actionSpaceTrivial()) { ... }
 
 This optimization was already implemented.
 
+### Cache playersStartingWithActive() (2026-01-16)
+
+**Change**: Added `cached_active_index` to TurnSystem. Only rebuild `players_active_first` vector when `active_player_index` changes.
+
+**Location**: `turn.h:104`, `turn.cpp:175-188`
+
+**Before**: Called ~350,000 times per 200 games, rebuilding vector every time.
+**After**: Rebuilds only on turn change (~1,444 times per 200 games).
+
+**Impact**: Priority system overhead dropped from 11.5% to 9.1% of env_step time (0.0615s → 0.0467s). Overall throughput +3.8% (339 → 352 games/sec).
+
 ## Recommendations
 
-### 1. Cache playersStartingWithActive() (Quick win)
-**Impact**: ~5-10%
-**Location**: `turn.cpp:175-186`
-
-Only rebuild when `active_player_index` changes:
-```cpp
-const std::vector<Player*>& TurnSystem::playersStartingWithActive() {
-    if (cached_active_index != active_player_index) {
-        for (int i = 0; i < num_players; i++) {
-            players_active_first[i] = game->players[(active_player_index + i) % num_players].get();
-        }
-        cached_active_index = active_player_index;
-    }
-    return players_active_first;
-}
-```
-
-### 2. Reduce profiler scope nesting (Medium effort)
+### 1. Reduce profiler scope nesting (Medium effort)
 **Impact**: ~10-15%
 **Location**: `turn.cpp:206, 230, 255`, `priority.cpp:21`
 

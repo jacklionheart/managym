@@ -390,7 +390,7 @@ void Env::setPolicyHint(PolicyHint hint);
 ## Sequence
 
 **Phase 1: Quick wins (implement together)**
-1. Cache `playersStartingWithActive()` with `cached_active_index` — 5-10% impact
+1. ~~Cache `playersStartingWithActive()` with `cached_active_index` — 5-10% impact~~ ✓ DONE (+3.8% measured)
 2. Pooled PassPriority flyweight — 3-5% impact
 3. Single profiler scope at step level — 3-5% impact
 
@@ -433,9 +433,4 @@ These optimizations are already in the codebase (verified in diagnosis.md):
 - **Zone vector storage**: `Zone::cards` is `std::vector<std::vector<Card*>>`, not map
 - **Battlefield vector storage**: `Battlefield::permanents` is `std::vector<std::vector<unique_ptr<Permanent>>>`
 - **Observation vectors**: `std::vector<CardData>` and `std::vector<PermanentData>` instead of maps
-
-## What's NOT Implemented Yet
-
-Despite diagnosis recommendations:
-
-- **playersStartingWithActive() caching**: Still rebuilds vector on every call (`turn.cpp:182-184`). Called 4x per priority tick = ~350,000 unnecessary vector writes per 200 games.
+- **playersStartingWithActive() caching**: Added `cached_active_index` to TurnSystem (`turn.h:104`, `turn.cpp:175-188`). Only rebuilds when active player changes. Impact: +3.8% throughput (339 → 352 games/sec).

@@ -100,7 +100,8 @@ public:
 
     // Pre-allocated player order vectors (reused to avoid allocations)
     std::vector<Player*> players_active_first;
-    std::vector<Player*> players_nap_first;
+    // Cached index to avoid rebuilding players_active_first on every call
+    int cached_active_index = -1;
 
     TurnSystem(Game* game);
 
