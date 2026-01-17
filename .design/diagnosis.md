@@ -1,12 +1,12 @@
 # Diagnosis
 
 ## Summary
-The tick loop is dominated by repeated priority passes inside `TurnSystem::tick()`; every pass rebuilds the priority action list and runs mana availability checks that traverse the battlefield. This yields ~4.2 turn ticks per env step (311,397 ticks vs 73,652 steps in `profile-20260116-1731`), so the per-pass cost in `computePlayerActions()` compounds into the primary slowdown. Observation building is the next biggest cost: each step fully rebuilds `CardData` and `PermanentData`, and `populatePermanents()` redundantly calls `addCard()` for battlefield cards, causing additional per-step `CardData` construction.
+The tick loop is dominated by repeated priority passes inside `TurnSystem::tick()`; each pass rebuilds the priority action list and rechecks mana availability by scanning the battlefield. With ~4.2 turn ticks per env step (311,397 ticks vs 73,652 steps in `profile-20260116-1731`), the per-pass cost of `computePlayerActions()` compounds into the primary slowdown. Observation building is the next largest cost: each step fully rebuilds `CardData` and `PermanentData`, and `populatePermanents()` redundantly calls `addCard()` for battlefield cards, causing extra per-step `CardData` construction.
 
 ## Primary bottleneck
 **Where**: `managym/flow/priority.cpp:20-57`
 **Time**: ~8-12% of `env_step` (e.g., `PRECOMBAT_MAIN_STEP/priority` is 0.078s of 0.954s in `profile-20260116-1731.md`)
-**Why**: `computePlayerActions()` scans the full hand every priority pass and, for each castable card, calls `canPay()` on a cached `Mana` that itself is computed via `Battlefield::producibleMana()` (iteration over all permanents). With ~4-5 priority passes per step, this hand scan + mana check repeats excessively.
+**Why**: `computePlayerActions()` scans the full hand every priority pass and, for each castable card, calls `canPay()` on a cached `Mana` computed via `Battlefield::producibleMana()` (iterates all permanents). With ~4-5 priority passes per step, this hand scan + mana check repeats excessively.
 
 ## Secondary bottlenecks
 **Where**: `managym/agent/observation.cpp:192-225`
@@ -27,7 +27,7 @@ Stable runs show ~4% unaccounted. Likely sources are:
 - allocations for `ActionSpace`, `Action`, and per-step vectors during action/observation construction
 - zone operations (`Zones::move`, `Zones::pushStack`) without dedicated profiler scopes
 
-The 2026-01-16 17:50/17:58 profiles show 55% unaccounted with `action_execute` counts far above `env_step`, which indicates a measurement anomaly or a run with different instrumentation; these are not reliable baselines.
+The 2026-01-16 17:50/17:58 profiles show 55% unaccounted time and `action_execute` counts far above `env_step`, which indicates a measurement anomaly or a run with different instrumentation; these are not reliable baselines.
 
 ## Recommendations
 1. **Cache priority action availability per pass** (target `managym/flow/priority.cpp:20-57`)
