@@ -31,3 +31,10 @@
 7. **Profile-20260116-1750 anomaly**: That run shows 55% unaccounted time and `action_execute`
 count (473,780) far above `env_step` count (73,652). Was this captured with different
 instrumentation or a different branch/config?
+
+## Refactor Proposals
+
+1. Which step transitions are guaranteed to have no choices (e.g., cleanup, untap) for all current cardsets, and can we codify them for fast-forward?
+2. What are the minimal mutation hooks needed to safely invalidate cached priority windows?
+3. Can we keep the public Observation API intact while adding a cached internal representation, or do we need a versioned Observation struct?
+4. Are Action objects ever referenced outside the action space lifetime (e.g., in logs or trackers)?
