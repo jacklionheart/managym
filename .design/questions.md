@@ -3,6 +3,7 @@
 ## Build Environment
 
 1. **Cannot verify build**: The build requires Python 3.12 and cmake, which aren't available in the current environment. The CMakeLists.txt requires `find_package(Python 3.12 EXACT ...)`. Need to verify the code compiles and tests pass.
+2. **Build tools missing**: `cmake` and `python` are not available in this environment, so `make run_tests` and `scripts/profile.py` could not be run.
 
 ## Design Inputs
 

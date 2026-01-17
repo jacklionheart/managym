@@ -14,6 +14,8 @@ both of which do full `CardData` construction every step.
 `Game::canPayManaCost()` for each castable card. `canPayManaCost()` relies on
 `Zones::constBattlefield()->producibleMana()` which iterates all permanents. With ~4-5 priority
 passes per step (311,397 turn ticks vs 73,652 env_steps), this compounds into the largest hot path.
+**Status**: Reduced mana checks in `computePlayerActions()` by skipping `canPay` when total
+producible mana cannot cover the card's mana value.
 
 ## Secondary bottlenecks
 **Where**: `managym/agent/observation.cpp:192-225`

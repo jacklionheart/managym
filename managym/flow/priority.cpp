@@ -26,6 +26,8 @@ PrioritySystem::computePlayerActions(Player* player) {
 
     bool can_play_land = game->canPlayLand(player);
     bool can_cast = game->canCastSorceries(player);
+    const Mana* producible = nullptr;
+    int total_mana = 0;
 
     for (Card* card : hand) {
         if (card == nullptr) {
@@ -35,7 +37,20 @@ PrioritySystem::computePlayerActions(Player* player) {
             actions.emplace_back(new PlayLand(card, player, game));
             log_debug(LogCat::PRIORITY, "Added PlayLand action for {}", card->toString());
         } else if (card->types.isCastable() && can_cast) {
-            if (game->canPayManaCost(player, card->mana_cost.value())) {
+            if (producible == nullptr) {
+                const Mana& cached = game->cachedProducibleMana(player);
+                producible = &cached;
+                total_mana = cached.total();
+            }
+
+            if (!card->mana_cost.has_value()) {
+                actions.emplace_back(new CastSpell(card, player, game));
+                log_debug(LogCat::PRIORITY, "Added CastSpell action for {}", card->toString());
+                continue;
+            }
+
+            const ManaCost& mana_cost = card->mana_cost.value();
+            if (mana_cost.mana_value <= total_mana && producible->canPay(mana_cost)) {
                 actions.emplace_back(new CastSpell(card, player, game));
                 log_debug(LogCat::PRIORITY, "Added CastSpell action for {}", card->toString());
             }
