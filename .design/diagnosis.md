@@ -7,6 +7,7 @@ The tick loop is dominated by repeated priority passes inside `TurnSystem::tick(
 **Where**: `managym/flow/priority.cpp:20-57`
 **Time**: ~8-12% of `env_step` (e.g., `PRECOMBAT_MAIN_STEP/priority` is 0.078s of 0.954s in `profile-20260116-1731.md`)
 **Why**: `computePlayerActions()` scans the full hand every priority pass and, for each castable card, calls `canPay()` on a cached `Mana` computed via `Battlefield::producibleMana()` (iterates all permanents). With ~4-5 priority passes per step, this hand scan + mana check repeats excessively.
+**Status**: Added a fast-path `canPlayerAct()` check for skip-trivial auto-pass to avoid constructing action vectors when no actions exist.
 
 ## Secondary bottlenecks
 **Where**: `managym/agent/observation.cpp:192-225`

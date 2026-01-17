@@ -34,6 +34,8 @@ struct PrioritySystem {
 
     // Return true if priority round is complete - all players passed and stack is empty
     bool isComplete() const;
+    // Return true if player has any action beyond passing priority.
+    bool canPlayerAct(Player* player);
 
 protected:
     // Helper methods

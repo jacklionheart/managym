@@ -17,6 +17,51 @@ bool PrioritySystem::isComplete() const {
     return pass_count >= players.size() && game->zones->constStack()->objects.empty();
 }
 
+bool PrioritySystem::canPlayerAct(Player* player) {
+    const std::vector<Card*>& hand = game->zones->constHand()->cards[player->index];
+    if (hand.empty()) {
+        return false;
+    }
+
+    bool can_play_land = game->canPlayLand(player);
+    bool can_cast = game->canCastSorceries(player);
+    const Mana* producible = nullptr;
+    int total_mana = 0;
+
+    for (Card* card : hand) {
+        if (card == nullptr) {
+            throw std::logic_error("Card should never be null");
+        }
+        if (card->types.isLand()) {
+            if (can_play_land) {
+                return true;
+            }
+            continue;
+        }
+
+        if (!card->types.isCastable() || !can_cast) {
+            continue;
+        }
+
+        if (!card->mana_cost.has_value()) {
+            return true;
+        }
+
+        if (producible == nullptr) {
+            const Mana& cached = game->cachedProducibleMana(player);
+            producible = &cached;
+            total_mana = cached.total();
+        }
+
+        const ManaCost& mana_cost = card->mana_cost.value();
+        if (mana_cost.mana_value <= total_mana && producible->canPay(mana_cost)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 std::pair<bool, std::vector<std::unique_ptr<Action>>>
 PrioritySystem::computePlayerActions(Player* player) {
     std::vector<std::unique_ptr<Action>> actions;
@@ -82,13 +127,13 @@ std::unique_ptr<ActionSpace> PrioritySystem::tick() {
         Player* player = players[pass_count];
 
         if (game->skip_trivial) {
-            std::pair<bool, std::vector<std::unique_ptr<Action>>> result =
-                computePlayerActions(player);
-            if (!result.first) {
+            if (!canPlayerAct(player)) {
                 log_debug(LogCat::PRIORITY, "Fast-path: {} auto-passes (no actions)", player->name);
                 pass_count++;
                 continue;
             }
+            std::pair<bool, std::vector<std::unique_ptr<Action>>> result =
+                computePlayerActions(player);
             log_debug(LogCat::PRIORITY, "Generating actions for {}", player->name);
             return std::make_unique<ActionSpace>(ActionSpaceType::PRIORITY, std::move(result.second),
                                                  player);
