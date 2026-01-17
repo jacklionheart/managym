@@ -36,3 +36,4 @@
 - ~~**Why create observations on every tick?**~~ RESOLVED: Lazy observation creation implemented.
 - ~~**playersStartingWithActive() caching?**~~ RESOLVED: Caching implemented. Impact: +3.0% steps/sec.
 - ~~**Skip-trivial loop visibility?**~~ RESOLVED: Added profiler scope. Shows 5.4x amplification (400,128 trivial iterations for 73,652 agent steps).
+- ~~**Early-out priority check (Proposal 1)?**~~ RESOLVED: Implemented `canPlayerAct()` fast-path in priority.cpp. Impact: +66% steps/sec (42k → 71k). Reduces priority ticks from 557k to 228k.

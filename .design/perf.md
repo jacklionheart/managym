@@ -1,16 +1,18 @@
 # perf
 
-Performance optimization branch for managym. Adds profiling infrastructure and implements targeted optimizations achieving +164% throughput improvement.
+Performance optimization branch for managym. Adds profiling infrastructure and implements targeted optimizations achieving +339% throughput improvement.
 
 ## Review
 
 **Verdict:** Ready to ship
 
-The branch delivers substantial, measurable performance gains through systematic profiling and targeted fixes. Two major optimizations dominate the improvement:
+The branch delivers substantial, measurable performance gains through systematic profiling and targeted fixes. Three major optimizations dominate the improvement:
 
 1. **InfoDict deferred to episode end** (+129%): Eliminates 54.6% of per-step overhead by moving profiler/behavior stat collection from every step to episode end only.
 
 2. **Profiler scope reduction** (+8.7%): Removes `phase` and `step` profiler scopes from the turn hierarchy, eliminating ~700k unnecessary scope operations per 500-game run.
+
+3. **Early-out priority check** (+66%): Adds `canPlayerAct()` fast-path to skip ActionSpace construction when a player has no actions besides PassPriority. Reduces priority ticks by 59%.
 
 Additional infrastructure changes support ongoing optimization work:
 - Profiling command framework for repeatable analysis
@@ -27,9 +29,10 @@ The code is well-tested, maintains API compatibility, and the performance gains 
 | Baseline (20260116-1614) | 16,122 | — | Lazy obs, vectors |
 | 20260116-1631 | 16,607 | +3.0% | Cache playersStartingWithActive |
 | post-infodict | 39,097 | +142% | InfoDict at episode end only |
-| 20260116-2200 | 42,513 | **+164%** | Remove phase/step profiler scopes |
+| 20260116-2200 | 42,513 | +164% | Remove phase/step profiler scopes |
+| post-early-out | 70,827 | **+339%** | Early-out priority check |
 
-From 16k to 42k steps/sec is a 2.6x improvement.
+From 16k to 71k steps/sec is a 4.4x improvement.
 
 ## Code Changes
 
@@ -81,18 +84,51 @@ std::string compareToBaseline(const std::string& baseline) const;
 ```
 Enables reproducible before/after measurements.
 
+### priority.cpp:20-48 — Early-Out Priority Check
+```cpp
+bool PrioritySystem::canPlayerAct(Player* player) const {
+    const std::vector<Card*>& hand_cards = game->zones->constHand()->cards[player->index];
+    if (hand_cards.empty()) return false;
+
+    bool can_play_land = game->canPlayLand(player);
+    bool can_cast = game->canCastSorceries(player);
+
+    for (Card* card : hand_cards) {
+        if (card->types.isLand() && can_play_land) return true;
+        if (card->types.isCastable() && can_cast) {
+            if (game->canPayManaCost(player, card->mana_cost.value())) return true;
+        }
+    }
+    return false;
+}
+```
+Fast predicate that checks if a player can do anything besides pass. Used in `tick()` to auto-pass players who can only pass, without allocating ActionSpace objects.
+
+### priority.cpp:64-77 — Fast-Path in tick()
+```cpp
+while (pass_count < players.size()) {
+    Player* player = players[pass_count];
+    if (game->skip_trivial && !canPlayerAct(player)) {
+        pass_count++;  // Auto-pass without allocating
+        continue;
+    }
+    return makeActionSpace(player);  // Slow path: full ActionSpace
+}
+```
+When skip_trivial is enabled and a player has no actions, skip the expensive ActionSpace construction entirely. Reduces priority ticks from 557k to 228k (59% reduction).
+
 ## Remaining Bottlenecks
 
-Current profile (42,513 steps/sec) shows:
-- **Skip-trivial loop**: 69.2% of env_step time (1.098s / 400k iterations)
-- **Turn hierarchy**: 42.3% of env_step time (0.671s / 625k calls)
-- **Priority system**: 14.8% (0.234s / 557k calls)
-- **Observation**: 9.4% (0.149s / 74k calls) — well-optimized
+Current profile (70,827 steps/sec) shows:
+- **Turn hierarchy**: 43.4% of env_step time (0.392s / 255k calls)
+- **Priority system**: 17.6% (0.159s / 184k calls) — reduced from 557k
+- **Observation**: 16.7% (0.151s / 74k calls)
+- **Skip-trivial loop**: 12.2% (0.111s / 12k iterations) — reduced from 400k
 
-The 5.4x tick amplification (400k trivial iterations for 74k agent steps) and 97.9% trivial priority passes indicate architectural inefficiency. Further gains require the refactors documented in `refactor-proposal.md`:
-- Integrate skip_trivial into tick loop
-- Flat state machine for turn structure
-- Action object pooling
+The optimization significantly reduced tick amplification. Further gains require the remaining refactors documented in `refactor-proposal.md`:
+- Collapse skip_trivial into tick loop (Proposal 2)
+- Flat state machine for turn structure (Proposal 3)
+- Skip empty combat phases (Proposal 4)
 
 ## Files Changed
 
@@ -106,6 +142,7 @@ The 5.4x tick amplification (400k trivial iterations for 74k agent steps) and 97
 ### Core Optimizations
 - `managym/agent/env.cpp` — InfoDict deferral
 - `managym/flow/turn.cpp` — Profiler scope reduction, player order cache
+- `managym/flow/priority.{h,cpp}` — Early-out priority check (canPlayerAct fast-path)
 - `managym/agent/observation.{h,cpp}` — Map → vector conversion
 - `managym/flow/game.{h,cpp}` — Mana cache, lazy observation
 - `managym/infra/profiler.{h,cpp}` — Baseline comparison API
@@ -113,6 +150,7 @@ The 5.4x tick amplification (400k trivial iterations for 74k agent steps) and 97
 ### Test Updates
 - `tests/agent/test_observation.cpp` — Updated for vector-based API
 - `tests/infra/test_profiler.cpp` — Baseline comparison tests
+- `tests/flow/test_flow.cpp` — canPlayerAct/availablePriorityActions consistency test
 
 ## Binary Artifacts
 

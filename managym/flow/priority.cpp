@@ -17,6 +17,36 @@ bool PrioritySystem::isComplete() const {
     return pass_count >= players.size() && game->zones->constStack()->objects.empty();
 }
 
+bool PrioritySystem::canPlayerAct(Player* player) const {
+    // This must exactly match availablePriorityActions():
+    // Returns true if any action besides PassPriority would be available.
+
+    const std::vector<Card*>& hand_cards = game->zones->constHand()->cards[player->index];
+
+    // Empty hand means only PassPriority
+    if (hand_cards.empty()) {
+        return false;
+    }
+
+    // Pre-compute conditions that apply to multiple cards
+    bool can_play_land = game->canPlayLand(player);
+    bool can_cast = game->canCastSorceries(player);
+
+    // Check each card in hand for playability
+    for (Card* card : hand_cards) {
+        if (card->types.isLand() && can_play_land) {
+            return true;
+        }
+        if (card->types.isCastable() && can_cast) {
+            if (game->canPayManaCost(player, card->mana_cost.value())) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 std::unique_ptr<ActionSpace> PrioritySystem::tick() {
     Profiler::Scope scope = game->profiler->track("priority");
     log_debug(LogCat::PRIORITY, "Ticking PrioritySystem (pass_count={})", pass_count);
@@ -29,9 +59,21 @@ std::unique_ptr<ActionSpace> PrioritySystem::tick() {
         }
     }
 
-    std::vector<Player*> players = game->playersStartingWithActive();
-    if (pass_count < players.size()) {
-        return makeActionSpace(players[pass_count]);
+    const std::vector<Player*>& players = game->playersStartingWithActive();
+
+    // Fast path: when skip_trivial is enabled, auto-pass players who can only pass
+    while (pass_count < players.size()) {
+        Player* player = players[pass_count];
+
+        // If skip_trivial is enabled and player can't act, auto-pass
+        if (game->skip_trivial && !canPlayerAct(player)) {
+            log_debug(LogCat::PRIORITY, "Fast-path: {} auto-passes (no actions)", player->name);
+            pass_count++;
+            continue;
+        }
+
+        // Slow path: build full ActionSpace for this player
+        return makeActionSpace(player);
     }
 
     log_debug(LogCat::PRIORITY, "All players have passed");

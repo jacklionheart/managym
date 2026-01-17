@@ -30,8 +30,15 @@ struct PrioritySystem {
     std::unique_ptr<ActionSpace> tick();
 
     // Reads
+
     // Return true if priority round is complete - all players passed and stack is empty
     bool isComplete() const;
+
+    // Fast check whether a player can take any action besides passing priority.
+    // Used to skip ActionSpace construction when only PassPriority is available.
+    // Must match availablePriorityActions() exactly - if this returns false,
+    // availablePriorityActions() must return only PassPriority.
+    bool canPlayerAct(Player* player) const;
 
 protected:
     // Helper methods
